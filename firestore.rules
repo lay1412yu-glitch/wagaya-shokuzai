@@ -1,0 +1,128 @@
+rules_version = '2';
+// わが家の食材手帳 — Firestore セキュリティルール
+//
+// 旧 Supabase 版の RLS と同じ保証を、Firestore のルールで実現する:
+// - 匿名アクセスは一切なし（すべて要ログイン）
+// - 冷蔵庫のデータ（在庫・買い物リスト・図鑑・設定）は、その冷蔵庫の
+//   メンバーだけが読み書きできる
+// - レシピお気に入りは本人のものだけ読み書きできる
+// - プロフィールは本人だけ。メンバーの表示名はメンバー登録時の
+//   スナップショットを fridge_members 側に持つため、他人のプロフィール
+//   を読む必要がない
+// - フレンドコード: 照合用 fridge_codes は「ドキュメントID（=コードの
+//   SHA-256 ハッシュ）を知っている場合の get」だけ許可し、一覧・検索は禁止。
+//   平文コード fridge_invite_codes は冷蔵庫の作成者だけが読める
+//
+// 既知の制限（正直な注記）:
+// - コード参加の試行回数制限はルールだけでは実装できない（Cloud Functions
+//   = Blaze プランが必要）。緩和策は README 参照: コードは推測しにくい
+//   ランダム8文字、再発行で旧コード即無効、fridgeId はランダムID。
+// - メンバー登録（fridge_members の create）は「自分自身のドキュメント」
+//   のみ許可する。参加フローではコードのハッシュ照合で fridgeId を得て
+//   から登録するが、ルール単体ではコード提示そのものは検証できない。
+//   fridgeId 自体が推測不能なランダムIDであることが前提の設計。
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+    function uid() { return request.auth.uid; }
+    function isMember(fid) {
+      return signedIn() && exists(/databases/$(database)/documents/fridge_members/$(fid + "_" + uid()));
+    }
+    function isOwner(fid) {
+      return signedIn() && get(/databases/$(database)/documents/fridges/$(fid)).data.ownerId == uid();
+    }
+
+    // ---- プロフィール（本人だけ） ----
+    match /users/{userId} {
+      allow get, create, update, delete: if signedIn() && uid() == userId;
+      allow list: if false;
+      // FCM プッシュトークン（本人だけ）
+      match /push_tokens/{tokenId} {
+        allow get, list, create, update, delete: if signedIn() && uid() == userId;
+      }
+    }
+
+    // ---- 冷蔵庫本体 ----
+    match /fridges/{fridgeId} {
+      allow get: if isMember(fridgeId) || isOwner(fridgeId);
+      allow list: if false; // 一覧は fridge_members 経由でのみ辿る
+      allow create: if signedIn() && request.resource.data.ownerId == uid();
+      // 名前変更・作成者引き継ぎ（退会時）は現在の作成者だけ
+      allow update: if isOwner(fridgeId);
+      allow delete: if isOwner(fridgeId);
+    }
+
+    // ---- メンバー ----
+    match /fridge_members/{docId} {
+      // 自分の所属が読める。同じ冷蔵庫のメンバーなら一覧も読める
+      // （list はドキュメントごとにこの条件で評価される）
+      allow get, list: if signedIn()
+        && (resource.data.userId == uid() || isMember(resource.data.fridgeId));
+      // 参加・作成は「自分自身」のドキュメントだけ。役職は member 固定
+      // （冷蔵庫の作成者だけが、自分のドキュメントに owner を名乗れる）
+      allow create: if signedIn() && request.resource.data.userId == uid()
+        && (request.resource.data.role == "member" || isOwner(request.resource.data.fridgeId));
+      // 役職変更（作成者引き継ぎ）は冷蔵庫の作成者だけ
+      allow update: if isOwner(resource.data.fridgeId);
+      // 取り外しは作成者、退出は本人
+      allow delete: if signedIn() && (resource.data.userId == uid() || isOwner(resource.data.fridgeId));
+    }
+
+    // ---- フレンドコード照合（ID = SHA-256ハッシュ。一覧・検索は禁止） ----
+    match /fridge_codes/{codeHash} {
+      allow get: if signedIn();
+      allow list: if false;
+      allow create: if signedIn() && isOwner(request.resource.data.fridgeId);
+      allow delete: if signedIn() && isOwner(resource.data.fridgeId);
+      allow update: if false;
+    }
+
+    // ---- フレンドコード平文（作成者だけが読める） ----
+    match /fridge_invite_codes/{fridgeId} {
+      allow get: if signedIn() && resource.data.ownerId == uid();
+      allow list: if false;
+      allow create, update: if signedIn() && request.resource.data.ownerId == uid()
+        && isOwner(fridgeId);
+      allow delete: if signedIn() && (resource.data.ownerId == uid() || isOwner(fridgeId));
+    }
+
+    // ---- 在庫 ----
+    match /items/{itemId} {
+      allow get, list: if isMember(resource.data.fridgeId);
+      allow create: if isMember(request.resource.data.fridgeId);
+      allow update, delete: if isMember(resource.data.fridgeId);
+    }
+
+    // ---- 買い物リスト ----
+    match /shopping_items/{id} {
+      allow get, list: if isMember(resource.data.fridgeId);
+      allow create: if isMember(request.resource.data.fridgeId);
+      allow update, delete: if isMember(resource.data.fridgeId);
+    }
+
+    // ---- 食材図鑑コレクション ----
+    match /fridge_catalog/{id} {
+      allow get, list: if isMember(resource.data.fridgeId);
+      allow create: if isMember(request.resource.data.fridgeId);
+      allow update, delete: if isMember(resource.data.fridgeId);
+    }
+
+    // ---- 冷蔵庫の設定 ----
+    match /fridge_settings/{fridgeId} {
+      allow get: if isMember(fridgeId) || isOwner(fridgeId);
+      allow list: if false;
+      allow create, update: if isMember(fridgeId) || isOwner(fridgeId);
+      allow delete: if isOwner(fridgeId);
+    }
+
+    // ---- レシピお気に入り（本人のみ） ----
+    match /favorite_recipes/{id} {
+      allow get, list: if signedIn() && resource.data.userId == uid();
+      allow create: if signedIn() && request.resource.data.userId == uid()
+        && isMember(request.resource.data.fridgeId);
+      allow update: if signedIn() && resource.data.userId == uid();
+      allow delete: if signedIn() && resource.data.userId == uid();
+    }
+  }
+}
