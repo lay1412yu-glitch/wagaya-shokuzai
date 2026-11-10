@@ -27,17 +27,6 @@
 //   舞茸=フリル／エリンギ=太い軸／マッシュルーム=白い丸傘 で別キャラ）。
 //   カテゴリ汎用キャラ（cat_*）は、カタログに無い未知・自由入力の
 //   食材名だけに使う。
-//   描き分け強化（「同じイラストが使われている／調味料はせめて色を
-//   変えて／トマト缶をもっと表現して」との指摘を受けて）:
-//   瓶もの調味料は同一シルエットをやめ、形（注ぎ口ディスペンサー／
-//   細身／ずんぐり／広口ジャー等）＋液色＋ラベルのモチーフで判別。
-//   汎用落ちしていた定番（めんつゆ・白だし・ドレッシング・
-//   オイスターソース・焼肉のたれ・豆板醤・うどん・ジュース・大豆）
-//   に専用キャラを追加。缶詰は缶の色＋ラベルに中身そのものを大きく
-//   描く（トマト缶=赤缶に大きなトマト、サバ缶=青缶にさば、
-//   コーン缶=黄缶にとうもろこしの芯、ツナ缶=開缶＋魚マーク帯）。
-//   色違いコピーだった明太子／たらこ、ぶどう／シャインマスカットも
-//   形から描き分け（たらこ=2つの房、シャインマスカット=縦長の粒）。
 // - アイコンSVGはすべて静的な自前データで、食材名などのユーザー入力を
 //   SVG文字列に混ぜることはない（XSS対策は従来通り）。
 
@@ -94,7 +83,7 @@ const ICONS = {
   bread: svg(`<path d="M5.2 11.2C4 9.3 5.2 6.7 7.6 5.9c2.9-1 5.9-1 8.8 0 2.4.8 3.6 3.4 2.4 5.3-.6 1-1.4 1.6-2.4 2v5.2a1.5 1.5 0 0 1-1.5 1.5H9.1a1.5 1.5 0 0 1-1.5-1.5v-5.2c-1-.4-1.8-1-2.4-2Z" fill="#eebd84"/><path d="M9.6 9.3l1.6 1.6M12.8 9.3l1.6 1.6" stroke="#d6bc97"/>`),
   rice: svg(`<path d="M4 13.4h16c-.6 3.5-2.7 5.7-5.4 6.4-1.7.4-3.5.4-5.2 0C6.7 19.1 4.6 16.9 4 13.4Z" fill="#fdfaf2"/><path d="M6.8 13.4c0-2.4 1.5-4 3.4-4.3.6-1 1.6-1.5 2.8-1.4 1.9.1 3.3 1.5 3.6 3.4.4.7.6 1.4.6 2.3M8.5 21.6h7" fill="#fffdf6"/>`),
   noodles: svg(`<path d="M4 12.6h16c-.6 3.7-2.7 6-5.4 6.6-1.7.4-3.5.4-5.2 0C6.7 18.6 4.6 16.3 4 12.6Z" fill="#fdfaf2"/><path d="M7.2 12.4c.4-2 2-3.2 3.8-3 .6-1.2 2.3-1.6 3.5-.7 1.4.9 2.2 2.1 2.3 3.7M15.9 9.7 19.9 3.9M18.3 10.7l3.4-4.9" stroke="#d6bc97"/><path d="M8.5 21.5h7"/>`),
-  seasoning: svg(`<path d="M7 9.4h10l.8 9.3a2 2 0 0 1-2 2.1H8.2a2 2 0 0 1-2-2.1Z" fill="#e8dcc2"/><rect x="6.4" y="5" width="11.2" height="4.4" rx="1" fill="#b08954"/><rect x="8.6" y="12.4" width="6.8" height="4" rx="0.7" fill="#fffdf6" stroke="none"/><circle cx="10.2" cy="14.4" r="0.5" fill="#c9715c" stroke="none"/><circle cx="12.4" cy="13.8" r="0.5" fill="#93bd78" stroke="none"/><circle cx="13.9" cy="15" r="0.5" fill="#e8a54e" stroke="none"/>`),
+  seasoning: svg(`<path d="M10.2 8h3.6v1.9l.8 1.2v8.2a1.6 1.6 0 0 1-1.6 1.6h-2a1.6 1.6 0 0 1-1.6-1.6v-8.2l.8-1.2Z" fill="#f4ead6"/><rect x="9.9" y="4.4" width="4.2" height="3.6" rx="0.5" fill="#d6bc97"/><rect x="10.7" y="13.4" width="2.6" height="3.8" rx="0.6" fill="#fffdf6"/>`),
   drink: svg(`<path d="M6.8 8h10.4l-1 11.1a2 2 0 0 1-2 1.8H9.8a2 2 0 0 1-2-1.8Z" fill="#fdfaf2"/><path d="M6.6 12h10.8M13.6 8 15.2 3.4" stroke="#e2a892"/><path d="M9.7 15.7c.7.5 1.5.5 2.3 0" stroke="#bfd0d4"/>`),
   // ---------- 個別：追加分 ----------
   lettuce: svg(`<path d="M12 5.6c1-1 2.6-.8 3.2.4 1.4-.6 2.8.2 3 1.6 1.4.2 2.2 1.6 1.6 3 1.2 1 .8 2.8-.6 3.4.4 1.6-.6 3-2.2 2.8-.4 1.6-2 2.4-3.4 1.6-1 1.2-2.8 1.2-3.8 0-1.4.8-3 0-3.4-1.6-1.6.2-2.6-1.2-2.2-2.8-1.4-.6-1.8-2.4-.6-3.4-.6-1.4.2-2.8 1.6-3 .4-1.4 1.6-2.2 3-1.6.6-1.2 2.2-1.4 3.2-.4Z" fill="#bcd79b"/><path d="M12 7v11.6M8.7 9.7c.8 1.6 1.1 3.3.9 5.2M15.3 9.7c-.8 1.6-1.1 3.3-.9 5.2" stroke="#e6efd9"/>`),
@@ -126,8 +115,8 @@ const ICONS = {
   gyoza: svg(`<path d="M4.6 16.4c.8-3.8 3.8-6.2 7.4-6.2s6.6 2.4 7.4 6.2c-2.4 1-4.9 1.5-7.4 1.5s-5-.5-7.4-1.5Z" fill="#f3e2c9"/><path d="M7.4 11.3c.4-1.2 1.4-1.8 2.5-1.6M10.9 10.5c.4-1.2 1.8-1.2 2.2 0M14.3 9.7c1.1-.2 2.1.4 2.5 1.6" stroke="#e2c892"/><path d="M4 20h16" stroke="#bfd0d4"/>`),
   flour: svg(`<path d="M7.2 8.4 8.4 4.2h7.2l1.2 4.2-.8 10.5a1.8 1.8 0 0 1-1.8 1.7H9.8a1.8 1.8 0 0 1-1.8-1.7Z" fill="#fdfaf2"/><path d="M7.2 8.4h9.6M12 15.6v-3.4M12 13.6c-1-.4-1.6-1.2-1.6-2.4M12 13.6c1-.4 1.6-1.2 1.6-2.4" stroke="#e2b566"/>`),
   miso: svg(`<path d="M5.6 10.2h12.8l-1.1 8.3a2 2 0 0 1-2 1.7H8.7a2 2 0 0 1-2-1.7Z" fill="#efe4cb"/><ellipse cx="12" cy="10.2" rx="6.4" ry="1.6" fill="#c29c72"/><path d="M4.6 10.2h14.8"/>`),
-  soysauce: svg(`<path d="M11 9.2h2l.5 2.2c1.9.7 3 2.2 3 4.1v3.2a2 2 0 0 1-2 2H9.5a2 2 0 0 1-2-2v-3.2c0-1.9 1.1-3.4 3-4.1Z" fill="#6b4a35"/><path d="M10.6 9.2 11.4 4.6h1.2l.8 4.6Z" fill="#c9715c"/><rect x="9.6" y="12.4" width="4.8" height="3.6" rx="0.7" fill="#f7ecd9" stroke="none"/><path d="M12 13.2c.55.75.85 1.3.85 1.8a.85.85 0 0 1-1.7 0c0-.5.3-1.05.85-1.8Z" fill="#6b4a35" stroke="none"/>`),
-  oil: svg(`<path d="M10.4 7.2h3.2v1.2c1 .6 1.6 1.6 1.6 2.8v7.6a2 2 0 0 1-2 2H10.8a2 2 0 0 1-2-2v-7.6c0-1.2.6-2.2 1.6-2.8Z" fill="#f7e3ae"/><path d="M15.2 11.2c1 .3 1.6 1.1 1.6 2.1s-.6 1.8-1.6 2.1"/><rect x="10" y="3.6" width="4" height="3.6" rx="0.6" fill="#7ba968"/><path d="M12 10.6c.75.95 1.15 1.7 1.15 2.4a1.15 1.15 0 0 1-2.3 0c0-.7.4-1.45 1.15-2.4Z" fill="#eab54e" stroke="none"/>`),
+  soysauce: svg(`<path d="M10.3 9.6h3.4l.8 9.7a1.5 1.5 0 0 1-1.5 1.6h-2a1.5 1.5 0 0 1-1.5-1.6Z" fill="#a3866a"/><path d="M10.9 5.6h2.2v4h-2.2z" fill="#e2d5ba"/><path d="M10.5 3.2h3l.4 2.4h-3.8Z" fill="#c9715c"/><rect x="10.5" y="12.6" width="3" height="3.8" rx="0.6" fill="#f7ecd9" stroke="none"/>`),
+  oil: svg(`<path d="M10.4 8.8h3.2v1.6l.9 1.4v7.4a1.7 1.7 0 0 1-1.7 1.7h-1.6a1.7 1.7 0 0 1-1.7-1.7v-7.4l.9-1.4Z" fill="#fae49a"/><path d="M10.9 8.8 12.9 4h2.5l-1.3 4.8" fill="#d6bc97"/><path d="M12 12.6c.55.8.85 1.4.85 1.95a.85.85 0 0 1-1.7 0c0-.55.3-1.15.85-1.95Z" fill="#eab54e" stroke="none"/>`),
   tea: svg(`<path d="M5.2 10.6h10.8v3.8a5.4 5.4 0 0 1-10.8 0Z" fill="#fdfaf2"/><path d="M16 11.7h1.1a2.7 2.7 0 0 1 0 5.4h-1.2M8.6 7.4c0-.9.7-1.2.7-2.1M12.7 7.4c0-.9.7-1.2.7-2.1" stroke="#bfd0d4"/><path d="M5.2 11.2c-1 .4-1.5 1.2-1.5 2.4" stroke="#bfd0d4"/><rect x="2.8" y="13.4" width="1.9" height="2.3" rx="0.4" fill="#e2d5ba"/><path d="M4.6 21.4h12"/>`),
   coffee: svg(`<path d="M5.2 9.6h10.8V14a5.4 5.4 0 0 1-10.8 0Z" fill="#fdfaf2"/><path d="M16 10.7h1.1a2.7 2.7 0 0 1 0 5.4h-1.2M8.6 6.4c0-.9.7-1.2.7-2.1M12.7 6.4c0-.9.7-1.2.7-2.1" stroke="#d6bc97"/><path d="M4.6 20.4h12M7.8 12.5c1.8.7 3.8.7 5.6 0" stroke="#c29c72"/><ellipse cx="18.9" cy="18.3" rx="1.15" ry="1.55" transform="rotate(24 18.9 18.3)" fill="#c29c72"/><path d="M18.5 17.1c.6.8.7 1.7.3 2.6" stroke="#9d7350"/>`),
   beer: svg(`<path d="M7.2 8.6h8.8v9.7a2 2 0 0 1-2 2H9.2a2 2 0 0 1-2-2Z" fill="#f9db82"/><path d="M16 10.7h1.2a2.9 2.9 0 0 1 0 5.8H16M7.2 12.5h8.8"/><path d="M7.4 8.4C6.6 7 7.4 5.3 9 4.9c.6-1.2 2.2-1.6 3.4-1 1.2-.6 2.8-.2 3.4 1 1.4.5 2.1 2.1 1.4 3.5M9.7 8.4v1.7M13.9 8.4v1.3" fill="#fffdf6"/>`),
@@ -176,8 +165,8 @@ const ICONS = {
   shio: svg(`<path d="M7.4 10.4h9.2l.7 8.4a2 2 0 0 1-2 2.1H8.7a2 2 0 0 1-2-2.1Z" fill="#fdfaf2"/><path d="M8.9 10.4c.4-1.8 1.6-2.9 3.1-2.9s2.7 1.1 3.1 2.9" fill="#fffdf6"/><circle cx="9.2" cy="18.2" r="0.3" fill="#d8cfc0" stroke="none"/><circle cx="14.8" cy="13.6" r="0.3" fill="#d8cfc0" stroke="none"/>`),
   sato: svg(`<rect x="6" y="11.4" width="7.4" height="7.4" rx="1.2" fill="#fffdf6"/><rect x="11.6" y="11.4" width="7.4" height="7.4" rx="1.2" fill="#fdfaf2"/><rect x="8.8" y="5" width="7.4" height="7.4" rx="1.2" fill="#fdfaf2"/>`),
   katakuriko: svg(`<path d="M4.4 13.6h15.2c-.6 3.2-2.5 5.3-5 6-1.6.4-3.4.4-5 0-2.5-.7-4.4-2.8-5-6Z" fill="#e2d5ba"/><path d="M7.2 13.4c.5-2.6 2.4-4.3 4.8-4.3s4.3 1.7 4.8 4.3" fill="#fffdf6"/><circle cx="8.2" cy="7.6" r="0.34" fill="#e8e0cc" stroke="none"/><circle cx="15.9" cy="6.8" r="0.34" fill="#e8e0cc" stroke="none"/>`),
-  gomaabura: svg(`<path d="M10.4 10.2h3.2v1.4l.8 1.2v6a1.9 1.9 0 0 1-1.9 1.9h-1a1.9 1.9 0 0 1-1.9-1.9v-6l.8-1.2Z" fill="#b06a28"/><path d="M10.9 6.4h2.2v3.8h-2.2z" fill="#e2d5ba"/><path d="M10.5 4h3l.4 2.4h-3.8Z" fill="#c9715c"/><rect x="10.3" y="13.4" width="3.4" height="3.6" rx="0.6" fill="#f7ecd9" stroke="none"/><circle cx="11.2" cy="14.8" r="0.26" fill="#b06a28" stroke="none"/><circle cx="12.8" cy="15.8" r="0.26" fill="#b06a28" stroke="none"/>`),
-  tsunacan: svg(`<path d="M6.6 10.6h10.8v8.6a1.8 1.8 0 0 1-1.8 1.8H8.4a1.8 1.8 0 0 1-1.8-1.8Z" fill="#d8dcd8"/><ellipse cx="12" cy="10.6" rx="5.4" ry="1.7" fill="#f0b49c"/><path d="M8.8 10.2c1 .6 2.1.8 3.2.6M12.6 11c1 .5 2.1.6 3.1.3" stroke="#dd8a70"/><rect x="6.6" y="13.8" width="10.8" height="3.2" fill="#a8cbd9" stroke="none"/><path d="M9.9 15.4c.6-.7 1.4-1 2.3-.9.8.1 1.5.5 2 1.1-.5.6-1.2 1-2 1-.9.1-1.7-.3-2.3-1.1Z" fill="#fdfaf2" stroke="none"/><path d="M13.9 15.5l1-.8c-.2.5-.2 1 0 1.5Z" fill="#fdfaf2" stroke="none"/><path d="M15.9 10.2 18.6 4.6"/><ellipse cx="18.9" cy="4.2" rx="1.05" ry="0.75" transform="rotate(-38 18.9 4.2)" fill="#d8dcd8"/>`),
+  gomaabura: svg(`<path d="M10.3 9.8h3.4l.8 9.5a1.6 1.6 0 0 1-1.6 1.7h-1.8a1.6 1.6 0 0 1-1.6-1.7Z" fill="#c68a4a"/><path d="M10.9 5.8h2.2v4h-2.2z" fill="#e2d5ba"/><path d="M10.4 3.4h3.2l.4 2.4h-4Z" fill="#c9715c"/><rect x="10.4" y="12.4" width="3.2" height="4" rx="0.6" fill="#f7ecd9" stroke="none"/><circle cx="11.3" cy="14" r="0.26" fill="#c68a4a" stroke="none"/><circle cx="12.7" cy="15.2" r="0.26" fill="#c68a4a" stroke="none"/>`),
+  tsunacan: svg(`<path d="M6.6 10.6h10.8v8.6a1.8 1.8 0 0 1-1.8 1.8H8.4a1.8 1.8 0 0 1-1.8-1.8Z" fill="#d8dcd8"/><ellipse cx="12" cy="10.6" rx="5.4" ry="1.7" fill="#f0b49c"/><path d="M8.8 10.2c1 .6 2.1.8 3.2.6M12.6 11c1 .5 2.1.6 3.1.3" stroke="#dd8a70"/><path d="M15.9 10.2 18.6 4.6"/><ellipse cx="18.9" cy="4.2" rx="1.05" ry="0.75" transform="rotate(-38 18.9 4.2)" fill="#d8dcd8"/>`),
   // ---------- 激レア・レア・標準追加（専用キャラ） ----------
   matsutake: svg(`<path d="M5.5 10.2C6 6.6 8.8 4.6 12 4.6s6 2 6.5 5.6c-2.2.9-4.4 1.3-6.5 1.3s-4.3-.4-6.5-1.3Z" fill="#b98d5f"/><path d="M9.6 11.4c-.2 3-.1 5.8.3 8.4.7.6 1.4.8 2.1.8s1.4-.2 2.1-.8c.4-2.6.5-5.4.3-8.4Z" fill="#efe3cb"/><path d="M8.4 7.4l1.6 1.4M14.8 6.8l-1.2 1.6" stroke="#e8dcc2"/>`),
   truffle: svg(`<path d="M12 4.6c1.8-.3 3.4.5 4.3 1.9 1.7.3 2.9 1.7 2.9 3.4 0 .5-.1 1-.3 1.4.8 1.5.4 3.3-.9 4.4-.3 1.7-1.9 2.9-3.6 2.8-1.1.9-2.7 1-4 .3-1.7.2-3.3-.8-3.9-2.3-1.5-.6-2.4-2.1-2.1-3.7-.9-1.4-.6-3.2.7-4.3.1-1.8 1.5-3.2 3.3-3.3.8-1 1.6-1.4 2.6-1.6Z" fill="#8a6a4e"/><ellipse cx="12" cy="12.8" rx="4.8" ry="4.1" fill="#a3805e"/><circle cx="8.6" cy="8.6" r="0.4" fill="#c9ab7d" stroke="none"/><circle cx="15.6" cy="8.2" r="0.4" fill="#c9ab7d" stroke="none"/><circle cx="17" cy="14.6" r="0.4" fill="#c9ab7d" stroke="none"/><circle cx="7.2" cy="15.4" r="0.4" fill="#c9ab7d" stroke="none"/>`),
@@ -207,7 +196,7 @@ const ICONS = {
   karasumi: svg(`<rect x="4.2" y="9.8" width="13.2" height="5.8" rx="2.9" transform="rotate(-12 10.8 12.7)" fill="#e8933d"/><ellipse cx="17.9" cy="10.6" rx="2" ry="2.9" transform="rotate(-12 17.9 10.6)" fill="#f2a95e"/><path d="M6.8 11.2c2.4.5 4.9.4 7.3-.3" stroke="#f7c489"/>`),
   ankimo: svg(`<ellipse cx="12" cy="18.9" rx="7.8" ry="1.7" fill="#d8e4e6"/><ellipse cx="8.6" cy="14.6" rx="3.1" ry="4.1" transform="rotate(-14 8.6 14.6)" fill="#eec39a"/><ellipse cx="13.4" cy="13.4" rx="3.1" ry="4.1" transform="rotate(-14 13.4 13.4)" fill="#f2cfa5"/><ellipse cx="17.6" cy="15.4" rx="2.7" ry="3.6" transform="rotate(-14 17.6 15.4)" fill="#eec39a"/><path d="M11.8 11.2c.9.7 2 1 3.1.8" stroke="#f7e3c2"/>`),
   sakuranbo: svg(`<path d="M12.6 10.8C13.4 7.6 15 5.2 17.4 3.6M11.4 11.6C10.9 8.3 11.3 5.4 12.8 3.2" stroke="#7ba968"/><path d="M12.8 3.4c1.5-1 3.3-1.1 4.9-.3-.7 1.5-2.1 2.4-3.8 2.5" fill="#93bd78"/><circle cx="9.2" cy="15.8" r="4.1" fill="#d96a76"/><circle cx="16.4" cy="13.9" r="3.6" fill="#cf5f6d"/><path d="M7.3 13.9c.3-1 .9-1.7 1.8-2.1" stroke="#f6ddd2"/>`),
-  shinemuscat: svg(`<ellipse cx="9.2" cy="10.9" rx="1.95" ry="2.55" fill="#cfe08a"/><ellipse cx="14.8" cy="10.9" rx="1.95" ry="2.55" fill="#c3d67e"/><ellipse cx="7.9" cy="14.3" rx="1.95" ry="2.55" fill="#c3d67e"/><ellipse cx="12" cy="13.7" rx="1.95" ry="2.55" fill="#cfe08a"/><ellipse cx="16.1" cy="14.3" rx="1.95" ry="2.55" fill="#cfe08a"/><ellipse cx="9.9" cy="17.2" rx="1.9" ry="2.45" fill="#cfe08a"/><ellipse cx="14.1" cy="17.2" rx="1.9" ry="2.45" fill="#c3d67e"/><ellipse cx="12" cy="19.8" rx="1.8" ry="2.3" fill="#c3d67e"/><path d="M12 8.6c0-2 .8-3.5 2.4-4.5M14.6 4.1c1.4-.6 2.8-.4 3.9.6-1 1.2-2.4 1.7-3.9 1.4" fill="#93bd78"/>`),
+  shinemuscat: svg(`<circle cx="9.2" cy="10.9" r="2.35" fill="#cfe08a"/><circle cx="14.8" cy="10.9" r="2.35" fill="#c3d67e"/><circle cx="7.9" cy="14.1" r="2.35" fill="#c3d67e"/><circle cx="12" cy="13.5" r="2.35" fill="#cfe08a"/><circle cx="16.1" cy="14.1" r="2.35" fill="#cfe08a"/><circle cx="9.9" cy="16.8" r="2.35" fill="#cfe08a"/><circle cx="14.1" cy="16.8" r="2.35" fill="#c3d67e"/><circle cx="12" cy="19.4" r="2.2" fill="#c3d67e"/><path d="M12 8.6c0-2 .8-3.5 2.4-4.5M14.6 4.1c1.4-.6 2.8-.4 3.9.6-1 1.2-2.4 1.7-3.9 1.4" fill="#93bd78"/>`),
   mango: svg(`<path d="M7.4 6.6c2.9-2 6.9-1.9 9.8.3 2.5 1.9 3.4 5 2.2 7.9-1.3 3.1-4.4 5.1-7.8 5-3.9-.1-7-2.7-7.6-6.4-.4-2.6.7-5 2.4-6.8Z" fill="#f7c65c"/><path d="M13.4 8.3c2 .3 3.6 1.7 4.1 3.6.5 2-.3 4-1.9 5.2-1.9.3-3.7-.6-4.7-2.2-1-1.7-.8-3.8.4-5.3.5-.6 1.2-1.1 2.1-1.3Z" fill="#f9d67e"/><path d="M12.5 10.5v5.4M10.9 12h4.4M11.2 14.6h3.9" stroke="#eab54e"/><path d="M8.9 5.8C8.7 4.3 9.3 3 10.5 2.2" stroke="#93a878"/>`),
   lychee: svg(`<circle cx="12" cy="13.4" r="6.9" fill="#d98a94"/><circle cx="8.8" cy="10" r="0.42" fill="#c9717c" stroke="none"/><circle cx="15.4" cy="9.6" r="0.42" fill="#c9717c" stroke="none"/><circle cx="7.9" cy="15.6" r="0.42" fill="#c9717c" stroke="none"/><circle cx="16.1" cy="16" r="0.42" fill="#c9717c" stroke="none"/><ellipse cx="12" cy="7.6" rx="2.5" ry="1.7" fill="#fdf6ec"/><path d="M12 6.2c.2-1.4 1-2.4 2.3-3" stroke="#93a878"/>`),
   zuwaigani: svg(`<path d="M7.7 12.6 2.9 15.4l-1.2 3.4M8.4 13.9l-4.1 3.4-1.1 3M15.6 13.9l4.1 3.4 1.1 3M16.3 12.6l4.8 2.8 1.2 3.4"/><ellipse cx="12" cy="11.6" rx="4.4" ry="3.1" fill="#e8a06a"/><path d="M8.1 9.7C6.8 8.6 5.4 8.3 4.2 9c.7 1.2 1.9 1.9 3.3 1.9M15.9 9.7c1.3-1.1 2.7-1.4 3.9-.7-.7 1.2-1.9 1.9-3.3 1.9"/>`),
@@ -241,8 +230,8 @@ const ICONS = {
   karei: svg(`<ellipse cx="12" cy="12.4" rx="8.2" ry="5.6" fill="#d8c4ab"/><path d="M19.4 12.4l2.9-2.2c-.4 1.4-.4 3 0 4.4Z" fill="#cbb493"/><circle cx="8.6" cy="10" r="0.34" fill="#bda47c" stroke="none"/><circle cx="13.9" cy="9.4" r="0.34" fill="#bda47c" stroke="none"/><circle cx="15.8" cy="14.8" r="0.34" fill="#bda47c" stroke="none"/><circle cx="7.8" cy="15" r="0.34" fill="#bda47c" stroke="none"/>`),
   hokke: svg(`<path d="M12 4.4c2.8 2.2 4.6 5 5.3 8.3.6 2.9-.3 5.5-2.4 7.2-.9.7-2 .9-2.9.4-.9.5-2 .3-2.9-.4-2.1-1.7-3-4.3-2.4-7.2.7-3.3 2.5-6.1 5.3-8.3Z" fill="#c9b18c"/><path d="M12 5.2v14.4M8.9 9.4c.9.5 1.9.6 2.9.3M15.1 9.4c-.9.5-1.9.6-2.9.3M8.7 13.8c1 .5 2 .6 3 .3M15.3 13.8c-1 .5-2 .6-3 .3" stroke="#bda47c"/>`),
   shishamo: svg(`<path d="M4.4 8.2c2.6-1.7 5.7-2.3 8.9-1.7 2.2.4 4.1 1.6 5.4 3.4l1.7-1.2c-.3 1.9-.3 3.8 0 5.7l-1.7-1.2c-1.3 1.8-3.2 3-5.4 3.4-3.2.6-6.3 0-8.9-1.7Z" fill="#d9c9a8"/><ellipse cx="10.6" cy="12.6" rx="3.4" ry="1.6" fill="#f2d492"/><path d="M4.9 16.9c2.3-1.5 5-2 7.8-1.5" stroke="#cbb493"/>`),
-  mentaiko: svg(`<path d="M5.6 9.2h12.8l-1 9.9a1.8 1.8 0 0 1-1.8 1.6H8.4a1.8 1.8 0 0 1-1.8-1.6Z" fill="#e8e2d2"/><path d="M8.7 12.6c-.9-2.3-.6-4.5.8-6.3 1.3.9 1.9 2.5 1.7 4.2 1-1.4 2.5-2 4.1-1.7.8 1.9.5 3.9-.7 5.5-1.9.9-4 .7-5.9-.7Z" fill="#e86a5e"/><circle cx="10.6" cy="10.6" r="0.3" fill="#b83a2a" stroke="none"/><circle cx="13.8" cy="11.6" r="0.3" fill="#b83a2a" stroke="none"/><circle cx="11.9" cy="9.9" r="0.3" fill="#b83a2a" stroke="none"/><circle cx="13" cy="13.4" r="0.3" fill="#b83a2a" stroke="none"/><path d="M15.9 15.9c1-1 2.3-1.2 3.5-.6-.3 1.2-1.3 2-2.6 2.1" fill="#d94f3d" stroke="none"/><path d="M19.2 15.2c.1-.7.5-1.2 1.1-1.5" stroke="#7ba968"/>`),
-  tarako: svg(`<path d="M5.6 9.2h12.8l-1 9.9a1.8 1.8 0 0 1-1.8 1.6H8.4a1.8 1.8 0 0 1-1.8-1.6Z" fill="#e8e2d2"/><ellipse cx="10" cy="11.2" rx="1.9" ry="2.7" transform="rotate(-16 10 11.2)" fill="#f6c1b8"/><ellipse cx="14" cy="11.2" rx="1.9" ry="2.7" transform="rotate(16 14 11.2)" fill="#f2b8b0"/><path d="M9.2 9.3c.3.8.4 1.6.3 2.4M14.8 9.3c-.3.8-.4 1.6-.3 2.4" stroke="#e8a58f"/>`),
+  mentaiko: svg(`<path d="M5.6 9.2h12.8l-1 9.9a1.8 1.8 0 0 1-1.8 1.6H8.4a1.8 1.8 0 0 1-1.8-1.6Z" fill="#e8e2d2"/><path d="M8.7 12.6c-.9-2.3-.6-4.5.8-6.3 1.3.9 1.9 2.5 1.7 4.2 1-1.4 2.5-2 4.1-1.7.8 1.9.5 3.9-.7 5.5-1.9.9-4 .7-5.9-.7Z" fill="#e86a5e"/><circle cx="10.6" cy="10.6" r="0.3" fill="#f2a0a8" stroke="none"/><circle cx="13.8" cy="11.6" r="0.3" fill="#f2a0a8" stroke="none"/>`),
+  tarako: svg(`<path d="M5.6 9.2h12.8l-1 9.9a1.8 1.8 0 0 1-1.8 1.6H8.4a1.8 1.8 0 0 1-1.8-1.6Z" fill="#e8e2d2"/><path d="M8.7 12.6c-.9-2.3-.6-4.5.8-6.3 1.3.9 1.9 2.5 1.7 4.2 1-1.4 2.5-2 4.1-1.7.8 1.9.5 3.9-.7 5.5-1.9.9-4 .7-5.9-.7Z" fill="#f2b8b0"/><circle cx="10.6" cy="10.6" r="0.3" fill="#e8937a" stroke="none"/><circle cx="13.8" cy="11.6" r="0.3" fill="#e8937a" stroke="none"/>`),
   uzura: svg(`<ellipse cx="9" cy="13.6" rx="4.4" ry="5.4" fill="#f4ead6"/><ellipse cx="15.8" cy="12.4" rx="3.8" ry="4.7" fill="#f7ecd7"/><circle cx="8" cy="11" r="0.75" fill="#c9ab7d" stroke="none"/><circle cx="10.6" cy="15.8" r="0.6" fill="#c9ab7d" stroke="none"/><circle cx="15" cy="10.2" r="0.65" fill="#c9ab7d" stroke="none"/><circle cx="17" cy="14.6" r="0.55" fill="#c9ab7d" stroke="none"/>`),
   kamaboko: svg(`<path d="M4.6 17.9h14.8" stroke="#c29c72"/><path d="M5.4 17.6c.3-3.9 3-6.4 6.6-6.4s6.3 2.5 6.6 6.4Z" fill="#fdfaf2"/><path d="M5.4 17.6c.3-3.9 3-6.4 6.6-6.4s6.3 2.5 6.6 6.4c-4.4.8-8.8.8-13.2 0Z" fill="#f2a0a8"/>`),
   chikuwa: svg(`<rect x="4.4" y="9.2" width="15.2" height="6.2" rx="3.1" transform="rotate(-16 12 12.3)" fill="#f4ead6"/><ellipse cx="18.3" cy="9.9" rx="1.7" ry="2.6" transform="rotate(-16 18.3 9.9)" fill="#fdfaf2"/><ellipse cx="18.3" cy="9.9" rx="0.75" ry="1.25" transform="rotate(-16 18.3 9.9)" fill="#d8c4ab"/><path d="M7.6 10.6c.9.3 1.7.9 2.3 1.7M11.4 9.2c.9.3 1.7.9 2.3 1.7" stroke="#d9a05e"/>`),
@@ -255,13 +244,13 @@ const ICONS = {
   umeboshi: svg(`<circle cx="9.2" cy="13.8" rx="4.3" ry="4" fill="#d95f6a"/><path d="M6.8 11.4c.7-.7 1.6-1 2.5-.9M7.2 15.8c.6.8 1.5 1.2 2.4 1.2" stroke="#c04a55"/><path d="M14.4 8.2c1.9-1.4 4.3-1.6 6.4-.6-.5 2.2-2.1 3.8-4.3 4.4" fill="#b57bb5"/><circle cx="16.6" cy="15.9" r="2.9" fill="#e07a86"/>`),
   takuan: svg(`<path d="M4.4 18.9c5-1 10.2-1 15.2 0" stroke="#d6bc97"/><ellipse cx="8" cy="14.4" rx="3.1" ry="4" transform="rotate(-18 8 14.4)" fill="#f7d154"/><ellipse cx="12.4" cy="13.4" rx="3.1" ry="4.1" fill="#f9d95e"/><ellipse cx="16.8" cy="14.4" rx="3.1" ry="4" transform="rotate(18 16.8 14.4)" fill="#f7d154"/>`),
   francepan: svg(`<path d="M4.2 16.8C7.8 10.6 13.4 5.9 19.9 3.9c.9-.3 1.7.5 1.4 1.4-1.8 6.6-6.4 12.3-12.6 16-.9.5-2 0-2.2-1-.3-1.2-1.1-2.1-2.3-3.5Z" fill="#e3aa68"/><path d="M9.8 11.4l2.2 1.4M13.4 8.2l2.2 1.4M16.9 5.4l2 1.3" stroke="#c4834e"/>`),
-  su: svg(`<path d="M10.6 8.4h2.8v2l.7 1.1v7.3a1.8 1.8 0 0 1-1.8 1.8h-.6a1.8 1.8 0 0 1-1.8-1.8v-7.3l.7-1.1Z" fill="#eef3ec"/><rect x="9.9" y="4.2" width="4.2" height="4.2" rx="0.6" fill="#fdfaf2"/><path d="M9.9 12.6h4.2" stroke="#bfd8d2"/><rect x="10.2" y="13.8" width="3.6" height="3" rx="0.5" fill="#d8e8e2" stroke="none"/><path d="M12 14.3c.5.6.8 1 .8 1.4a.8.8 0 0 1-1.6 0c0-.4.3-.8.8-1.4Z" fill="#8fb8ad" stroke="none"/>`),
-  mirin: svg(`<path d="M10.4 7.4h3.2v2c2 .8 3.2 2.4 3.2 4.6v4.6a2.2 2.2 0 0 1-2.2 2.2H9.4a2.2 2.2 0 0 1-2.2-2.2V14c0-2.2 1.2-3.8 3.2-4.6Z" fill="#f2cf7e"/><rect x="10.1" y="3.8" width="3.8" height="3.6" rx="0.6" fill="#c9715c"/><rect x="9.4" y="12.6" width="5.2" height="3.8" rx="0.7" fill="#fffdf6" stroke="none"/><circle cx="12" cy="14.5" r="1" fill="#e8a54e" stroke="none"/>`),
-  ryorishu: svg(`<path d="M10.8 6.8h2.4v3.4c1 .5 1.6 1.4 1.6 2.6v5.8a2 2 0 0 1-2 2h-1.6a2 2 0 0 1-2-2v-5.8c0-1.2.6-2.1 1.6-2.6Z" fill="#eef0e6"/><path d="M10.8 6.8V4.2h2.4v2.6" fill="#c9715c"/><rect x="9.8" y="13.2" width="4.4" height="3.2" rx="0.5" fill="#f7ecd9" stroke="none"/><path d="M11 14.8h2" stroke="#c29c72"/>`),
+  su: svg(`<path d="M10.1 8.6h3.8v1.7l.9 1.3v7.5a1.8 1.8 0 0 1-1.8 1.8h-2a1.8 1.8 0 0 1-1.8-1.8v-7.5l.9-1.3Z" fill="#f2ede0"/><rect x="9.8" y="4.6" width="4.4" height="4" rx="0.6" fill="#c29c72"/><path d="M9.2 15h5.6" stroke="#d8e4e6"/><rect x="10.4" y="16.6" width="3.2" height="3" rx="0.5" fill="#fffdf6"/>`),
+  mirin: svg(`<path d="M10.2 8.8h3.6v1.6l.9 1.3v7.4a1.8 1.8 0 0 1-1.8 1.8h-1.8a1.8 1.8 0 0 1-1.8-1.8v-7.4l.9-1.3Z" fill="#f2cf7e"/><rect x="9.9" y="4.8" width="4.2" height="4" rx="0.6" fill="#7d9db5"/><rect x="10.3" y="13" width="3.4" height="4.2" rx="0.6" fill="#fffdf6" stroke="none"/>`),
+  ryorishu: svg(`<path d="M10.2 7.6h3.6l.9 11.3a1.8 1.8 0 0 1-1.8 1.9h-1.8a1.8 1.8 0 0 1-1.8-1.9Z" fill="#eef0e6"/><path d="M10.2 7.6V4.8h3.6v2.8" fill="#c9715c"/><rect x="10" y="11.4" width="4" height="5" rx="0.5" fill="#f7ecd9" stroke="none"/><path d="M10.9 13.2h2.2M10.9 14.8h2.2" stroke="#c29c72"/>`),
   mayonnaise: svg(`<path d="M8.8 8.2h6.4l.9 10.6a2 2 0 0 1-2 2H9.9a2 2 0 0 1-2-2Z" fill="#fdf6e0"/><path d="M9.4 8.2V5.6h5.2v2.6" fill="#e86a5e"/><path d="M10.9 3.4h2.2l.5 2.2h-3.2Z" fill="#e86a5e"/><path d="M9.3 13.4c.8.7 1.7 1 2.7 1s1.9-.3 2.7-1" stroke="#eab54e"/>`),
-  ketchup: svg(`<path d="M10.2 8.6h3.6c.9.9 1.4 2 1.4 3.3v6.9a2 2 0 0 1-2 2h-2.4a2 2 0 0 1-2-2v-6.9c0-1.3.5-2.4 1.4-3.3Z" fill="#dd5f45"/><path d="M10.2 8.6V6.4h3.6v2.2" fill="#f2cf7e"/><path d="M11 6.4 12 3.6l1 2.8Z" fill="#f2cf7e"/><circle cx="12" cy="13.8" r="2.3" fill="#fdf6ec" stroke="none"/><circle cx="12" cy="14" r="1.5" fill="#d95f47" stroke="none"/><path d="M11 13.1c.6-.4 1-.1 1.4-.5.4.4.8.1 1.4.5-.6.4-1.2.5-1.8.3-.6.2-1.2.1-1.8-.3Z" fill="#93bd78" stroke="none"/>`),
-  sauce: svg(`<path d="M10.7 7h2.6v3c1.1.5 1.7 1.5 1.7 2.8v5.9a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2v-5.9c0-1.3.6-2.3 1.7-2.8Z" fill="#7a4a30"/><rect x="10.2" y="3.4" width="3.6" height="3.6" rx="0.6" fill="#4f3a2c"/><rect x="9.9" y="12.6" width="4.2" height="4" rx="0.5" fill="#e8d9b8" stroke="none"/><path d="M10.7 14.6h2.6" stroke="#7a4a30"/>`),
-  ponzu: svg(`<path d="M9.8 8.2h4.4v1.8c1.8.7 2.8 2.2 2.8 4.2v4.4a2.2 2.2 0 0 1-2.2 2.2H9.2A2.2 2.2 0 0 1 7 18.6v-4.4c0-2 1-3.5 2.8-4.2Z" fill="#a5713d"/><rect x="9.5" y="4.4" width="5" height="3.8" rx="0.7" fill="#758a7a"/><circle cx="12" cy="14.2" r="2.3" fill="#f2cf4a" stroke="none"/><path d="M12 12.3v3.8M10.1 13.3l3.8 1.8M13.9 13.3l-3.8 1.8" stroke="#fdfaf2"/>`),
+  ketchup: svg(`<path d="M9.6 9.4c-1 .8-1.5 1.9-1.5 3.2v6.2a2 2 0 0 0 2 2h3.8a2 2 0 0 0 2-2v-6.2c0-1.3-.5-2.4-1.5-3.2V7.2H9.6Z" fill="#e87a5f"/><path d="M9.6 5.4h4.8v1.8H9.6z" fill="#f2cf7e"/><circle cx="12" cy="14.6" r="2.1" fill="#fdeef0"/><path d="M12 13.4c-1 .3-1.6 1.1-1.6 2.1 1 .3 2 .1 2.8-.5.3-.9-.2-1.5-1.2-1.6Z" fill="#e87a5f" stroke="none"/>`),
+  sauce: svg(`<path d="M10.4 8.4h3.2l.8 10.5a1.8 1.8 0 0 1-1.8 1.9h-1.2a1.8 1.8 0 0 1-1.8-1.9Z" fill="#8a5f43"/><rect x="9.7" y="4.2" width="4.6" height="4.2" rx="0.7" fill="#4f3a2c"/><rect x="10.2" y="12.2" width="3.6" height="4.4" rx="0.6" fill="#f7ecd9" stroke="none"/>`),
+  ponzu: svg(`<path d="M10.2 8.8h3.6v1.6l.9 1.3v7.4a1.8 1.8 0 0 1-1.8 1.8h-1.8a1.8 1.8 0 0 1-1.8-1.8v-7.4l.9-1.3Z" fill="#d9a05e"/><rect x="9.9" y="4.8" width="4.2" height="4" rx="0.6" fill="#758a7a"/><circle cx="12" cy="14.8" r="2" fill="#f2cf4a"/><path d="M12 13.2c.1-.8.6-1.4 1.3-1.7" stroke="#e2b566"/>`),
   consomme: svg(`<rect x="5.6" y="10.6" width="6.4" height="6.4" rx="1.2" transform="rotate(-8 8.8 13.8)" fill="#e8a54e"/><rect x="12" y="10.6" width="6.4" height="6.4" rx="1.2" transform="rotate(8 15.2 13.8)" fill="#f2b566"/><path d="M12 4.6h.01M12 4.6c1.6.2 2.7 1.4 2.8 3" stroke="#e8a54e"/>`),
   torigara: svg(`<path d="M7 9.4h10v9.4a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2Z" fill="#f2cf7e"/><path d="M7 9.4c0-1.5 1-2.5 2.4-2.7C9.8 5.6 10.8 5 12 5s2.2.6 2.6 1.7C16 6.9 17 7.9 17 9.4" fill="#eebd84"/><rect x="9.2" y="12.2" width="5.6" height="4.6" rx="0.7" fill="#fffdf6" stroke="none"/><path d="M10.4 14.6c.5-.5 1.1-.7 1.7-.5.5-.4 1.2-.3 1.6.2" stroke="#e8a54e"/>`),
   dashinomoto: svg(`<path d="M6.4 8.6h11.2v10.6a1.6 1.6 0 0 1-1.6 1.6H8a1.6 1.6 0 0 1-1.6-1.6Z" fill="#e8e2d2"/><path d="M6.4 8.6c1.8-1.8 4-2.7 6.4-2.6" stroke="#c9ab7d"/><path d="M8.8 6.4c.9-1.6 2.4-2.6 4.2-2.8.2 1.5-.5 2.9-1.8 3.7M10.4 12.6c1.2-.3 2.4-.1 3.5.5" stroke="#d98a5e"/><rect x="9" y="15" width="6" height="3.4" rx="0.6" fill="#fffdf6" stroke="none"/>`),
@@ -271,27 +260,12 @@ const ICONS = {
   wakame: svg(`<path d="M7.4 20.5c-1.2-3-.9-6.2.8-9.1C6.8 9.3 6.6 6.8 7.6 4.6c1.7 1.4 2.6 3.4 2.6 5.6 1-2.3 2.7-4 5-4.9.6 2.3.1 4.6-1.3 6.5 1.9 2.9 2.3 6.2 1.2 9.4-1.3-1.5-3-2.3-4.9-2.3-1.2 0-2.2.7-2.8 1.6Z" fill="#7ba968"/><path d="M10.5 8.2c.3 3.2.1 6.4-.6 9.5M14.6 9.4c-.2 3-.1 5.9.4 8.8" stroke="#93bd78"/>`),
   konbu: svg(`<path d="M6.2 4.4h9.6c1 .5 1.6 1.5 1.6 2.7v10.2c0 1.2-.6 2.2-1.6 2.7H8.4c-1.2-.5-2-1.6-2-3Z" fill="#5f7d54"/><path d="M6.2 9.6h11.2M6.2 14.6h11.2" stroke="#7ba968"/><ellipse cx="11.8" cy="12.1" rx="3" ry="2.2" fill="#74916a"/>`),
   hijiki: svg(`<path d="M4.6 12.8h14.8c-.6 3.3-2.5 5.5-5 6.2-1.6.4-3.4.4-5 0-2.5-.7-4.4-2.9-5-6.2Z" fill="#d8e4e6"/><path d="M7.6 12.4c.4-1.5 1.5-2.5 2.9-2.7M11 12.2c.5-1.7 1.8-2.8 3.4-3M14.6 12.4c.6-1.2 1.7-1.9 3-2" stroke="#4f463c"/><circle cx="9.2" cy="10.8" r="0.3" fill="#4f463c" stroke="none"/><circle cx="13" cy="10.2" r="0.3" fill="#4f463c" stroke="none"/>`),
-  sabacan: svg(`<rect x="6.4" y="5.2" width="11.2" height="14.4" rx="1.2" fill="#7fa8c9"/><ellipse cx="12" cy="5.2" rx="5.6" ry="1.3" fill="#d8dcd8"/><path d="M6.4 9h11.2M6.4 16.8h11.2" stroke="#5f8299"/><rect x="6.4" y="9.6" width="11.2" height="6.6" fill="#fdfaf2" stroke="none"/><path d="M8.2 12.9c1-1.3 2.4-2 4-1.9 1.4.1 2.7.8 3.6 1.9-.9 1.1-2.2 1.8-3.6 1.9-1.6.1-3-.6-4-1.9Z" fill="#7d9db5" stroke="none"/><path d="M15.4 12.9l1.8-1.4c-.3.9-.3 1.9 0 2.8Z" fill="#7d9db5" stroke="none"/><path d="M9.8 11.7c.5.4.8.9.8 1.5M11.8 11.3c.5.4.8.9.8 1.5" stroke="#5f8299"/>`),
-  corncan: svg(`<rect x="6.4" y="5.2" width="11.2" height="14.4" rx="1.2" fill="#f2b63d"/><ellipse cx="12" cy="5.2" rx="5.6" ry="1.3" fill="#f7e3ae"/><path d="M6.4 9h11.2M6.4 16.8h11.2" stroke="#d98a2b"/><rect x="6.4" y="9.6" width="11.2" height="6.6" fill="#fdf6e0" stroke="none"/><rect x="10.6" y="10.3" width="2.8" height="5.1" rx="1.4" fill="#f7d154" stroke="none"/><path d="M11.3 10.9v4M12.7 10.9v4M10.7 12.3h2.6M10.7 13.7h2.6" stroke="#e8a54e"/><path d="M10.5 15.1c-.5.6-.7 1.2-.6 1.9M13.5 15.1c.5.6.7 1.2.6 1.9" stroke="#93bd78"/>`),
-  tomatocan: svg(`<rect x="6.4" y="5.2" width="11.2" height="14.4" rx="1.2" fill="#d94f3d"/><ellipse cx="12" cy="5.2" rx="5.6" ry="1.3" fill="#d8dcd8"/><path d="M6.4 9h11.2M6.4 16.8h11.2" stroke="#b83a2a"/><rect x="6.4" y="9.6" width="11.2" height="6.6" fill="#fdf3df" stroke="none"/><circle cx="12" cy="12.9" r="2.5" fill="#e0533a" stroke="none"/><path d="M10.2 11.1c.8-.6 1.2-.2 1.8-.8.6.6 1 .2 1.8.8-.6.4-1.2.5-1.8.3-.6.2-1.2.1-1.8-.3Z" fill="#7ba968" stroke="none"/><path d="M10.3 13.2c-.2.8-.1 1.6.3 2.3" stroke="#f6c8b8"/>`),
+  sabacan: svg(`<rect x="6.6" y="5" width="10.8" height="14.6" rx="1.4" fill="#a8cbd9"/><ellipse cx="12" cy="5" rx="5.4" ry="1.3" fill="#d8e4e6"/><path d="M6.6 9.6h10.8M6.6 16.4h10.8" stroke="#8fb0bd"/><path d="M8.6 13c.8-1 2-1.5 3.3-1.4 1.2.1 2.3.7 3 1.7-.7.9-1.8 1.4-3 1.4-1.3 0-2.5-.6-3.3-1.7Z" fill="#fdfaf2" stroke="none"/>`),
+  corncan: svg(`<rect x="6.6" y="5" width="10.8" height="14.6" rx="1.4" fill="#f2cf7e"/><ellipse cx="12" cy="5" rx="5.4" ry="1.3" fill="#f7e3ae"/><path d="M6.6 9.6h10.8M6.6 16.4h10.8" stroke="#e2b566"/><circle cx="9.8" cy="12.4" r="0.85" fill="#f7d06e" stroke="none"/><circle cx="12.6" cy="13.6" r="0.85" fill="#f7d06e" stroke="none"/><circle cx="14.6" cy="11.8" r="0.85" fill="#f7d06e" stroke="none"/>`),
+  tomatocan: svg(`<rect x="6.6" y="5" width="10.8" height="14.6" rx="1.4" fill="#e8937a"/><ellipse cx="12" cy="5" rx="5.4" ry="1.3" fill="#f2b49c"/><path d="M6.6 9.6h10.8M6.6 16.4h10.8" stroke="#d97a5f"/><circle cx="12" cy="13" r="2.2" fill="#d95f47"/><path d="M10.9 11.5c.7-.5 1.3-.2 1.9-.7.5.5 1.1.2 1.8.7" fill="#93bd78" stroke="none"/>`),
   panko: svg(`<path d="M6.8 7.6 8.2 3.8h7.6l1.4 3.8-.8 11.2a1.9 1.9 0 0 1-1.9 1.8H9.5a1.9 1.9 0 0 1-1.9-1.8Z" fill="#f7ecd7"/><path d="M6.8 7.6h10.4" stroke="#e2c892"/><circle cx="9.8" cy="12" r="0.5" fill="#e8cf9e" stroke="none"/><circle cx="13.6" cy="11.2" r="0.5" fill="#e8cf9e" stroke="none"/><circle cx="10.6" cy="15.4" r="0.5" fill="#e8cf9e" stroke="none"/><circle cx="14.2" cy="15.8" r="0.5" fill="#e8cf9e" stroke="none"/>`),
   frozenpotato: svg(`<path d="M7.2 9.2h9.6l-1.1 10.3a1.9 1.9 0 0 1-1.9 1.7H10.2a1.9 1.9 0 0 1-1.9-1.7Z" fill="#e87a5f"/><path d="M8.6 9.4 7.9 4.2M11.3 9.3 11 3.6M14 9.3l.6-5.1M16.3 9.4l1.2-4.6" stroke="#f7d06e"/><path d="M9.6 14.6c.7.6 1.5.9 2.4.9s1.7-.3 2.4-.9" stroke="#fdeef0"/>`),
   mixveg: svg(`<path d="M6.6 8.4h10.8l-.9 10.7a2 2 0 0 1-2 1.8H9.5a2 2 0 0 1-2-1.8Z" fill="#dfe9e4"/><path d="M6.6 8.4c1.7-1 3.6-1.4 5.4-1.2 1.9-.2 3.7.2 5.4 1.2" fill="#fdfaf2"/><circle cx="9.8" cy="12.2" r="1" fill="#f7d06e" stroke="none"/><circle cx="14.4" cy="12" r="1" fill="#93c07d" stroke="none"/><rect x="10.6" y="14.6" width="1.9" height="1.9" rx="0.4" fill="#f5b26b" stroke="none"/><circle cx="14.8" cy="15.6" r="0.95" fill="#f7d06e" stroke="none"/>`),
-
-  // ---------- 描き分け追加：調味料・缶詰以外の定番（汎用落ち解消） ----------
-  // めんつゆ／白だし／ドレッシングなどは以前は汎用瓶 seasoning に落ち、
-  // オイスターソースは sauce、焼肉のたれは肉カテゴリ汎用に誤解決されていた。
-  // 瓶ものは「形（細身／ずんぐり／広口ジャー／注ぎ口）＋液色＋ラベルの
-  // モチーフ」を三点セットで変え、一目で判別できるようにする。
-  mentsuyu: svg(`<path d="M10.2 8h3.6v1.8c1.2.6 1.9 1.7 1.9 3.1v5.9a2 2 0 0 1-2 2h-3.4a2 2 0 0 1-2-2v-5.9c0-1.4.7-2.5 1.9-3.1Z" fill="#5f4632"/><rect x="9.9" y="4.2" width="4.2" height="3.8" rx="0.6" fill="#54677f"/><rect x="9.7" y="12.2" width="4.6" height="4.2" rx="0.6" fill="#f7ecd9" stroke="none"/><path d="M10.6 14.3c.7-.8 1.7-1.1 2.7-.8.5.2 1 .5 1.3 1-.3.5-.8.8-1.3 1-1 .3-2 0-2.7-.8Z" fill="#8fb0bd" stroke="none"/><path d="M13.3 14.5l1-.8c-.2.5-.2 1 0 1.5Z" fill="#8fb0bd" stroke="none"/>`),
-  shirodashi: svg(`<rect x="9.6" y="9" width="4.8" height="11.6" rx="1" fill="#f3e3ae"/><path d="M10.6 9V6.4h2.8V9" fill="#fdfaf2"/><rect x="10.3" y="4" width="3.4" height="2.4" rx="0.5" fill="#e8e2d2"/><rect x="10.2" y="12" width="3.6" height="4" rx="0.5" fill="#fdfaf2" stroke="none"/><path d="M10.9 14c.5-.6 1.2-.8 2-.6.6.1 1.1.5 1.4 1-.3.5-.8.9-1.4 1-.8.2-1.5 0-2-.6Z" fill="#a8cbd9" stroke="none"/>`),
-  oystersauce: svg(`<path d="M9.6 9h4.8c1.3.8 2 2.1 2 3.7v5.9a2.1 2.1 0 0 1-2.1 2.1H9.7a2.1 2.1 0 0 1-2.1-2.1v-5.9c0-1.6.7-2.9 2-3.7Z" fill="#4f3423"/><rect x="9.2" y="5" width="5.6" height="4" rx="0.8" fill="#e9b44c"/><rect x="7.6" y="12.6" width="8.8" height="3.4" fill="#f7ecd9" stroke="none"/><path d="M12 15.4 10.1 13.2c.6-.4 1.2-.6 1.9-.6s1.3.2 1.9.6Z" fill="#c9b18c" stroke="none"/><path d="M10.8 13.4l.5 1.2M12 13.2v1.4M13.2 13.4l-.5 1.2" stroke="#b09a83"/>`),
-  yakinikutare: svg(`<path d="M9.9 8.4h4.2l1 1.5c.9.6 1.4 1.6 1.4 2.8v5.9a2.1 2.1 0 0 1-2.1 2.1H9.6a2.1 2.1 0 0 1-2.1-2.1v-5.9c0-1.2.5-2.2 1.4-2.8Z" fill="#8a4a2e"/><rect x="9.6" y="4.6" width="4.8" height="3.8" rx="0.7" fill="#4f3a2c"/><rect x="9.5" y="12" width="5" height="4.2" rx="0.6" fill="#fdf3df" stroke="none"/><path d="M12 12.7c.8 1 1.2 1.9 1.2 2.7a1.2 1.2 0 0 1-2.4 0c0-.5.2-1 .5-1.4.2.3.5.5.7.6-.1-.6-.1-1.2 0-1.9Z" fill="#e8734a" stroke="none"/>`),
-  tobanjan: svg(`<path d="M7.2 9.4h9.6l.7 9.2a2 2 0 0 1-2 2.2H8.5a2 2 0 0 1-2-2.2Z" fill="#e8e2d2"/><path d="M6.5 9.4h11" stroke="#c74b3c"/><ellipse cx="12" cy="9.4" rx="4.8" ry="1.1" fill="#c74b3c"/><rect x="6.8" y="5.2" width="10.4" height="3.2" rx="0.8" fill="#c74b3c"/><path d="M10.2 13.6c1.1-.9 2.5-1 3.7-.3.2 1.3-.5 2.5-1.7 3.1-1.1-.3-1.9-1.3-2-2.8Z" fill="#d94f3d" stroke="none"/><path d="M13.6 13.2c.1-.8.6-1.4 1.3-1.7" stroke="#7ba968"/>`),
-  dressing: svg(`<path d="M10.3 8.4h3.4v1.6l.9 1.3v7.5a1.9 1.9 0 0 1-1.9 1.9h-1.4a1.9 1.9 0 0 1-1.9-1.9v-7.5l.9-1.3Z" fill="#f7ead0"/><path d="M9.4 16.2h5.2" stroke="#e8cf9e"/><rect x="9.9" y="4.6" width="4.2" height="3.8" rx="0.6" fill="#7ba968"/><path d="M12 11.6c-1.3.9-1.9 2.2-1.7 3.7 1.5-.1 2.7-1 3.2-2.3.7.1 1.4-.1 1.9-.6-1-.8-2.2-1.1-3.4-.8Z" fill="#93bd78" stroke="none"/><circle cx="14.6" cy="14.6" r="0.85" fill="#e87a5f" stroke="none"/>`),
-  udon: svg(`<path d="M4 12.8h16c-.6 3.6-2.7 5.9-5.4 6.5-1.7.4-3.5.4-5.2 0C6.7 18.7 4.6 16.4 4 12.8Z" fill="#7a6a58"/><ellipse cx="12" cy="12.8" rx="8" ry="1.6" fill="#efe0bc"/><path d="M6.8 12.4c1.2-.7 2.6-.7 3.8 0M10.6 12.1c1.2-.7 2.6-.7 3.8 0" stroke="#fffdf6"/><path d="M15.9 10.9c1 .1 1.8.8 2.1 1.8-.7.3-1.4.3-2.1 0-.7.3-1.4.3-2.1 0 .3-1 1.1-1.7 2.1-1.8Z" fill="#f2a0a8"/><path d="M8.4 11.3l1 .4M12.9 11l1 .4" stroke="#93bd78"/>`),
-  juice: svg(`<path d="M8.6 9.4 10 5.8h4l1.4 3.6v9.4a1.8 1.8 0 0 1-1.8 1.8H10.4a1.8 1.8 0 0 1-1.8-1.8Z" fill="#f59a3f"/><path d="M10 5.8 8.8 3.4h6.4L14 5.8" fill="#e87f27"/><path d="M13.9 5.4 15.5 2.5h1.8" stroke="#e86a5e"/><circle cx="11.6" cy="13.2" r="2.2" fill="#fdf6e0" stroke="none"/><circle cx="11.6" cy="13.2" r="1.45" fill="#f59a3f" stroke="none"/><path d="M11.6 12.1c.1-.7.5-1.2 1.1-1.5" stroke="#7ba968"/>`),
-  daizu: svg(`<path d="M4.6 8.2c5-1.8 10.2-1.6 15 .6-.4 1.8-1.8 3-3.6 3.4-4.4.9-8.9.5-13.1-1.1.2-1.2.8-2.2 1.7-2.9Z" fill="#bcd79b"/><path d="M6.4 9.4c3.9-1.1 8-1 11.9.3" stroke="#93bd78"/><ellipse cx="8.4" cy="15.8" rx="1.8" ry="2.3" fill="#f4ead6"/><ellipse cx="12.2" cy="16.4" rx="1.9" ry="2.4" fill="#f7ecd7"/><ellipse cx="16" cy="15.8" rx="1.8" ry="2.3" fill="#f4ead6"/><path d="M12.2 14.2c-.1-.9.3-1.7 1-2.2" stroke="#93bd78"/>`),
 
   // ---------- カテゴリ汎用 ----------
   cat_veg: svg(`<path d="M12 21c-3.4-1-5.9-3.8-6.3-7.5-.3-3 .8-5.9 3-7.9.4 2.3 1.5 4 3.3 5.2 1.8-1.2 2.9-2.9 3.3-5.2 2.2 2 3.3 4.9 3 7.9-.4 3.7-2.9 6.5-6.3 7.5Z" fill="#a5cc8a"/><path d="M12 21v-9.9"/>`),
@@ -353,10 +327,10 @@ const FACE_POS = {
   persimmon: [12, 14.5, 0.85], chestnut: [12, 10.5, 0.8], avocado: [12, 11, 0.6],
   // 主食・調味料・飲み物・その他
   bread: [12, 16, 0.85], rice: [12, 16.8, 0.8], noodles: [11.5, 16.3, 0.75],
-  seasoning: [12, 18.7, 0.48], drink: [12, 16.8, 0.75], cream: [12, 15.8, 0.8],
+  seasoning: [12, 15.3, 0.45], drink: [12, 16.8, 0.75], cream: [12, 15.8, 0.8],
   soymilk: [12, 10.8, 0.55], onigiri: [12, 12.8, 0.5], gyoza: [12, 13.8, 0.75],
-  flour: [12, 17.3, 0.7], miso: [12, 15.8, 0.8], soysauce: [12, 18.5, 0.42],
-  oil: [12, 17.6, 0.48], tea: [10.5, 15.3, 0.75], coffee: [10.5, 14.8, 0.75],
+  flour: [12, 17.3, 0.7], miso: [12, 15.8, 0.8], soysauce: [12, 14.5, 0.45],
+  oil: [12, 16.5, 0.5], tea: [10.5, 15.3, 0.75], coffee: [10.5, 14.8, 0.75],
   beer: [11.5, 15, 0.8], honey: [12, 15.5, 0.8], chocolate: [12, 12.2, 0.75],
   icecream: [12, 8.8, 0.65],
   // 品種・部位・加工品（専用キャラ）
@@ -371,7 +345,7 @@ const FACE_POS = {
   koyadofu: [12, 12.6, 0.75], rollpan: [12, 17, 0.6], soba: [12, 16.6, 0.75],
   pasta: [12, 17.7, 0.55], ramen: [12, 15.7, 0.65], somen: [12.1, 14.4, 0.55],
   mochi: [12, 16.4, 0.8], shio: [12, 15.8, 0.65], sato: [9.7, 15.1, 0.55],
-  katakuriko: [12, 16.8, 0.65], gomaabura: [12, 18.8, 0.38], tsunacan: [12, 18.9, 0.4],
+  katakuriko: [12, 16.8, 0.65], gomaabura: [12, 18.3, 0.45], tsunacan: [12, 16, 0.7],
   // 激レア・レア・標準追加
   matsutake: [12, 15.2, 0.62],
   truffle: [12, 12.6, 0.8],
@@ -449,12 +423,12 @@ const FACE_POS = {
   umeboshi: [9.2, 14.2, 0.55],
   takuan: [12.4, 13.9, 0.55],
   francepan: [11.6, 14.6, 0.5],
-  su: [12, 18.8, 0.4],
-  mirin: [12, 18.9, 0.42],
+  su: [12, 17.9, 0.45],
+  mirin: [12, 15.2, 0.45],
   ryorishu: [12, 18.9, 0.42],
   mayonnaise: [12, 16.9, 0.6],
-  ketchup: [12, 18.6, 0.4],
-  sauce: [12, 18.6, 0.4],
+  ketchup: [12, 17.9, 0.42],
+  sauce: [12, 14.5, 0.45],
   ponzu: [12, 18.3, 0.42],
   consomme: [12, 14, 0.55],
   torigara: [12, 18.9, 0.42],
@@ -471,15 +445,6 @@ const FACE_POS = {
   panko: [12, 17.9, 0.5],
   frozenpotato: [12, 17.2, 0.55],
   mixveg: [12, 18.3, 0.5],
-  mentsuyu: [12, 18.7, 0.42],
-  shirodashi: [12, 18.7, 0.36],
-  oystersauce: [12, 18.9, 0.4],
-  yakinikutare: [12, 18.7, 0.42],
-  tobanjan: [12, 18.7, 0.42],
-  dressing: [12, 18.4, 0.42],
-  udon: [12, 16.6, 0.7],
-  juice: [12, 18.4, 0.45],
-  daizu: [12, 16.6, 0.45],
 
   // カテゴリ汎用
   cat_veg: [12, 14, 0.8], cat_meat: [9.8, 12.2, 0.6], cat_fish: [9.2, 12, 0.55],
@@ -636,15 +601,6 @@ const EXPR = {
   panko: "smile",
   frozenpotato: "happy",
   mixveg: "smile",
-  mentsuyu: "calm",
-  shirodashi: "smile",
-  oystersauce: "calm",
-  yakinikutare: "grin",
-  tobanjan: "playful",
-  dressing: "happy",
-  udon: "happy",
-  juice: "happy",
-  daizu: "smile",
 
   // カテゴリ汎用
   cat_veg: "smile", cat_meat: "happy", cat_fish: "calm", cat_dairy: "smile",
@@ -898,15 +854,6 @@ const TILT = {
   panko: 2,
   frozenpotato: -3,
   mixveg: 2,
-  mentsuyu: -2,
-  shirodashi: -3,
-  oystersauce: -2,
-  yakinikutare: 2,
-  tobanjan: 3,
-  dressing: 3,
-  udon: 3,
-  juice: -3,
-  daizu: 2,
 };
 for (const k of Object.keys(ICONS)) {
   let extra = "";
@@ -959,14 +906,6 @@ const FOOD_KEYWORDS = [
   [["ドラゴンフルーツ"], "dragonfruit"],
   [["生ハム"], "namahamu"],
   [["ポン酢","ぽん酢"], "ponzu"],
-  [["めんつゆ"], "mentsuyu"],
-  [["白だし"], "shirodashi"],
-  [["オイスターソース"], "oystersauce"],
-  [["焼肉のたれ","焼き肉のたれ"], "yakinikutare"],
-  [["豆板醤","甜麺醤"], "tobanjan"],
-  [["ドレッシング"], "dressing"],
-  [["ジュース"], "juice"],
-  [["うどん"], "udon"],
   [["サバ缶","さば缶","鯖缶"], "sabacan"],
   [["コーン缶"], "corncan"],
   [["トマト缶"], "tomatocan"],
@@ -1098,7 +1037,7 @@ const FOOD_KEYWORDS = [
   [["厚揚げ"], "atsuage"],
   [["油揚げ"], "aburaage"],
   [["高野豆腐"], "koyadofu"],
-  [["大豆"], "daizu"],
+  [["大豆"], "cat_soy"],
   [["ロールパン"], "rollpan"],
   [["焼きそば"], "noodles"],
   [["そば", "蕎麦"], "soba"],

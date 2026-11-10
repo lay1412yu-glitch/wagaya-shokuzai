@@ -240,26 +240,6 @@ input[type="checkbox"] { width: 20px; height: 20px; accent-color: var(--accent);
 
 /* レシピ: 消費順（期限→購入順）の見える化 */
 .fifo-chip { background: #eef3e4; border-color: #c9dcab; color: #56743a; font-weight: 700; }
-
-/* レシピ表示タブ（おすすめ／イベント献立／お気に入り）: 3つでもはみ出さないよう少し小さめ */
-.recipe-view-tabs button { font-size: 13px; padding-left: 2px; padding-right: 2px; }
-
-/* イベント献立: 行事の選択タブ（横スクロールするタブバー） */
-.event-grid { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
-.event-tabs {
-  flex-wrap: nowrap; overflow-x: auto; padding: 4px 2px 8px;
-  scrollbar-width: thin; -webkit-overflow-scrolling: touch;
-}
-.event-tabs .event-chip { flex: none; white-space: nowrap; }
-.event-tabs .event-chip.active { border-width: 1.5px; }
-.event-chip {
-  min-height: 44px; padding: 9px 14px; border-radius: 999px; cursor: pointer;
-  background: var(--cream); border: 1px solid var(--line-soft); color: var(--ink-soft);
-  font-size: 14px; font-weight: 700; font-family: inherit;
-  transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease;
-}
-.event-chip.active { background: var(--card); color: var(--accent-deep); border-color: var(--accent); box-shadow: 0 1px 3px rgba(122, 94, 58, 0.10), 0 4px 12px rgba(122, 94, 58, 0.08); }
-.event-head .btn { margin-top: 10px; }
 .fifo-note { font-size: 11.5px; color: var(--ink-soft); margin-left: 4px; }
 
 /* 食材の知識ページ（食育） */
@@ -387,13 +367,3 @@ select.inline-select { width: auto; display: inline-block; padding: 6px 8px; fon
 .legal-row p { margin: 2px 0 0; }
 .legal-links { text-align: center; margin-top: 14px; font-size: 13px; color: var(--ink-soft); }
 .link-btn { background: none; border: none; color: var(--ink-soft); text-decoration: underline; cursor: pointer; font-size: 13px; padding: 2px; }
-
-/* ---- 食材クイズゲーム（学びながら遊べるゲーム） ---- */
-.game-hero .food-icon { width: 96px; height: 96px; }
-.game-hero .food-icon svg { width: 74px; height: 74px; }
-.game-hero .food-icon.game-mystery { filter: brightness(0.45) saturate(0.25) contrast(0.9); }
-.game-score { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
-.game-q { font-size: 17.5px; font-weight: 800; line-height: 1.75; letter-spacing: 0.02em; margin: 6px 0 4px; }
-.game-choice { text-align: left; font-size: 15.5px; }
-.game-message { font-weight: 700; font-size: 16px; }
-.game-card .quiz-result { font-size: 16px; }
