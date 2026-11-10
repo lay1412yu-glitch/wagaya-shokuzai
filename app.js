@@ -14,7 +14,8 @@
 //   ログイン完了後に自動で参加を試みる（URL の履歴からは即座に消す）。
 
 import { el, uid, todayISO, daysUntil, formatDate, expiryLabel, expiryGroup, formatCode, fmtQtyValue, qtyStepFor, roundQty, isFractionUnit, matchesSearch, topPurchased, recentRegistered } from "./util.js";
-import { suggestRecipes, suggestMealSet } from "./recipes.js";
+import { suggestRecipes, suggestMealSet, suggestEventMenu, EVENT_MENUS, suggestRegionalMenu, REGIONS } from "./recipes.js";
+import { buildGameQuestions, scoreGame, CORRECT_PRAISE, GAME_QUESTION_COUNT, GAME_COUNT_OPTIONS } from "./game.js";
 import { qrToCanvas } from "./qrcode.js";
 import { iconEl, CATALOG, rarityOf, rarityCategory } from "./icons.js";
 import { levelForCount, titleFor, remainingToNextLevel } from "./levels.js";
@@ -83,6 +84,11 @@ const state = {
   user: null, fridges: [], fridge: null, members: [],
   items: [], shopping: [], favRecipes: [], catalog: [], settings: { familySize: 2 },
   tab: "stock", authTab: "login", recipeMode: "stock", recipeView: "suggest",
+  eventMenuId: null, // 選択中のイベント献立（null のときは先頭のイベント）
+  regionId: null, // 選択中の地域（郷土料理。null のときは先頭の地域）
+  gameView: false, // 食材クイズゲーム表示中
+  game: null, // ゲームの進行状態 { questions, index, phase, selected, flags, streak, bestStreak }（保存しない）
+  gameCount: GAME_QUESTION_COUNT, // ゲームの出題数（5 / 10 / 15 から選択。保存しない）
   zukanFilter: "all", // 図鑑のレアリティ絞り込み: all | ultra | rare
   knowledgeName: null, knowledgeCategory: null, // 食材の知識ページ表示中（食育）
   presetAdd: null, // 図鑑から在庫登録フォームへ渡す下書き { name, category, unit? }
@@ -367,6 +373,7 @@ function renderMain() {
   const content = el("div", {});
   if (state.showGuide) content.append(renderGuideCard());
   if (state.knowledgeName) content.append(renderKnowledgePage());
+  else if (state.gameView) content.append(renderGamePage());
   else if (state.tab === "stock") content.append(renderStockTab());
   else if (state.tab === "shopping") content.append(renderShoppingTab());
   else if (state.tab === "recipes") content.append(renderRecipesTab());
@@ -381,7 +388,7 @@ function renderMain() {
   document.getElementById("header-sub").textContent = state.fridge ? state.fridge.name : "";
 }
 function navBtn(tab, icon, label) {
-  return el("button", { class: state.tab === tab && !state.knowledgeName ? "active" : "", onclick: () => { state.tab = tab; state.knowledgeName = null; renderMain(); } },
+  return el("button", { class: state.tab === tab && !state.knowledgeName && !state.gameView ? "active" : "", onclick: () => { state.tab = tab; state.knowledgeName = null; state.gameView = false; state.game = null; renderMain(); } },
     el("span", { class: "nav-icon" }, icon), label);
 }
 
@@ -454,6 +461,136 @@ function renderKnowledgePage() {
     section("💡 まめちしき", info.trivia.map((t) => el("p", { class: "k-text" }, "・" + t))),
     section("❓ 3択クイズ", el("p", { class: "k-text quiz-q" }, info.quiz.q), ...quizBtns, quizResult),
   );
+  return wrap;
+}
+
+// ---------- 食材クイズゲーム（学びながら遊べるゲーム） ----------
+// 図鑑タブから入る。問題は知識データ（旬・まめちしき・3択クイズ）から
+// js/game.js が組み立てる。集めた食材を優先して出題し、足りなければ
+// カタログから補う。結果は保存せず、在庫データには一切触れない。
+function gamePool() {
+  const catOf = new Map();
+  for (const [, c, ns] of CATALOG) for (const n of ns) if (!catOf.has(n)) catOf.set(n, c);
+  const collected = state.catalog.map((c) => ({
+    name: c.name,
+    category: c.category || catOf.get(c.name) || rarityCategory(c.name) || "その他",
+  }));
+  const seen = new Set(collected.map((p) => p.name));
+  const rest = [...catOf.entries()]
+    .filter(([n]) => !seen.has(n))
+    .map(([name, category]) => ({ name, category }));
+  // 集めた食材を中心に、プールが小さければカタログから補充する
+  // （出題数が多いラウンドでは補充も多めにして顔ぶれを増やす）
+  const want = state.gameCount || GAME_QUESTION_COUNT;
+  return [...collected, ...rest.slice(0, Math.max(0, want * 2 - collected.length))];
+}
+function startGame() {
+  const questions = buildGameQuestions(gamePool(), {
+    count: state.gameCount || GAME_QUESTION_COUNT,
+    seed: (Date.now() % 2147483646) + 1,
+  });
+  state.game = { questions, index: 0, phase: "ask", selected: null, flags: [], streak: 0, bestStreak: 0 };
+  state.gameView = true;
+  renderMain();
+  try { window.scrollTo(0, 0); } catch { /* 表示専用 */ }
+}
+function answerGame(idx) {
+  const g = state.game;
+  if (!g || g.phase !== "ask") return;
+  const q = g.questions[g.index];
+  const correct = idx === q.answer;
+  g.flags.push(correct);
+  g.streak = correct ? g.streak + 1 : 0;
+  if (g.streak > g.bestStreak) g.bestStreak = g.streak;
+  g.selected = idx;
+  g.phase = "feedback";
+  renderMain();
+}
+function renderGamePage() {
+  const wrap = el("div", {});
+  const backBtn = el("button", {
+    class: "btn secondary small", onclick: () => { state.gameView = false; state.game = null; renderMain(); },
+  }, "← 図鑑にもどる");
+  wrap.append(backBtn);
+  const g = state.game;
+  // スタート画面
+  if (!g) {
+    const hero = el("div", { class: "card knowledge-hero game-hero" },
+      iconEl("トマト", "野菜"), iconEl("にんじん", "野菜"), iconEl("卵", "卵・乳製品"),
+      el("div", { class: "k-name" }, "🎮 食材クイズゲーム"),
+      el("p", { class: "k-text" }, "3択クイズ・旬クイズ・なまえ当てのほかに、栄養クイズ、見分け方クイズ、旬の食べ物クイズ、郷土料理クイズも出るよ。もんだいのかずを選んでね。集めた食材から問題が出るから、図鑑を集めるほど楽しくなるよ！"),
+      el("div", { class: "tabs game-count-tabs", role: "tablist", "aria-label": "もんだいのかずを選ぶ" },
+        GAME_COUNT_OPTIONS.map((n) => el("button", {
+          class: (state.gameCount || GAME_QUESTION_COUNT) === n ? "active" : "",
+          role: "tab", "aria-selected": (state.gameCount || GAME_QUESTION_COUNT) === n ? "true" : "false",
+          onclick: () => { state.gameCount = n; renderMain(); },
+        }, `${n}もん`))),
+      el("button", { class: "btn wide", onclick: () => startGame() }, "ゲームスタート！"),
+    );
+    wrap.append(hero);
+    return wrap;
+  }
+  // 結果画面
+  if (g.index >= g.questions.length) {
+    const result = scoreGame(g.flags);
+    wrap.append(el("div", { class: "card knowledge-hero game-hero" },
+      iconEl("かぼちゃ", "野菜"),
+      el("div", { class: "k-name" }, "🎉 結果はっぴょう"),
+      el("div", { class: "game-score" },
+        el("span", { class: "chip" }, `${result.total}もん中 ${result.correct}もん せいかい`),
+        el("span", { class: "chip" }, `いちばん長いれんぞくせいかいは ${result.bestStreak}もん`),
+      ),
+      el("p", { class: "k-text game-message" }, result.message),
+      el("button", { class: "btn wide", onclick: () => startGame() }, "もう一回あそぶ"),
+      el("button", { class: "btn secondary wide", onclick: () => { state.gameView = false; state.game = null; renderMain(); } }, "図鑑にもどる"),
+    ));
+    return wrap;
+  }
+  // 出題画面
+  const q = g.questions[g.index];
+  const scoreNow = g.flags.filter(Boolean).length;
+  const heroIcon = iconEl(q.name, q.category);
+  if ((q.type === "name" || q.type === "seasonfood") && g.phase === "ask") heroIcon.classList.add("game-mystery"); // 名前当て・旬の食べ物当ては答えがバレないようシルエット
+  const typeLabel = {
+    knowledge: "3択クイズ", season: "旬クイズ", name: "なまえ当てクイズ",
+    nutrition: "栄養クイズ", choose: "見分け方クイズ", seasonfood: "旬の食べ物クイズ", regional: "郷土料理クイズ",
+  }[q.type] || "3択クイズ";
+  const card = el("div", { class: "card game-card" },
+    el("div", { class: "game-score" },
+      el("span", { class: "chip" }, `第${g.index + 1}もん / 全${g.questions.length}もん`),
+      el("span", { class: "chip" }, typeLabel),
+      el("span", { class: "chip" }, `スコア ${scoreNow}点`),
+      g.streak >= 2 ? el("span", { class: "chip warn" }, `${g.streak}れんぞく せいかい中！`) : null,
+    ),
+    el("div", { class: "knowledge-hero game-hero" }, heroIcon),
+    el("p", { class: "game-q" }, q.q),
+  );
+  const btns = q.choices.map((choice, idx) => {
+    const b = el("button", {
+      class: "btn secondary wide quiz-btn game-choice", type: "button",
+      onclick: () => answerGame(idx),
+    }, `${idx + 1}. ${choice}`);
+    if (g.phase === "feedback") {
+      b.disabled = true;
+      if (idx === q.answer) b.classList.add("right");
+      else if (idx === g.selected) b.classList.add("wrong");
+    }
+    return b;
+  });
+  card.append(...btns);
+  if (g.phase === "feedback") {
+    const wasCorrect = g.selected === q.answer;
+    const praise = CORRECT_PRAISE[(g.streak + g.index) % CORRECT_PRAISE.length];
+    card.append(
+      el("p", { class: "quiz-result" + (wasCorrect ? " correct" : "") },
+        wasCorrect ? `せいかい！🎉 ${praise}` : `おしい！ こたえは「${q.choices[q.answer]}」だよ`),
+      el("p", { class: "k-text" }, q.explain),
+      el("button", {
+        class: "btn wide", onclick: () => { g.index += 1; g.phase = "ask"; g.selected = null; renderMain(); },
+      }, g.index + 1 >= g.questions.length ? "結果を見る" : "つぎのもんだいへ"),
+    );
+  }
+  wrap.append(card);
   return wrap;
 }
 
@@ -636,7 +773,6 @@ function renderAddItemForm() {
   const storageSel = el("select", {}, STORAGES.map((s) => el("option", { value: s }, s)));
   const fav = el("input", { type: "checkbox" });
   const threshold = el("input", { type: "number", value: "1", min: "0", step: "0.5" });
-  const photo = el("input", { type: "file", accept: "image/*" });
   // 単位が「玉」のときは数量・しきい値を 1/4 刻みにし、分数クイック選択を出す
   const updateUnitUI = () => {
     const tama = isFractionUnit(unit.value);
@@ -694,7 +830,6 @@ function renderAddItemForm() {
     fracRow,
     el("p", { class: "hint" }, "白菜・キャベツなどの頭野菜は、単位を「玉」にすると半玉（1/2）・1/4玉・3/4玉のような分数で登録できます。"),
     el("label", { class: "check-line" }, fav, "お気に入りにする（少なくなったら買い物リストへ自動追加）"),
-    el("label", {}, "写真（任意）"), photo,
     el("button", {
       class: "btn wide", onclick: async () => {
         if (!name.value.trim()) { toast("食材名を入力してください"); return; }
@@ -705,10 +840,6 @@ function renderAddItemForm() {
             unit: unit.value.trim(), expiryDate: expiry.value || null, storage: storageSel.value,
             isFavorite: fav.checked, lowThreshold: roundQty(Number(threshold.value) || 0),
           });
-          if (photo.files && photo.files[0]) {
-            try { await store.attachPhoto(state.user.id, item, photo.files[0]); }
-            catch (e) { toast("写真の保存に失敗しました: " + e.message); }
-          }
           await refreshData(); renderMain();
           if (!celebratePurchase(item.name, beforeCounts)) toast(`「${item.name}」を登録しました`);
         } catch (e) { toast(e.message); }
@@ -756,6 +887,10 @@ function renderZukanTab() {
       filterBtn("ultra", "激レアだけ"),
       filterBtn("rare", "レアだけ"),
     ),
+    el("button", {
+      class: "btn wide", onclick: () => { state.game = null; state.gameView = true; renderMain(); },
+    }, "🎮 食材クイズゲームであそぶ"),
+    el("p", { class: "hint" }, "集めた食材の旬やまめちしきがクイズになるよ。遊びながら食材に詳しくなろう！"),
   ));
   const cellFor = (name, category) => {
     const rec = collected.get(name);
@@ -932,10 +1067,104 @@ function renderRecipeCard(r, { servingsLabel, starBtn, savedNote = "" }) {
     ),
     el("ol", { class: "recipe-steps" }, r.steps.map((s) => el("li", {}, s))),
     r.tip ? el("p", { class: "hint" }, "💡 " + r.tip) : null,
+    r.note ? el("p", { class: "hint region-note" }, "📍 " + (r.pref ? `【${r.pref}】` : "") + r.note) : null,
     r.missing.length ? el("button", {
       class: "btn secondary small", onclick: () => addMissingToShopping(r.missing),
     }, "足りない材料を買い物リストへ") : null,
   );
+}
+/**
+ * イベント献立セクション: 行事を選ぶと、その行事の献立セット
+ * （主菜・副菜・汁物/行事食・デザート）を通常レシピと同じカードで表示する。
+ * 材料は在庫と照合して「ある／買い足し」を分け、不足分はまとめて
+ * 買い物リストへ追加できる。分量は家族人数で換算する。
+ */
+function renderEventMenuSection(size) {
+  const wrap = el("div", {});
+  const selectedId = state.eventMenuId || EVENT_MENUS[0].id;
+  const menu = suggestEventMenu(selectedId, state.items, { servings: size });
+  const head = el("div", { class: "card" },
+    el("h2", {}, "🎉 イベント献立"),
+    el("p", { class: "hint" }, "行事タブを選ぶと、その日の献立セットが出ます。材料は今の在庫と比べて「あるもの／買い足し」を表示し、足りないものはまとめて買い物リストに入れられます。"),
+    el("div", { class: "event-grid event-tabs", role: "tablist", "aria-label": "行事を選ぶ" },
+      EVENT_MENUS.map((ev) => el("button", {
+        class: "event-chip" + (ev.id === selectedId ? " active" : ""),
+        role: "tab",
+        "aria-selected": ev.id === selectedId ? "true" : "false",
+        onclick: () => { state.eventMenuId = ev.id; renderMain(); },
+      }, `${ev.emoji} ${ev.name}`))),
+  );
+  wrap.append(head);
+  if (!menu) return wrap;
+  const ev = menu.event;
+  wrap.append(el("div", { class: "card event-head" },
+    el("h2", {}, `${ev.emoji} ${ev.name}の献立`),
+    el("div", { class: "recipe-chips" },
+      el("span", { class: "chip" }, ev.when),
+      el("span", { class: "chip" }, `${size}人分`),
+      el("span", { class: "chip" }, `全${menu.dishes.length}品・合計 約${menu.totalMinutes}分`),
+      el("span", { class: "chip" }, `在庫にある材料 ${menu.haveCount}品`),
+      menu.missingCount ? el("span", { class: "chip warn" }, `買い足し ${menu.missingCount}品`) : el("span", { class: "chip" }, "全部そろっています"),
+    ),
+    el("p", { class: "k-text" }, ev.note),
+    menu.missingAll.length ? el("button", {
+      class: "btn secondary", onclick: () => addMissingToShopping(menu.missingAll),
+    }, "イベントの足りない材料をまとめて買い物リストへ") : null,
+  ));
+  for (const d of menu.dishes) {
+    const fav = findFavorite(d, state.recipeMode);
+    wrap.append(renderRecipeCard(d, {
+      servingsLabel: `${size}人分`,
+      starBtn: favStarBtn(!!fav, () => toggleRecipeFavorite(d, state.recipeMode, size)),
+    }));
+  }
+  return wrap;
+}
+/**
+ * 郷土料理セクション: 地域タブを選ぶと、その土地の郷土料理・名物グルメの
+ * 献立セットをイベント献立と同じカードで表示する。各料理には子ども向けの
+ * 由来メモ（note）が付き、不足分はまとめて買い物リストへ追加できる。
+ */
+function renderRegionalMenuSection(size) {
+  const wrap = el("div", {});
+  const selectedId = state.regionId || REGIONS[0].id;
+  const menu = suggestRegionalMenu(selectedId, state.items, { servings: size });
+  const head = el("div", { class: "card" },
+    el("h2", {}, "🗾 郷土料理・名物グルメ"),
+    el("p", { class: "hint" }, "地域タブを選ぶと、その土地の名物料理の献立が出ます。材料は今の在庫と比べて「あるもの／買い足し」を表示し、足りないものはまとめて買い物リストに入れられます。料理の📍メモは、その土地ならではの由来です。"),
+    el("div", { class: "event-grid event-tabs", role: "tablist", "aria-label": "地域を選ぶ" },
+      REGIONS.map((r) => el("button", {
+        class: "event-chip" + (r.id === selectedId ? " active" : ""),
+        role: "tab",
+        "aria-selected": r.id === selectedId ? "true" : "false",
+        onclick: () => { state.regionId = r.id; renderMain(); },
+      }, `${r.emoji} ${r.name}`))),
+  );
+  wrap.append(head);
+  if (!menu) return wrap;
+  const region = menu.region;
+  wrap.append(el("div", { class: "card event-head" },
+    el("h2", {}, `${region.emoji} ${region.name}の献立`),
+    el("div", { class: "recipe-chips" },
+      el("span", { class: "chip" }, `${size}人分`),
+      el("span", { class: "chip" }, `全${menu.dishes.length}品・合計 約${menu.totalMinutes}分`),
+      el("span", { class: "chip" }, `全国 ${REGIONS.reduce((s, r) => s + r.dishes.length, 0)}品・全47都道府県の名物`),
+      el("span", { class: "chip" }, `在庫にある材料 ${menu.haveCount}品`),
+      menu.missingCount ? el("span", { class: "chip warn" }, `買い足し ${menu.missingCount}品`) : el("span", { class: "chip" }, "全部そろっています"),
+    ),
+    el("p", { class: "k-text" }, region.intro),
+    menu.missingAll.length ? el("button", {
+      class: "btn secondary", onclick: () => addMissingToShopping(menu.missingAll),
+    }, "この地域の足りない材料をまとめて買い物リストへ") : null,
+  ));
+  for (const d of menu.dishes) {
+    const fav = findFavorite(d, state.recipeMode);
+    wrap.append(renderRecipeCard(d, {
+      servingsLabel: `${size}人分`,
+      starBtn: favStarBtn(!!fav, () => toggleRecipeFavorite(d, state.recipeMode, size)),
+    }));
+  }
+  return wrap;
 }
 function renderRecipesTab() {
   const wrap = el("div", {});
@@ -948,9 +1177,11 @@ function renderRecipesTab() {
       el("span", { class: "num" }, `${size}人分`),
       el("button", { class: "qty-btn", onclick: () => setFamilySize(size + 1) }, "+"),
     ),
-    el("div", { class: "tabs", style: "margin-top:12px" },
-      el("button", { class: state.recipeView === "suggest" ? "active" : "", onclick: () => { state.recipeView = "suggest"; renderMain(); } }, "おすすめ"),
-      el("button", { class: state.recipeView === "favorites" ? "active" : "", onclick: () => { state.recipeView = "favorites"; renderMain(); } }, `★ お気に入り（${state.favRecipes.length}）`),
+    el("div", { class: "tabs recipe-view-tabs", style: "margin-top:12px", role: "tablist", "aria-label": "レシピの表示を切り替える" },
+      el("button", { class: state.recipeView === "suggest" ? "active" : "", role: "tab", "aria-selected": state.recipeView === "suggest" ? "true" : "false", onclick: () => { state.recipeView = "suggest"; renderMain(); } }, "おすすめ"),
+      el("button", { class: state.recipeView === "event" ? "active" : "", role: "tab", "aria-selected": state.recipeView === "event" ? "true" : "false", onclick: () => { state.recipeView = "event"; renderMain(); } }, "🎉 イベント献立"),
+      el("button", { class: state.recipeView === "region" ? "active" : "", role: "tab", "aria-selected": state.recipeView === "region" ? "true" : "false", onclick: () => { state.recipeView = "region"; renderMain(); } }, "🗾 郷土料理"),
+      el("button", { class: state.recipeView === "favorites" ? "active" : "", role: "tab", "aria-selected": state.recipeView === "favorites" ? "true" : "false", onclick: () => { state.recipeView = "favorites"; renderMain(); } }, `★ お気に入り（${state.favRecipes.length}）`),
     ),
     state.recipeView === "suggest" ? el("div", { class: "tabs" },
       el("button", { class: state.recipeMode === "stock" ? "active" : "", onclick: () => { state.recipeMode = "stock"; renderMain(); } }, "あるもので作る"),
@@ -958,6 +1189,10 @@ function renderRecipesTab() {
     ) : null,
     el("p", { class: "hint" }, state.recipeView === "favorites"
       ? "★で保存したレシピです。保存したときの材料・分量・手順をそのまま表示します。★を押すと取り消せます。"
+      : state.recipeView === "event"
+        ? "ハロウィン・クリスマス・お正月・冬至などの行事の献立です。下の行事タブを選ぶと献立が切り替わります。分量は家族の人数に合わせてあります。"
+      : state.recipeView === "region"
+        ? "北海道から沖縄まで、地域の郷土料理・名物グルメの献立です。下の地域タブを選ぶと献立が切り替わります。各料理に、その土地の由来メモが付いています。"
       : state.recipeMode === "stock"
         ? "登録されている食材だけで作れるレシピです（買い足しなし）。食材は消費期限の近いもの→先に買ったものの順で使う前提で提案します。気に入ったレシピは☆で保存できます。"
         : "あと少し買い足せば作れるレシピです。足りない材料は買い物リストに追加できます。食材は消費期限の近いもの→先に買ったものの順で使う前提で提案します。気に入ったレシピは☆で保存できます。"),
@@ -981,6 +1216,16 @@ function renderRecipesTab() {
         }),
       }));
     }
+    return wrap;
+  }
+  // イベント献立タブ（ハロウィン・クリスマス・お正月・冬至など）: 行事タブで献立を切り替える
+  if (state.recipeView === "event") {
+    wrap.append(renderEventMenuSection(size));
+    return wrap;
+  }
+  // 郷土料理タブ（北海道〜沖縄）: 地域タブで献立を切り替える
+  if (state.recipeView === "region") {
+    wrap.append(renderRegionalMenuSection(size));
     return wrap;
   }
   const recipes = suggestRecipes(state.items, { mode: state.recipeMode, servings: size });
