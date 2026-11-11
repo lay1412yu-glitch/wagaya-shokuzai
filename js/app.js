@@ -13,7 +13,7 @@
 // - 参加用リンク ?join=<code> を受けたら、コードを sessionStorage に退避し、
 //   ログイン完了後に自動で参加を試みる（URL の履歴からは即座に消す）。
 
-import { el, uid, todayISO, daysUntil, formatDate, expiryLabel, expiryGroup, expiryChipClass, formatCode, fmtQtyValue, qtyStepFor, roundQty, isFractionUnit, matchesSearch, topPurchased, recentRegistered, STORAGE_ZONES, STORAGE_ZONE_ALL, countByStorage, filterByStorage, suggestStorage, UNIT_OPTIONS, UNIT_OTHER_VALUE, unitSelectValueFor, resolveUnitValue } from "./util.js";
+import { el, uid, todayISO, daysUntil, formatDate, expiryLabel, expiryGroup, expiryChipClass, formatCode, fmtQtyValue, qtyStepFor, roundQty, isFractionUnit, matchesSearch, topPurchased, recentRegistered, oneTapCandidates, inListQuantity, planOneTapAdd, RECIPE_QUICK_FILTERS, matchesRecipeFilter, filterRecipes, STORAGE_ZONES, STORAGE_ZONE_ALL, countByStorage, filterByStorage, suggestStorage, UNIT_OPTIONS, UNIT_OTHER_VALUE, unitSelectValueFor, resolveUnitValue } from "./util.js";
 import { suggestRecipes, suggestMealSet, suggestEventMenu, EVENT_MENUS, suggestRegionalMenu, REGIONS } from "./recipes.js";
 import * as recipesNs from "./recipes.js";
 import { suggestCombos, repertoireSize } from "./combo.js";
@@ -87,6 +87,7 @@ const state = {
   user: null, fridges: [], fridge: null, members: [],
   items: [], shopping: [], favRecipes: [], catalog: [], settings: { familySize: 2 },
   tab: "stock", authTab: "login", recipeMode: "stock", recipeView: "suggest",
+  recipeFilter: "all", // レシピのクイックフィルタ: all | microwave | otsumami | quick（保存しない・タブを離れると all に戻す）
   suggestPage: 0, // おすすめ候補プールのページ（「別の提案を見る」で送る）
   comboSeen: [], // 組み合わせ提案で表示済みの combo id（未表示分を出すため）
   comboRound: 0, // 組み合わせ候補をひと通り見た回数（seed を変えて顔ぶれを変える）
@@ -359,7 +360,7 @@ async function openFridge(fridgeId) {
   if (!state.fridge) { renderFridgePicker(); return; }
   state.sessionTrash = [];
   state.suggestPage = 0; state.comboSeen = []; state.comboRound = 0;
-  state.stockZone = STORAGE_ZONE_ALL; state.recipeDetail = null;
+  state.stockZone = STORAGE_ZONE_ALL; state.recipeDetail = null; state.recipeFilter = "all";
   await refreshData();
   setupRealtime();
   // アプリを開いたタイミングのローカル通知（許可済み・1日1回・サーバー不要）
@@ -403,7 +404,7 @@ function renderMain() {
   document.getElementById("header-sub").textContent = state.fridge ? state.fridge.name : "";
 }
 function navBtn(tab, icon, label) {
-  return el("button", { class: state.tab === tab && !state.knowledgeName && !state.gameView && !state.suikaView && !state.recipeDetail ? "active" : "", onclick: () => { state.tab = tab; state.knowledgeName = null; state.gameView = false; state.game = null; state.suikaView = false; state.recipeDetail = null; renderMain(); } },
+  return el("button", { class: state.tab === tab && !state.knowledgeName && !state.gameView && !state.suikaView && !state.recipeDetail ? "active" : "", onclick: () => { state.tab = tab; state.knowledgeName = null; state.gameView = false; state.game = null; state.suikaView = false; state.recipeDetail = null; state.recipeFilter = "all"; renderMain(); } },
     el("span", { class: "nav-icon" }, icon), label);
 }
 
@@ -638,7 +639,7 @@ function renderSuikaPage() {
   const curName = el("span", { class: "suika-piece-name" }, "");
   const nextIcon = el("span", { class: "suika-piece next" });
   const nextName = el("span", { class: "suika-piece-name" }, "");
-  const melonBanner = el("p", { class: "suika-banner melon", role: "status" }, "🍉 すいかが できた！ すごい！");
+  const melonBanner = el("p", { class: "suika-banner melon", role: "status" }, "🧺 やさいバスケットが できた！ すごい！");
   melonBanner.style.display = "none";
   const overBanner = el("p", { class: "suika-banner danger", role: "alert" }, "あふれそう！ 野菜をくっつけて 合体させて！");
   overBanner.style.display = "none";
@@ -668,8 +669,8 @@ function renderSuikaPage() {
   }, "おとす！");
 
   wrap.append(el("div", { class: "card" },
-    el("div", { class: "k-name" }, "🍉 やさいあわせゲーム"),
-    el("p", { class: "k-text" }, "同じ野菜同士がくっつくと、大きな野菜に進化！ プチトマトから育てて、最後は すいかを目指そう。点線を超えたままになると、あふれてゲームオーバーだよ。"),
+    el("div", { class: "k-name" }, "🧺 やさいあわせゲーム"),
+    el("p", { class: "k-text" }, "同じ野菜同士がくっつくと、大きな野菜に進化！ プチトマトから育てて、最後は やさいバスケットを目指そう。点線を超えたままになると、あふれてゲームオーバーだよ。"),
     el("div", { class: "suika-stats" },
       el("div", { class: "suika-stat" }, el("span", { class: "suika-stat-label" }, "スコア"), scoreVal),
       el("div", { class: "suika-stat" }, el("span", { class: "suika-stat-label" }, "ベスト"), bestVal),
@@ -864,9 +865,6 @@ function renderItemCard(item) {
       el("button", { class: "qty-btn", onclick: () => changeQty(item, 1) }, "+"),
     ),
     el("button", {
-      class: "icon-btn", title: "食材の知識（食育）", onclick: () => openKnowledge(item.name, item.category),
-    }, "📖"),
-    el("button", {
       class: "icon-btn", title: "削除", onclick: async () => {
         if (!confirm(`「${item.name}」を削除しますか？`)) return;
         const snapshot = { ...item };
@@ -882,7 +880,7 @@ function renderItemCard(item) {
       },
     }, "🗑"),
   );
-  card.style.padding = "14px 16px";
+  card.style.padding = "12px 14px";
   return card;
 }
 
@@ -1087,8 +1085,8 @@ function renderZukanTab() {
     el("p", { class: "hint" }, "集めた食材の旬やまめちしきがクイズになるよ。遊びながら食材に詳しくなろう！"),
     el("button", {
       class: "btn wide", onclick: () => { state.gameView = false; state.game = null; state.suikaView = true; renderMain(); },
-    }, "🍉 やさいあわせゲームであそぶ"),
-    el("p", { class: "hint" }, "同じ野菜をくっつけて合体・進化させるパズルだよ。プチトマトから育てて、すいかを目指そう！"),
+    }, "🧺 やさいあわせゲームであそぶ"),
+    el("p", { class: "hint" }, "同じ野菜をくっつけて合体・進化させるパズルだよ。プチトマトから育てて、やさいバスケットを目指そう！"),
   ));
   const cellFor = (name, category) => {
     const rec = collected.get(name);
@@ -1129,12 +1127,65 @@ function renderZukanTab() {
 }
 
 // ---------- 買い物タブ ----------
-const SOURCE_LABEL = { manual: "手入力", favorite: "お気に入り", recipe: "レシピの材料" };
+const SOURCE_LABEL = { manual: "手入力", favorite: "お気に入り", recipe: "レシピの材料", onetap: "ワンタップ" };
+// ワンタップ追加: チップを押すだけで「いつもの数量・単位」でリストに入れる。
+// すでに同名がリストにあれば、新しい行を作らず数量を増やす。
+async function oneTapAddToShopping(entry) {
+  const plan = planOneTapAdd(state.shopping, entry);
+  try {
+    if (plan.action === "increment") {
+      await store.updateShopping(state.user.id, plan.rowId, { quantity: plan.quantity });
+      toast(`「${entry.name}」はすでにリストにあるので、数量を増やしました（${fmtQtyValue(plan.quantity, plan.unit)}${plan.unit}）`);
+    } else {
+      await store.addShopping(state.user.id, state.fridge.id, {
+        name: entry.name, quantity: plan.quantity, unit: plan.unit, source: "onetap",
+      });
+      toast(`「${entry.name}」を買い物リストに追加しました`);
+    }
+    await refreshData(); renderMain();
+  } catch (e) { toast(e.message); }
+}
 function renderShoppingTab() {
   const wrap = el("div", {});
   const name = el("input", { type: "text", placeholder: "買うもの（例：牛乳）" });
   // 単位も登録フォームと同じプルダウンで選べるようにする
   const unitPicker = createUnitPicker();
+  // ---- ワンタップ追加（よく買うもの／最近買ったもの／お気に入り食材） ----
+  const oneTap = oneTapCandidates(state.catalog, state.items, 10);
+  const oneTapRows = [
+    ["⭐ よく買うもの", oneTap.top],
+    ["🕘 最近買ったもの", oneTap.recent],
+    ["💗 お気に入り食材", oneTap.favorites],
+  ].filter(([, entries]) => entries.length);
+  const oneTapKids = [];
+  if (oneTapRows.length) {
+    for (const [label, entries] of oneTapRows) {
+      oneTapKids.push(el("div", { class: "quick-label" }, label));
+      oneTapKids.push(el("div", { class: "onetap-row" }, entries.map((entry) => {
+        const inQty = inListQuantity(state.shopping, entry.name);
+        const inRow = state.shopping.find((s) => s.name === entry.name && !s.isChecked);
+        const inUnit = inRow ? (inRow.unit || "") : "";
+        return el("button", {
+          type: "button",
+          class: "onetap-chip" + (inQty > 0 ? " in-list" : ""),
+          onclick: () => oneTapAddToShopping(entry),
+        },
+          iconEl(entry.name),
+          el("span", { class: "onetap-main" },
+            el("span", { class: "onetap-name" }, entry.name),
+            el("span", { class: "onetap-sub" }, `いつもの ${fmtQtyValue(entry.quantity, entry.unit)}${entry.unit}`)),
+          inQty > 0 ? el("span", { class: "onetap-badge" }, `リストに ${fmtQtyValue(inQty, inUnit)}${inUnit}`) : null,
+        );
+      })));
+    }
+  } else {
+    oneTapKids.push(el("p", { class: "hint" }, "買うたびに、ここによく買うものが並びます。タップするだけで、いつもの数量でリストに追加できます。"));
+  }
+  wrap.append(el("div", { class: "card" },
+    el("h2", {}, "👆 ワンタップ追加"),
+    el("p", { class: "hint" }, "タップするだけで、いつもの数量・単位で買い物リストに入ります。すでにリストにあるものは数量が増えます。"),
+    ...oneTapKids,
+  ));
   wrap.append(el("div", { class: "card" },
     el("h2", {}, "🛒 買い物リスト"),
     state.shopping.length === 0
@@ -1513,8 +1564,11 @@ function renderComboSection(size) {
   const ask = (excludeIds) => suggestCombos(state.items, {
     servings: size, mode: state.recipeMode, limit: 6, seedKey, excludeIds,
   });
-  const combos = ask(state.comboSeen);
-  const shownIds = combos.map((c) => c.id);
+  const rawCombos = ask(state.comboSeen);
+  // クイックフィルタが選ばれていれば、組み合わせ提案にも絞り込みを効かせる
+  // （候補の巡回＝comboSeen の記録は、絞り込み前の候補全体で数える）。
+  const combos = filterRecipes(rawCombos, state.recipeFilter);
+  const shownIds = rawCombos.map((c) => c.id);
   const refresh = () => {
     const next = ask([...state.comboSeen, ...shownIds]);
     if (next.length === 0) {
@@ -1530,13 +1584,15 @@ function renderComboSection(size) {
   wrap.append(el("div", { class: "card combo-head" },
     el("h2", {}, "🧩 組み合わせ提案"),
     el("p", { class: "hint" }, `内蔵レシピ${rep.fixed}品と、主食材×調理法×味付けの組み合わせ${rep.generated}通り、あわせて全${rep.total}通りのレパートリーから、手持ちの食材で作れるものを提案します。気に入るものがなければ「別の提案を見る」で次の候補へ。`),
-    (combos.length > 0 || state.comboSeen.length > 0) ? refreshBtn() : null,
+    (combos.length > 0 || state.comboSeen.length > 0 || rawCombos.length > 0) ? refreshBtn() : null,
   ));
   if (combos.length === 0) {
     wrap.append(el("div", { class: "card" }, el("p", { class: "empty" },
-      state.comboSeen.length > 0
-        ? "組み合わせ候補をひと通り見ました。\n「別の提案を見る」でもう一度、顔ぶれを変えて出せます。"
-        : "今の在庫で作れる組み合わせはまだありません。\n肉・魚・野菜などを登録すると提案が増えます。")));
+      state.recipeFilter !== "all" && rawCombos.length > 0
+        ? "この絞り込みに合う組み合わせは、今の候補にありません。\n「別の提案を見る」で次の候補を探せます。"
+        : state.comboSeen.length > 0
+          ? "組み合わせ候補をひと通り見ました。\n「別の提案を見る」でもう一度、顔ぶれを変えて出せます。"
+          : "今の在庫で作れる組み合わせはまだありません。\n肉・魚・野菜などを登録すると提案が増えます。")));
     return wrap;
   }
   for (const r of combos) {
@@ -1572,6 +1628,13 @@ function renderRecipesTab() {
     state.recipeView === "suggest" ? el("div", { class: "tabs" },
       el("button", { class: state.recipeMode === "stock" ? "active" : "", onclick: () => { state.recipeMode = "stock"; state.suggestPage = 0; state.comboSeen = []; renderMain(); } }, "あるもので作る"),
       el("button", { class: state.recipeMode === "shop" ? "active" : "", onclick: () => { state.recipeMode = "shop"; state.suggestPage = 0; state.comboSeen = []; renderMain(); } }, "買い出しで作る"),
+    ) : null,
+    state.recipeView === "suggest" ? el("div", { class: "tabs recipe-filter-tabs", role: "tablist", "aria-label": "レシピを絞り込む" },
+      RECIPE_QUICK_FILTERS.map((f) => el("button", {
+        class: state.recipeFilter === f.key ? "active" : "", role: "tab",
+        "aria-selected": state.recipeFilter === f.key ? "true" : "false",
+        onclick: () => { state.recipeFilter = f.key; state.suggestPage = 0; renderMain(); },
+      }, f.label)),
     ) : null,
     el("p", { class: "hint" }, state.recipeView === "favorites"
       ? "★で保存したレシピです。保存したときの材料・分量・手順をそのまま表示します。★を押すと取り消せます。"
@@ -1619,29 +1682,44 @@ function renderRecipesTab() {
     return wrap;
   }
   // おすすめ候補プール全体を取り、「別の提案を見る」でページ送りする
+  // クイックフィルタ（レンジだけ／おつまみ／時短）が選ばれていれば、プール・
+  // 献立セット・組み合わせ提案のすべてに絞り込みを効かせる。
   const SUGGEST_PAGE_SIZE = 8;
   const pool = suggestRecipes(state.items, { mode: state.recipeMode, servings: size, limit: 1000 });
-  const pageCount = Math.max(1, Math.ceil(pool.length / SUGGEST_PAGE_SIZE));
+  const filteredPool = filterRecipes(pool, state.recipeFilter);
+  const filterLabel = (RECIPE_QUICK_FILTERS.find((f) => f.key === state.recipeFilter) || {}).label || "";
+  const pageCount = Math.max(1, Math.ceil(filteredPool.length / SUGGEST_PAGE_SIZE));
   if (state.suggestPage >= pageCount) state.suggestPage = 0;
-  const recipes = pool.slice(state.suggestPage * SUGGEST_PAGE_SIZE, (state.suggestPage + 1) * SUGGEST_PAGE_SIZE);
+  const recipes = filteredPool.slice(state.suggestPage * SUGGEST_PAGE_SIZE, (state.suggestPage + 1) * SUGGEST_PAGE_SIZE);
   // 献立セット（主菜＋副菜＋汁物）: 在庫だけで揃う場合だけ先頭に出す
   if (state.recipeMode === "stock") {
     const set = suggestMealSet(state.items, { servings: size });
-    if (set && set.recipes.length >= 2) {
-      wrap.append(el("div", { class: "card" },
-        el("h2", {}, "🍽 今日の献立セット"),
-        el("p", { class: "hint" }, `主菜＋副菜＋汁物の組み合わせです（合計 約${set.totalMinutes}分・${size}人分）。食材は期限の近いものから使います。`),
-        set.recipes.map((r) => el("div", { class: "fridge-row" },
-          el("span", { class: "chip" }, r.course), el("span", { class: "grow" }, r.title),
-          el("span", { class: "chip" }, `${r.genre}・${r.method}`))),
-      ));
+    if (set && set.recipes.length) {
+      const setDishes = filterRecipes(set.recipes, state.recipeFilter);
+      const minDishes = state.recipeFilter === "all" ? 2 : 1;
+      if (setDishes.length >= minDishes) {
+        const shownMinutes = state.recipeFilter === "all"
+          ? set.totalMinutes
+          : setDishes.reduce((sum, r) => sum + (Number(r.minutes) || 0), 0);
+        wrap.append(el("div", { class: "card" },
+          el("h2", {}, "🍽 今日の献立セット"),
+          el("p", { class: "hint" }, state.recipeFilter === "all"
+            ? `主菜＋副菜＋汁物の組み合わせです（合計 約${set.totalMinutes}分・${size}人分）。食材は期限の近いものから使います。`
+            : `「${filterLabel}」に合う料理だけを表示しています（合計 約${shownMinutes}分・${size}人分）。`),
+          setDishes.map((r) => el("div", { class: "fridge-row" },
+            el("span", { class: "chip" }, r.course), el("span", { class: "grow" }, r.title),
+            el("span", { class: "chip" }, `${r.genre}・${r.method}`))),
+        ));
+      }
     }
   }
-  if (pool.length === 0) {
+  if (filteredPool.length === 0) {
     wrap.append(el("div", { class: "card" }, el("p", { class: "empty" },
-      state.recipeMode === "stock"
-        ? "今の在庫だけで作れるレシピがまだありません。\n「買い出しで作る」も見てみてください。"
-        : "提案できるレシピがありません。在庫を登録すると提案が増えます。")));
+      state.recipeFilter !== "all" && pool.length > 0
+        ? `「${filterLabel}」に合うレシピは今の候補にありません。\n絞り込みを「すべて」に戻すと ${pool.length} 件の候補があります。`
+        : state.recipeMode === "stock"
+          ? "今の在庫だけで作れるレシピがまだありません。\n「買い出しで作る」も見てみてください。"
+          : "提案できるレシピがありません。在庫を登録すると提案が増えます。")));
   }
   for (const r of recipes) {
     const fav = findFavorite(r, state.recipeMode);
@@ -1657,7 +1735,7 @@ function renderRecipesTab() {
       onclick: () => { state.suggestPage = (state.suggestPage + 1) % pageCount; renderMain(); },
     }, "🔄 別の提案を見る"));
     wrap.append(el("p", { class: "hint", style: "text-align:center" },
-      `おすすめ候補 ${pool.length} 件中 ${state.suggestPage + 1} / ${pageCount} ページ目`));
+      `おすすめ候補 ${filteredPool.length} 件中 ${state.suggestPage + 1} / ${pageCount} ページ目`));
   }
   // 組み合わせ提案（テンプレート生成）: 通常の提案の下に出す
   wrap.append(renderComboSection(size));

@@ -349,6 +349,17 @@ export class FirebaseStore {
   async deleteShopping(userId, shoppingId) {
     await this._mods.deleteDoc(this._mods.doc(this.db, "shopping_items", shoppingId));
   }
+  async updateShopping(userId, shoppingId, patch) {
+    const fs = this._mods;
+    const docData = {};
+    if (patch.name !== undefined) docData.name = String(patch.name);
+    if (patch.quantity !== undefined) docData.quantity = Number(patch.quantity);
+    if (patch.unit !== undefined) docData.unit = patch.unit || "";
+    if (patch.source !== undefined) docData.source = patch.source;
+    if (patch.linkedItemId !== undefined) docData.linkedItemId = patch.linkedItemId || null;
+    if (patch.isChecked !== undefined) docData.isChecked = !!patch.isChecked;
+    await fs.updateDoc(fs.doc(this.db, "shopping_items", shoppingId), docData);
+  }
 
   // ---- 設定 ----
   async getSettings(userId, fridgeId) {

@@ -243,6 +243,17 @@ export class SupabaseStore {
     const { error } = await this.client.from("shopping_items").delete().eq("id", shoppingId);
     if (error) throw new Error(error.message);
   }
+  async updateShopping(userId, shoppingId, patch) {
+    const row = {};
+    if (patch.name !== undefined) row.name = patch.name;
+    if (patch.quantity !== undefined) row.quantity = patch.quantity;
+    if (patch.unit !== undefined) row.unit = patch.unit || "";
+    if (patch.source !== undefined) row.source = patch.source;
+    if (patch.linkedItemId !== undefined) row.linked_item_id = patch.linkedItemId || null;
+    if (patch.isChecked !== undefined) row.is_checked = !!patch.isChecked;
+    const { error } = await this.client.from("shopping_items").update(row).eq("id", shoppingId);
+    if (error) throw new Error(error.message);
+  }
 
   // ---- 設定 ----
   async getSettings(userId, fridgeId) {

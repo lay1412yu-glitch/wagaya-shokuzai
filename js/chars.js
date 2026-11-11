@@ -492,6 +492,9 @@ const CLAIMED_FILES = new Set(Object.values(CHAR_BY_NAME));
  * プチトマトはミニトマトと同じ食材（やさいあわせの段階名が「プチトマト」）。 */
 export const CHAR_ALIASES = {
   "プチトマト": "minitomato.webp",
+  // やさいあわせゲームの最終段階名（ゲーム専用キャラ。進化図鑑など
+  // 名前引きで表示される箇所にも同じ絵を出すため）
+  "やさいバスケット": "vegbasket.webp",
 };
 
 /** 名前 → ミュゼ版のキャラキー（キーワード先勝ち解決のみ・汎用判定なし） */
@@ -520,10 +523,13 @@ export function charUrlFor(name) {
   return null;
 }
 
-/** やさいあわせゲームの段階（ミュゼ版 SuikaGame の段階キーと同一） */
+/** やさいあわせゲームの段階（ミュゼ版 SuikaGame の段階キーと同一）。
+ * 最終段階だけはゲーム専用の新規キャラ「やさいバスケット」（vegbasket.webp、
+ * 図鑑カタログとは無関係）を使う。食材「すいか」自体のキャラは従来どおり
+ * watermelon.webp（CHAR_BY_NAME 側）で、こちらには影響しない。 */
 export const SUIKA_CHAR_FILES = [
   "minitomato.webp", "carrot.webp", "eggplant.webp", "pepper.webp", "onion.webp",
-  "potato.webp", "pumpkin.webp", "daikon.webp", "cabbage.webp", "hakusai.webp", "watermelon.webp",
+  "potato.webp", "pumpkin.webp", "daikon.webp", "cabbage.webp", "hakusai.webp", "vegbasket.webp",
 ];
 
 /** やさいあわせの段階番号 → キャラ画像URL */

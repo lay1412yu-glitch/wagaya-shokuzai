@@ -151,6 +151,105 @@ export function recentRegistered(items, limit = 8) {
   return out;
 }
 
+// ---- 買い物リストへのワンタップ追加 ----
+// よく買うもの／最近買ったもの／お気に入り食材のチップをタップするだけで、
+// 「いつもの数量・単位」で買い物リストに入れられるようにするための純粋関数群。
+// いつもの数量・単位: 在庫に同名の食材があれば、その一番新しい登録の数量・単位
+// （＝最後に使った分量）。在庫に無ければ数量1・単位なし（呼び出し側の表示で調整）。
+export function usualQtyUnitFor(name, items) {
+  let best = null;
+  for (const item of items || []) {
+    if (!item || item.name !== name) continue;
+    if (!best || String(item.createdAt || "") >= String(best.createdAt || "")) best = item;
+  }
+  if (!best) return { quantity: 1, unit: "" };
+  const q = Number(best.quantity);
+  return { quantity: Number.isFinite(q) && q > 0 ? roundQty(q) : 1, unit: best.unit || "" };
+}
+// お気に入り食材（isFavorite）: 名前の重複なしで、新しい登録から順に返す。
+export function favoriteItemEntries(items, limit = 10) {
+  const seen = new Set();
+  const out = [];
+  const sorted = [...(items || [])]
+    .filter((i) => i && i.name && i.isFavorite)
+    .sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
+  for (const item of sorted) {
+    if (seen.has(item.name)) continue;
+    seen.add(item.name);
+    const q = Number(item.quantity);
+    out.push({
+      name: item.name,
+      quantity: Number.isFinite(q) && q > 0 ? roundQty(q) : 1,
+      unit: item.unit || "",
+    });
+    if (out.length >= limit) break;
+  }
+  return out;
+}
+// ワンタップ追加の3行分（よく買う／最近／お気に入り）の候補をまとめて作る。
+// 各候補は { name, quantity, unit }（いつもの数量・単位に解決済み）。
+export function oneTapCandidates(catalog, items, limit = 10) {
+  const top = topPurchased(catalog, limit).map((c) => ({ name: c.name, ...usualQtyUnitFor(c.name, items) }));
+  const recent = recentRegistered(items, limit).map((i) => {
+    const q = Number(i.quantity);
+    return { name: i.name, quantity: Number.isFinite(q) && q > 0 ? roundQty(q) : 1, unit: i.unit || "" };
+  });
+  const favorites = favoriteItemEntries(items, limit);
+  return { top, recent, favorites };
+}
+// 買い物リストの未チェック行から、同名の最初の行を返す（無ければ null）。
+export function shoppingRowFor(shopping, name) {
+  return (shopping || []).find((s) => s && s.name === name && !s.isChecked) || null;
+}
+// 同名の未チェック行に今入っている数量の合計（チップの「リストに入ってます」表示用）。
+export function inListQuantity(shopping, name) {
+  let total = 0;
+  for (const s of shopping || []) {
+    if (s && s.name === name && !s.isChecked) total += Number(s.quantity) || 0;
+  }
+  return roundQty(total);
+}
+// ワンタップ追加の計画: すでにリストに同名があれば「数量を増やす」、なければ「新規追加」。
+// entry は { name, quantity, unit }（いつもの数量・単位）。
+export function planOneTapAdd(shopping, entry) {
+  const usualQty = Number(entry && entry.quantity);
+  const addQty = Number.isFinite(usualQty) && usualQty > 0 ? roundQty(usualQty) : 1;
+  const row = entry ? shoppingRowFor(shopping, entry.name) : null;
+  if (row) {
+    return {
+      action: "increment", rowId: row.id,
+      quantity: roundQty((Number(row.quantity) || 0) + addQty),
+      unit: row.unit || entry.unit || "",
+    };
+  }
+  return { action: "add", quantity: addQty, unit: (entry && entry.unit) || "" };
+}
+
+// ---- レシピのクイックフィルタ ----
+// レシピタブの絞り込みチップ: すべて／レンジだけ（method=レンジ）／
+// おつまみ（course=おつまみ）／時短（15分以内）。
+export const RECIPE_QUICK_FILTERS = [
+  { key: "all", label: "すべて" },
+  { key: "microwave", label: "レンジだけ" },
+  { key: "otsumami", label: "おつまみ" },
+  { key: "quick", label: "時短（15分以内）" },
+];
+export function matchesRecipeFilter(recipe, filter) {
+  if (!recipe) return false;
+  switch (filter) {
+    case "microwave": return recipe.method === "レンジ";
+    case "otsumami": return recipe.course === "おつまみ";
+    case "quick": {
+      const m = Number(recipe.minutes);
+      return Number.isFinite(m) && m > 0 && m <= 15;
+    }
+    default: return true;
+  }
+}
+export function filterRecipes(recipes, filter) {
+  return [...(recipes || [])].filter((r) => matchesRecipeFilter(r, filter));
+}
+
 // ---- 保管場所（冷蔵庫の区分け） ----
 // 在庫は「冷蔵庫／冷凍庫／野菜室／常温」の区分で登録でき、在庫画面では
 // 区分チップで絞り込める。区分が無い・未知の値のアイテムは、ストア側の
@@ -186,6 +285,7 @@ export const UNIT_OPTIONS = [
   "個", "本", "玉", "袋", "パック", "缶", "箱", "セット",
   "g", "kg", "mL", "L",
   "切れ", "枚", "束", "房", "尾", "丁", "かけ", "粒", "杯", "株",
+  "腹", "皿分",
 ];
 export const UNIT_OTHER_VALUE = "__other__";
 // 既存の単位文字列を、プルダウンの選択状態（select の値＋自由入力の値）に変換する。

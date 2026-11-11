@@ -313,6 +313,15 @@ export class DemoStore {
     db.shopping = db.shopping.filter((s) => s.id !== shoppingId);
     this._save(db);
   }
+  async updateShopping(userId, shoppingId, patch) {
+    const db = this._load();
+    const row = db.shopping.find((s) => s.id === shoppingId);
+    if (!row) throw new Error("買い物リストに見つかりませんでした");
+    this._assertMember(db, userId, row.fridgeId);
+    Object.assign(row, patch);
+    this._save(db);
+    return { ...row };
+  }
 
   // ---- レシピお気に入り ----
   // レシピは在庫から都度生成されるため、再表示できるよう内容そのものを
