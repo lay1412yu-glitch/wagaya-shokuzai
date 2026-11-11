@@ -638,19 +638,22 @@ export function createSuikaGame(hooks = {}) {
       if (img && img.complete && img.naturalWidth > 0) {
         ctx.drawImage(img, dropX - size / 2, DROP_Y - size / 2, size, size);
       } else {
-        ctx.fillStyle = cur.tint;
-        ctx.beginPath(); ctx.arc(dropX, DROP_Y, cur.radius, 0, Math.PI * 2); ctx.fill();
+        // 画像がまだ読めていない間は、円の下地は描かず段階名だけ出す
+        ctx.fillStyle = "#43382c";
+        ctx.font = `bold ${Math.max(11, cur.radius * 0.42)}px sans-serif`;
+        ctx.textAlign = "center"; ctx.textBaseline = "middle";
+        ctx.fillText(cur.name, dropX, DROP_Y);
+        ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
       }
       ctx.globalAlpha = 1;
     }
 
-    // bodies
+    // bodies（キャラ画像のみを描く。輪郭ベースの当たり判定に合わせ、
+    // 円時代の下地ディスク（tint の丸）は描かない）
     for (const b of bodies) {
       const st = stageOf(b.stage);
       const pop = b.mergedAt ? Math.max(0, 1 - (now - b.mergedAt) / 220) : 0;
       const scale = 1 + pop * 0.16;
-      ctx.fillStyle = st.tint;
-      ctx.beginPath(); ctx.arc(b.x, b.y, b.r * 0.94 * scale, 0, Math.PI * 2); ctx.fill();
       const img = images.get(b.stage);
       const size = b.r * 2 * SPRITE_SCALE * scale;
       if (img && img.complete && img.naturalWidth > 0) {
