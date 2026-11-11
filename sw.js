@@ -2,7 +2,7 @@
 // 方針: アプリの殻（HTML/CSS/JS）はキャッシュして高速・オフライン表示に対応。
 // Firebase への通信は常にネットワーク（キャッシュしない）ことで、
 // 在庫データが古いまま固定される事故を防ぐ。
-const CACHE = "wagaya-shokuzai-v20";
+const CACHE = "wagaya-shokuzai-v21";
 const SHELL = [
   "./", "./index.html", "./styles.css", "./config.js", "./manifest.webmanifest", "./icon.svg",
   "./icon-192.png", "./icon-512.png", "./apple-touch-icon.png", "./favicon-32.png", "./favicon.ico",
@@ -18,12 +18,15 @@ self.addEventListener("activate", (e) => {
 self.addEventListener("fetch", (e) => {
   const url = new URL(e.request.url);
   if (e.request.method !== "GET" || url.origin !== self.location.origin) return; // 外部（Firebase等）は素通し
+  // ネットワーク優先（オンライン時は常に最新を取得し、キャッシュを更新。
+  // オフライン時だけキャッシュにフォールバックする）。
+  // キャッシュ優先だとコード修正が端末に届くまで時間がかかる事故があったため。
   e.respondWith(
-    caches.match(e.request).then((hit) => hit || fetch(e.request).then((res) => {
+    fetch(e.request).then((res) => {
       const copy = res.clone();
       caches.open(CACHE).then((c) => c.put(e.request, copy));
       return res;
-    }))
+    }).catch(() => caches.match(e.request))
   );
 });
 
