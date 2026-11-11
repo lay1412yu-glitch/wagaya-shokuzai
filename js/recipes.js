@@ -239,6 +239,359 @@ export const EXTRA_RECIPES = [
     { name: "キャベツ", match: ["キャベツ"], per: 30, unit: "g" },
     { name: "じゃがいも", match: ["じゃがいも", "ジャガイモ"], per: 0.5, unit: "個" },
   ], steps: ["全部一口大に切ってコンソメで煮る", "塩こしょうで仕上げる"], tip: "端野菜をまとめて使い切れるスープです" },
+  // ---- 大幅追加（2026-11-11「レパートリー目標1500品」に向けた固定レシピ積み上げ） ----
+  // 鶏・豚・魚の主菜バリエーション
+  { id: "pikata", title: "鶏むね肉のピカタ", minutes: 20, genre: "洋風", method: "焼く", course: "主菜", ingredients: [
+    { name: "鶏むね肉", match: ["鶏むね", "むね肉", "鶏肉"], per: 100, unit: "g" },
+    { name: "卵", match: ["卵", "たまご"], per: 1, unit: "個" },
+    { name: "小麦粉", match: ["小麦粉"], per: 1, unit: "大さじ" },
+    { name: "チーズ", match: ["チーズ"], per: 10, unit: "g" },
+  ], steps: ["鶏むね肉を薄くそぎ切りにして塩こしょうする", "小麦粉→溶き卵（チーズ入り）の順にくぐらせて焼く"], tip: "卵液にチーズを混ぜるとコクが出ます" },
+  { id: "butabara-daikon", title: "豚バラ大根", minutes: 30, genre: "和風", method: "煮る", course: "主菜", ingredients: [
+    { name: "豚バラ肉", match: ["豚バラ", "豚肉"], per: 75, unit: "g" },
+    { name: "大根", match: ["大根", "だいこん"], per: 100, unit: "g" },
+    { name: "生姜", match: ["生姜", "しょうが"], per: 5, unit: "g" },
+  ], steps: ["大根は厚めのいちょう切りにして下ゆでする", "豚バラを焼いてから大根と生姜、だし・醤油・砂糖で煮る"], tip: "一度冷ますと大根に味がしみます" },
+  { id: "saba-misoni", title: "さばの味噌煮", minutes: 20, genre: "和風", method: "煮る", course: "主菜", ingredients: [
+    { name: "さば", match: ["さば", "サバ", "鯖"], per: 1, unit: "切れ" },
+    { name: "味噌", match: ["味噌", "みそ"], per: 1, unit: "大さじ" },
+    { name: "生姜", match: ["生姜", "しょうが"], per: 5, unit: "g" },
+  ], steps: ["さばに熱湯をかけて臭みを取る", "味噌・砂糖・みりん・生姜の煮汁で落し蓋をして煮る"], tip: "煮汁は煮詰めすぎず、照りが出たら火を止めます" },
+  { id: "saba-shioyaki", title: "さばの塩焼き", minutes: 15, genre: "和風", method: "焼く", course: "主菜", ingredients: [
+    { name: "さば", match: ["さば", "サバ", "鯖"], per: 1, unit: "切れ" },
+    { name: "大根", match: ["大根", "だいこん"], per: 30, unit: "g" },
+  ], steps: ["さばに塩をして10分置き、水分を拭く", "皮目から焼いて大根おろしを添える"], tip: "塩を強めにすると皮がパリッと焼けます" },
+  { id: "buri-daikon", title: "ブリ大根", minutes: 35, genre: "和風", method: "煮る", course: "主菜", ingredients: [
+    { name: "ぶり", match: ["ぶり", "ブリ", "鰤"], per: 1, unit: "切れ" },
+    { name: "大根", match: ["大根", "だいこん"], per: 100, unit: "g" },
+    { name: "生姜", match: ["生姜", "しょうが"], per: 5, unit: "g" },
+  ], steps: ["大根を下ゆでし、ぶりは熱湯をかけて霜降りにする", "だし・醤油・砂糖で大根とぶりを煮る"], tip: "冬のぶりは脂がのって格別です" },
+  { id: "aji-fry", title: "アジフライ", minutes: 20, genre: "和風", method: "揚げる", course: "主菜", ingredients: [
+    { name: "あじ", match: ["あじ", "アジ", "鯵"], per: 1, unit: "尾" },
+    { name: "パン粉", match: ["パン粉"], per: 2, unit: "大さじ" },
+    { name: "キャベツ", match: ["キャベツ"], per: 40, unit: "g" },
+  ], steps: ["あじに塩こしょうして小麦粉・卵・パン粉をつける", "カラッと揚げて千切りキャベツを添える"], tip: "ソースとタルタル、両方用意すると楽しいです" },
+  { id: "ebi-mayo", title: "エビマヨ", minutes: 20, genre: "中華", method: "揚げる", course: "主菜", ingredients: [
+    { name: "えび", match: ["えび", "海老"], per: 4, unit: "尾" },
+    { name: "片栗粉", match: ["片栗粉"], per: 1, unit: "大さじ" },
+    { name: "マヨネーズ", match: ["マヨネーズ"], per: 1.5, unit: "大さじ" },
+    { name: "レタス", match: ["レタス", "キャベツ"], per: 20, unit: "g" },
+  ], steps: ["えびに片栗粉をまぶして揚げる", "マヨネーズ・砂糖・レモン汁のソースで和える"], tip: "ソースに練乳少しでお店の味に近づきます" },
+  { id: "subuta", title: "酢豚", minutes: 25, genre: "中華", method: "炒める", course: "主菜", ingredients: [
+    { name: "豚肉", match: ["豚肉"], per: 75, unit: "g" },
+    { name: "玉ねぎ", match: ["玉ねぎ", "たまねぎ"], per: 0.5, unit: "個" },
+    { name: "ピーマン", match: ["ピーマン"], per: 1, unit: "個" },
+    { name: "にんじん", match: ["にんじん", "人参"], per: 0.3, unit: "本" },
+    { name: "片栗粉", match: ["片栗粉"], per: 1, unit: "大さじ" },
+  ], steps: ["豚肉に片栗粉をまぶして揚げ焼きにする", "野菜を炒め、酢・ケチャップ・醤油・砂糖の甘酢あんを絡める"], tip: "野菜は大きめに切ると食べ応えが出ます" },
+  { id: "chinjao", title: "ピーマンと豚肉の細切り炒め", minutes: 15, genre: "中華", method: "炒める", course: "主菜", ingredients: [
+    { name: "ピーマン", match: ["ピーマン"], per: 2, unit: "個" },
+    { name: "豚肉", match: ["豚肉"], per: 75, unit: "g" },
+    { name: "たけのこ", match: ["たけのこ", "筍"], per: 40, unit: "g" },
+  ], steps: ["ピーマンと豚肉を細切りにする", "強火で炒め、醤油とオイスターソース風に味付け"], tip: "ピーマンは最後に入れて色よく仕上げます" },
+  { id: "happosai", title: "八宝菜", minutes: 20, genre: "中華", method: "煮る", course: "主菜", ingredients: [
+    { name: "豚肉", match: ["豚肉"], per: 40, unit: "g" },
+    { name: "えび", match: ["えび", "海老"], per: 2, unit: "尾" },
+    { name: "白菜", match: ["白菜"], per: 0.125, unit: "玉" },
+    { name: "にんじん", match: ["にんじん", "人参"], per: 0.3, unit: "本" },
+    { name: "うずら卵", match: ["うずら卵", "うずら"], per: 2, unit: "個" },
+  ], steps: ["肉と野菜を炒めて中華だしで煮る", "片栗粉でとろみをつける"], tip: "ごはんにかけると中華丼になります" },
+  { id: "gyoza", title: "餃子", minutes: 25, genre: "中華", method: "焼く", course: "主菜", ingredients: [
+    { name: "ひき肉", match: ["ひき肉"], per: 60, unit: "g" },
+    { name: "キャベツ", match: ["キャベツ"], per: 50, unit: "g" },
+    { name: "にら", match: ["にら", "ニラ"], per: 0.25, unit: "束" },
+    { name: "餃子の皮", match: ["餃子の皮"], per: 8, unit: "枚" },
+  ], steps: ["野菜は塩もみして水気を絞り、ひき肉と練る", "皮で包み、フライパンで蒸し焼きにして底をカリッとさせる"], tip: "焼くときの水は熱湯を使うと皮が破れにくいです" },
+  { id: "oroshi-hamburg", title: "和風おろしハンバーグ", minutes: 25, genre: "和風", method: "焼く", course: "主菜", ingredients: [
+    { name: "ひき肉", match: ["ひき肉"], per: 100, unit: "g" },
+    { name: "玉ねぎ", match: ["玉ねぎ", "たまねぎ"], per: 0.5, unit: "個" },
+    { name: "大根", match: ["大根", "だいこん"], per: 50, unit: "g" },
+    { name: "大葉", match: ["大葉", "しそ"], per: 2, unit: "枚" },
+    { name: "パン粉", match: ["パン粉"], per: 2, unit: "大さじ" },
+  ], steps: ["材料をこねて小判形に整える", "両面焼いて、大根おろしと大葉をのせポン酢をかける"], tip: "大根おろしの水分は軽く切るとソースが薄まりません" },
+  { id: "roll-cabbage", title: "ロールキャベツ", minutes: 35, genre: "洋風", method: "煮る", course: "主菜", ingredients: [
+    { name: "キャベツ", match: ["キャベツ"], per: 2, unit: "枚" },
+    { name: "ひき肉", match: ["ひき肉"], per: 75, unit: "g" },
+    { name: "玉ねぎ", match: ["玉ねぎ", "たまねぎ"], per: 0.25, unit: "個" },
+    { name: "トマト缶", match: ["トマト缶", "トマト"], per: 0.25, unit: "缶" },
+  ], steps: ["キャベツは芯を薄くそいで下ゆでする", "肉だねを巻いて、トマト缶とコンソメで煮込む"], tip: "巻き終わりを下にして並べると崩れません" },
+  { id: "macaroni-gratin", title: "マカロニグラタン", minutes: 30, genre: "洋風", method: "焼く", course: "主菜", ingredients: [
+    { name: "マカロニ", match: ["マカロニ", "パスタ"], per: 40, unit: "g" },
+    { name: "鶏もも肉", match: ["鶏もも", "鶏肉", "とり肉"], per: 50, unit: "g" },
+    { name: "玉ねぎ", match: ["玉ねぎ", "たまねぎ"], per: 0.5, unit: "個" },
+    { name: "牛乳", match: ["牛乳"], per: 150, unit: "mL" },
+    { name: "チーズ", match: ["チーズ"], per: 20, unit: "g" },
+  ], steps: ["マカロニをゆで、鶏肉と玉ねぎをバターで炒める", "小麦粉と牛乳でホワイトソースを作り、チーズをのせて焼く"], tip: "表面に焼き色がつくまでしっかり焼くと香ばしいです" },
+  { id: "doria", title: "ミートドリア", minutes: 25, genre: "洋風", method: "焼く", course: "主食", ingredients: [
+    { name: "ひき肉", match: ["ひき肉"], per: 50, unit: "g" },
+    { name: "玉ねぎ", match: ["玉ねぎ", "たまねぎ"], per: 0.25, unit: "個" },
+    { name: "牛乳", match: ["牛乳"], per: 100, unit: "mL" },
+    { name: "チーズ", match: ["チーズ"], per: 20, unit: "g" },
+  ], steps: ["ひき肉と玉ねぎでミートソースを作る", "ごはん（別に用意）にソースとホワイトソース、チーズを重ねて焼く"], tip: "ごはんにバターを混ぜるとコクが出ます" },
+  // 麺・ごはんもの
+  { id: "meat-sauce", title: "ミートソーススパゲッティ", minutes: 30, genre: "洋風", method: "ゆでる", course: "主食", ingredients: [
+    { name: "パスタ", match: ["スパゲッティ", "パスタ"], per: 100, unit: "g" },
+    { name: "ひき肉", match: ["ひき肉"], per: 75, unit: "g" },
+    { name: "玉ねぎ", match: ["玉ねぎ", "たまねぎ"], per: 0.5, unit: "個" },
+    { name: "にんじん", match: ["にんじん", "人参"], per: 0.3, unit: "本" },
+    { name: "トマト缶", match: ["トマト缶", "トマト"], per: 0.5, unit: "缶" },
+  ], steps: ["ひき肉とみじん切りの野菜を炒め、トマト缶で煮込む", "ゆでたパスタにたっぷりかける"], tip: "ソースは多めに作るとドリアやグラタンにも使えます" },
+  { id: "napolitan", title: "ナポリタン", minutes: 20, genre: "洋風", method: "炒める", course: "主食", ingredients: [
+    { name: "パスタ", match: ["スパゲッティ", "パスタ"], per: 100, unit: "g" },
+    { name: "ウインナー", match: ["ウインナー", "ソーセージ"], per: 2, unit: "本" },
+    { name: "玉ねぎ", match: ["玉ねぎ", "たまねぎ"], per: 0.25, unit: "個" },
+    { name: "ピーマン", match: ["ピーマン"], per: 1, unit: "個" },
+    { name: "ケチャップ", match: ["ケチャップ"], per: 3, unit: "大さじ" },
+  ], steps: ["パスタをゆでる", "具材を炒め、ケチャップでしっかり炒め合わせる"], tip: "ケチャップは焦げる手前まで炒めると酸味がまろやかになります" },
+  { id: "peperoncino", title: "ペペロンチーノ", minutes: 15, genre: "洋風", method: "ゆでる", course: "主食", ingredients: [
+    { name: "パスタ", match: ["スパゲッティ", "パスタ"], per: 100, unit: "g" },
+    { name: "にんにく", match: ["にんにく"], per: 1, unit: "かけ" },
+    { name: "ベーコン", match: ["ベーコン"], per: 20, unit: "g" },
+    { name: "ブロッコリー", match: ["ブロッコリー"], per: 40, unit: "g" },
+  ], steps: ["にんにくをオリーブオイルで香りよく熱する（唐辛子は大人の分だけ）", "ゆで汁とパスタを絡めて乳化させる"], tip: "ゆで汁を少しずつ足すとソースがよく絡みます" },
+  { id: "kinoko-pasta", title: "和風きのこパスタ", minutes: 20, genre: "和風", method: "ゆでる", course: "主食", ingredients: [
+    { name: "パスタ", match: ["スパゲッティ", "パスタ"], per: 100, unit: "g" },
+    { name: "しめじ", match: ["しめじ"], per: 0.5, unit: "パック" },
+    { name: "まいたけ", match: ["まいたけ", "舞茸"], per: 0.5, unit: "パック" },
+    { name: "大葉", match: ["大葉", "しそ"], per: 2, unit: "枚" },
+    { name: "バター", match: ["バター"], per: 10, unit: "g" },
+  ], steps: ["きのこをバターで炒める", "パスタと醤油で和え、大葉と海苔をのせる"], tip: "きのこは触りすぎず、焼き色をつけると香りが立ちます" },
+  { id: "yakisoba", title: "焼きそば", minutes: 15, genre: "和風", method: "炒める", course: "主食", ingredients: [
+    { name: "焼きそば麺", match: ["焼きそば麺", "中華麺", "麺"], per: 1, unit: "玉" },
+    { name: "豚肉", match: ["豚肉"], per: 50, unit: "g" },
+    { name: "キャベツ", match: ["キャベツ"], per: 50, unit: "g" },
+    { name: "にんじん", match: ["にんじん", "人参"], per: 0.3, unit: "本" },
+    { name: "ソース", match: ["ソース"], per: 2, unit: "大さじ" },
+  ], steps: ["麺は袋のまま少し温めてほぐす", "肉と野菜を炒め、麺とソースを絡める"], tip: "麺を先に軽く焼くと香ばしくなります" },
+  { id: "yakiudon", title: "焼うどん", minutes: 15, genre: "和風", method: "炒める", course: "主食", ingredients: [
+    { name: "うどん", match: ["うどん"], per: 1, unit: "玉" },
+    { name: "豚肉", match: ["豚肉"], per: 50, unit: "g" },
+    { name: "キャベツ", match: ["キャベツ"], per: 40, unit: "g" },
+    { name: "かつお節", match: ["かつお節"], per: 2, unit: "g" },
+  ], steps: ["うどんをほぐしながら肉と野菜と炒める", "醤油とだしで味付けし、かつお節をかける"], tip: "仕上げのごま油で風味アップです" },
+  { id: "curry-udon", title: "カレーうどん", minutes: 20, genre: "和風", method: "煮る", course: "主食", ingredients: [
+    { name: "うどん", match: ["うどん"], per: 1, unit: "玉" },
+    { name: "豚肉", match: ["豚肉"], per: 40, unit: "g" },
+    { name: "玉ねぎ", match: ["玉ねぎ", "たまねぎ"], per: 0.25, unit: "個" },
+    { name: "カレールー", match: ["カレールー", "ルー"], per: 1, unit: "かけ" },
+    { name: "ねぎ", match: ["ねぎ", "ネギ", "長ねぎ"], per: 0.3, unit: "本" },
+  ], steps: ["だしで豚肉と玉ねぎを煮てカレールーを溶く", "うどんを入れて煮込み、ねぎを散らす"], tip: "片栗粉で少しとろみをつけると汁が冷めにくいです" },
+  { id: "sanshoku-don", title: "三色丼", minutes: 20, genre: "和風", method: "炒める", course: "主食", ingredients: [
+    { name: "ひき肉", match: ["ひき肉"], per: 50, unit: "g" },
+    { name: "卵", match: ["卵", "たまご"], per: 1, unit: "個" },
+    { name: "ほうれん草", match: ["ほうれん草"], per: 0.25, unit: "束" },
+  ], steps: ["ひき肉は甘辛いそぼろに、卵は炒り卵にする", "ごはん（別に用意）に、ほうれん草のおひたしと3色並べる"], tip: "並べ方をまっすぐにすると見た目がきれいです" },
+  { id: "gyudon", title: "牛丼", minutes: 20, genre: "和風", method: "煮る", course: "主食", ingredients: [
+    { name: "牛肉", match: ["牛肉"], per: 75, unit: "g" },
+    { name: "玉ねぎ", match: ["玉ねぎ", "たまねぎ"], per: 0.5, unit: "個" },
+  ], steps: ["玉ねぎをだし・醤油・砂糖で煮る", "牛肉を加えてさっと煮て、ごはんにのせる（ごはんは別に用意）"], tip: "牛肉は煮すぎると固くなるので最後に入れます" },
+  { id: "tonkatsu", title: "とんかつ", minutes: 25, genre: "和風", method: "揚げる", course: "主菜", ingredients: [
+    { name: "豚ロース", match: ["豚ロース", "豚肉"], per: 100, unit: "g" },
+    { name: "パン粉", match: ["パン粉"], per: 2, unit: "大さじ" },
+    { name: "キャベツ", match: ["キャベツ"], per: 50, unit: "g" },
+    { name: "卵", match: ["卵", "たまご"], per: 0.5, unit: "個" },
+  ], steps: ["豚肉の筋を切り、塩こしょうして衣をつける", "カラッと揚げて千切りキャベツを添える"], tip: "揚げる前に10分置くと衣がはがれにくくなります" },
+  { id: "menchi", title: "メンチカツ", minutes: 25, genre: "洋風", method: "揚げる", course: "主菜", ingredients: [
+    { name: "ひき肉", match: ["ひき肉"], per: 100, unit: "g" },
+    { name: "玉ねぎ", match: ["玉ねぎ", "たまねぎ"], per: 0.5, unit: "個" },
+    { name: "パン粉", match: ["パン粉"], per: 3, unit: "大さじ" },
+    { name: "キャベツ", match: ["キャベツ"], per: 30, unit: "g" },
+  ], steps: ["材料をよくこねて厚めの小判形にする", "衣をつけて中までしっかり揚げる"], tip: "肉だねを冷蔵庫で休ませると形が崩れません" },
+  { id: "korokke", title: "じゃがいもコロッケ", minutes: 30, genre: "洋風", method: "揚げる", course: "主菜", ingredients: [
+    { name: "じゃがいも", match: ["じゃがいも", "ジャガイモ"], per: 1.5, unit: "個" },
+    { name: "ひき肉", match: ["ひき肉"], per: 40, unit: "g" },
+    { name: "玉ねぎ", match: ["玉ねぎ", "たまねぎ"], per: 0.25, unit: "個" },
+    { name: "パン粉", match: ["パン粉"], per: 2, unit: "大さじ" },
+  ], steps: ["じゃがいもを茹でて潰し、炒めたひき肉と玉ねぎを混ぜる", "小判形にして衣をつけ、カラッと揚げる"], tip: "たねは冷ましてから成形すると揚げやすいです" },
+  { id: "nanbanzuke", title: "鶏の南蛮漬け", minutes: 25, genre: "和風", method: "揚げる", course: "主菜", ingredients: [
+    { name: "鶏もも肉", match: ["鶏もも", "鶏肉", "とり肉"], per: 75, unit: "g" },
+    { name: "玉ねぎ", match: ["玉ねぎ", "たまねぎ"], per: 0.5, unit: "個" },
+    { name: "にんじん", match: ["にんじん", "人参"], per: 0.3, unit: "本" },
+    { name: "ピーマン", match: ["ピーマン"], per: 1, unit: "個" },
+    { name: "酢", match: ["酢"], per: 1.5, unit: "大さじ" },
+  ], steps: ["鶏肉に片栗粉をまぶして揚げる", "甘酢にスライス野菜と一緒に漬ける"], tip: "一晩漬けると味がなじんでさらに美味しいです" },
+  { id: "sasami-cheese", title: "ささみのチーズ焼き", minutes: 15, genre: "洋風", method: "焼く", course: "主菜", ingredients: [
+    { name: "鶏ささみ", match: ["ささみ", "鶏むね", "鶏肉"], per: 2, unit: "本" },
+    { name: "チーズ", match: ["チーズ"], per: 15, unit: "g" },
+    { name: "大葉", match: ["大葉", "しそ"], per: 2, unit: "枚" },
+  ], steps: ["ささみの筋を取り、観音開きにして塩こしょうする", "大葉とチーズを挟んで焼く"], tip: "焼きすぎると固くなるので中火でふっくらと" },
+  { id: "buta-misozuke", title: "豚肉の味噌漬け焼き", minutes: 20, genre: "和風", method: "焼く", course: "主菜", ingredients: [
+    { name: "豚ロース", match: ["豚ロース", "豚肉"], per: 100, unit: "g" },
+    { name: "味噌", match: ["味噌", "みそ"], per: 1, unit: "大さじ" },
+    { name: "キャベツ", match: ["キャベツ"], per: 40, unit: "g" },
+  ], steps: ["味噌・みりん・砂糖のタレに豚肉を30分漬ける", "味噌を拭ってから弱めの中火で焼く"], tip: "味噌は焦げやすいので火加減に注意です" },
+  // 副菜バリエーション
+  { id: "horenso-ohitashi", title: "ほうれん草のおひたし", minutes: 10, genre: "和風", method: "ゆでる", course: "副菜", ingredients: [
+    { name: "ほうれん草", match: ["ほうれん草"], per: 0.5, unit: "束" },
+    { name: "かつお節", match: ["かつお節"], per: 2, unit: "g" },
+  ], steps: ["ほうれん草をさっとゆでて水気を絞る", "だし醤油に浸しかつお節をかける"], tip: "根元から先にゆでると均一に火が入ります" },
+  { id: "horenso-gomaae", title: "ほうれん草のごま和え", minutes: 10, genre: "和風", method: "和える", course: "副菜", ingredients: [
+    { name: "ほうれん草", match: ["ほうれん草"], per: 0.5, unit: "束" },
+    { name: "ごま", match: ["ごま"], per: 1, unit: "大さじ" },
+  ], steps: ["ほうれん草をゆでて絞る", "すりごま・砂糖・醤油で和える"], tip: "ごまは食べる直前にすると香りがよいです" },
+  { id: "komatsuna-nibitashi", title: "小松菜の煮びたし", minutes: 10, genre: "和風", method: "煮る", course: "副菜", ingredients: [
+    { name: "小松菜", match: ["小松菜"], per: 0.5, unit: "束" },
+    { name: "油揚げ", match: ["油揚げ"], per: 0.5, unit: "枚" },
+  ], steps: ["小松菜と油揚げをだしで軽く煮る", "薄口醤油で味を整えて浸す"], tip: "煮すぎず、色よく仕上げるのがコツです" },
+  { id: "moyashi-namuru", title: "もやしのナムル", minutes: 10, genre: "中華", method: "和える", course: "副菜", ingredients: [
+    { name: "もやし", match: ["もやし"], per: 0.5, unit: "袋" },
+    { name: "ごま油", match: ["ごま油"], per: 1, unit: "小さじ" },
+    { name: "ごま", match: ["ごま"], per: 0.5, unit: "大さじ" },
+  ], steps: ["もやしをさっとゆでて水気を切る", "ごま油・塩・すりごまで和える"], tip: "熱いうちに味付けするとよく馴染みます" },
+  { id: "tako-sunomono", title: "たこときゅうりの酢の物", minutes: 10, genre: "和風", method: "和える", course: "副菜", ingredients: [
+    { name: "たこ", match: ["たこ"], per: 40, unit: "g" },
+    { name: "きゅうり", match: ["きゅうり"], per: 0.5, unit: "本" },
+    { name: "わかめ", match: ["わかめ"], per: 3, unit: "g" },
+  ], steps: ["きゅうりを薄切りにして塩もみする", "たことわかめと甘酢で和える"], tip: "たこは斜め薄切りにすると食べやすいです" },
+  { id: "nasu-agebitashi", title: "なすの揚げびたし", minutes: 15, genre: "和風", method: "揚げる", course: "副菜", ingredients: [
+    { name: "なす", match: ["なす"], per: 1.5, unit: "本" },
+    { name: "生姜", match: ["生姜", "しょうが"], per: 3, unit: "g" },
+    { name: "大葉", match: ["大葉", "しそ"], per: 2, unit: "枚" },
+  ], steps: ["なすを素揚げする", "だし・醤油・みりんの浸し汁に熱いうちに入れる"], tip: "生姜と大葉でさっぱり仕上げます" },
+  { id: "mugen-piman", title: "無限ピーマン", minutes: 10, genre: "中華", method: "炒める", course: "副菜", ingredients: [
+    { name: "ピーマン", match: ["ピーマン"], per: 2, unit: "個" },
+    { name: "ツナ缶", match: ["ツナ缶", "ツナ"], per: 0.5, unit: "缶" },
+    { name: "ごま油", match: ["ごま油"], per: 1, unit: "小さじ" },
+  ], steps: ["ピーマンを細切りにしてレンジで加熱する", "ツナとごま油・醤油で和える"], tip: "子どもでも食べやすいピーマン料理です" },
+  { id: "broccoli-gomaae", title: "ブロッコリーのごま和え", minutes: 10, genre: "和風", method: "和える", course: "副菜", ingredients: [
+    { name: "ブロッコリー", match: ["ブロッコリー"], per: 0.5, unit: "株" },
+    { name: "ごま", match: ["ごま"], per: 1, unit: "大さじ" },
+  ], steps: ["ブロッコリーを小房に分けてゆでる", "すりごま・砂糖・醤油で和える"], tip: "茎も薄く切って使うと無駄がありません" },
+  { id: "coleslaw", title: "コールスローサラダ", minutes: 10, genre: "洋風", method: "サラダ", course: "副菜", ingredients: [
+    { name: "キャベツ", match: ["キャベツ"], per: 60, unit: "g" },
+    { name: "にんじん", match: ["にんじん", "人参"], per: 0.3, unit: "本" },
+    { name: "コーン缶", match: ["コーン缶", "とうもろこし"], per: 0.25, unit: "缶" },
+    { name: "マヨネーズ", match: ["マヨネーズ"], per: 1.5, unit: "大さじ" },
+  ], steps: ["キャベツとにんじんを千切りにして塩もみする", "コーンとマヨネーズ・酢で和える"], tip: "少し置くと味がなじみます" },
+  { id: "macaroni-salad", title: "マカロニサラダ", minutes: 15, genre: "洋風", method: "サラダ", course: "副菜", ingredients: [
+    { name: "マカロニ", match: ["マカロニ", "パスタ"], per: 30, unit: "g" },
+    { name: "きゅうり", match: ["きゅうり"], per: 0.3, unit: "本" },
+    { name: "ハム", match: ["ハム"], per: 15, unit: "g" },
+    { name: "卵", match: ["卵", "たまご"], per: 0.5, unit: "個" },
+  ], steps: ["マカロニをゆでる", "具材とマヨネーズで和える"], tip: "マカロニは少し柔らかめにゆでると味が絡みます" },
+  { id: "satsumaimo-salad", title: "さつまいもサラダ", minutes: 15, genre: "洋風", method: "サラダ", course: "副菜", ingredients: [
+    { name: "さつまいも", match: ["さつまいも", "薩摩芋"], per: 75, unit: "g" },
+    { name: "きゅうり", match: ["きゅうり"], per: 0.3, unit: "本" },
+    { name: "マヨネーズ", match: ["マヨネーズ"], per: 1, unit: "大さじ" },
+  ], steps: ["さつまいもを蒸して一口大に切る", "きゅうりとマヨネーズで和える"], tip: "はちみつを少し足すと甘みが増します" },
+  { id: "daikon-salad", title: "大根サラダ", minutes: 10, genre: "和風", method: "サラダ", course: "副菜", ingredients: [
+    { name: "大根", match: ["大根", "だいこん"], per: 75, unit: "g" },
+    { name: "ツナ缶", match: ["ツナ缶", "ツナ"], per: 0.5, unit: "缶" },
+    { name: "大葉", match: ["大葉", "しそ"], per: 2, unit: "枚" },
+  ], steps: ["大根を千切りにして塩もみする", "ツナとポン酢で和え、大葉をのせる"], tip: "大根の葉があれば刻んで混ぜても" },
+  { id: "harusame-salad", title: "春雨サラダ", minutes: 15, genre: "中華", method: "サラダ", course: "副菜", ingredients: [
+    { name: "春雨", match: ["春雨"], per: 25, unit: "g" },
+    { name: "きゅうり", match: ["きゅうり"], per: 0.5, unit: "本" },
+    { name: "ハム", match: ["ハム"], per: 15, unit: "g" },
+    { name: "卵", match: ["卵", "たまご"], per: 0.5, unit: "個" },
+  ], steps: ["春雨をゆでて食べやすく切る", "細切りの具と甘酢・ごま油で和える"], tip: "春雨がドレッシングを吸うので食べる直前に和えます" },
+  { id: "kiriboshi", title: "切干大根の煮物", minutes: 20, genre: "和風", method: "煮る", course: "副菜", ingredients: [
+    { name: "切干大根", match: ["切干大根"], per: 15, unit: "g" },
+    { name: "にんじん", match: ["にんじん", "人参"], per: 0.3, unit: "本" },
+    { name: "油揚げ", match: ["油揚げ"], per: 0.5, unit: "枚" },
+  ], steps: ["切干大根を水で戻す", "にんじんと油揚げと一緒に甘辛く煮る"], tip: "戻し汁を煮汁に使うとうま味が増します" },
+  { id: "hijiki-ni", title: "ひじきの煮物", minutes: 20, genre: "和風", method: "煮る", course: "副菜", ingredients: [
+    { name: "ひじき", match: ["ひじき"], per: 10, unit: "g" },
+    { name: "にんじん", match: ["にんじん", "人参"], per: 0.3, unit: "本" },
+    { name: "大豆", match: ["大豆"], per: 20, unit: "g" },
+    { name: "油揚げ", match: ["油揚げ"], per: 0.5, unit: "枚" },
+  ], steps: ["ひじきを水で戻す", "具材と一緒にだし・醤油・砂糖で煮る"], tip: "鉄分たっぷりの常備菜です" },
+  { id: "daigakuimo", title: "大学芋", minutes: 20, genre: "和風", method: "揚げる", course: "副菜", ingredients: [
+    { name: "さつまいも", match: ["さつまいも", "薩摩芋"], per: 100, unit: "g" },
+    { name: "砂糖", match: ["砂糖"], per: 1.5, unit: "大さじ" },
+    { name: "ごま", match: ["ごま"], per: 0.5, unit: "大さじ" },
+  ], steps: ["さつまいもを乱切りにして揚げる", "砂糖・醤油・水の蜜を絡め、黒ごまを振る"], tip: "蜜は熱いうちに絡めると均一に仕上がります" },
+  // 汁物バリエーション
+  { id: "nameko-miso", title: "なめこの味噌汁", minutes: 10, genre: "和風", method: "スープ", course: "汁物", ingredients: [
+    { name: "なめこ", match: ["なめこ"], per: 0.5, unit: "袋" },
+    { name: "豆腐", match: ["豆腐"], per: 0.25, unit: "丁" },
+    { name: "味噌", match: ["味噌", "みそ"], per: 1.5, unit: "大さじ" },
+  ], steps: ["なめこをさっと洗ってだしで煮る", "豆腐を入れて味噌を溶く"], tip: "なめこは煮すぎるととろみが抜けるので短めに" },
+  { id: "asari-miso", title: "あさりの味噌汁", minutes: 15, genre: "和風", method: "スープ", course: "汁物", ingredients: [
+    { name: "あさり", match: ["あさり"], per: 75, unit: "g" },
+    { name: "味噌", match: ["味噌", "みそ"], per: 1.5, unit: "大さじ" },
+    { name: "ねぎ", match: ["ねぎ", "ネギ", "長ねぎ"], per: 0.2, unit: "本" },
+  ], steps: ["砂抜きしたあさりを水から煮て口を開ける", "味噌を溶いてねぎを散らす"], tip: "あさりの汁がだしになるので水から煮ます" },
+  { id: "onion-soup", title: "玉ねぎのコンソメスープ", minutes: 20, genre: "洋風", method: "スープ", course: "汁物", useUp: true, ingredients: [
+    { name: "玉ねぎ", match: ["玉ねぎ", "たまねぎ"], per: 0.5, unit: "個" },
+    { name: "ベーコン", match: ["ベーコン"], per: 15, unit: "g" },
+  ], steps: ["玉ねぎをじっくり炒めて甘みを出す", "コンソメで煮て塩こしょうで仕上げる"], tip: "チーズとパンをのせて焼くとオニオングラタンスープ風です" },
+  { id: "clam-chowder", title: "クラムチャウダー", minutes: 25, genre: "洋風", method: "スープ", course: "汁物", ingredients: [
+    { name: "あさり", match: ["あさり"], per: 75, unit: "g" },
+    { name: "じゃがいも", match: ["じゃがいも", "ジャガイモ"], per: 0.5, unit: "個" },
+    { name: "玉ねぎ", match: ["玉ねぎ", "たまねぎ"], per: 0.25, unit: "個" },
+    { name: "牛乳", match: ["牛乳"], per: 100, unit: "mL" },
+    { name: "ベーコン", match: ["ベーコン"], per: 15, unit: "g" },
+  ], steps: ["ベーコンと野菜を炒めて小麦粉を振る", "あさりの汁と牛乳で煮込む"], tip: "あさりは缶詰でも作れます" },
+  // 追加の主菜・主食（魚・肉・麺の底上げ）
+  { id: "saba-tatsuta", title: "さばの竜田揚げ", minutes: 20, genre: "和風", method: "揚げる", course: "主菜", ingredients: [
+    { name: "さば", match: ["さば", "サバ", "鯖"], per: 1, unit: "切れ" },
+    { name: "生姜", match: ["生姜", "しょうが"], per: 5, unit: "g" },
+    { name: "片栗粉", match: ["片栗粉"], per: 1, unit: "大さじ" },
+  ], steps: ["さばを生姜醤油に15分漬ける", "片栗粉をまぶしてカラッと揚げる"], tip: "漬け汁の水分を拭くと油はねしにくいです" },
+  { id: "tebamoto-sappari", title: "手羽元のさっぱり煮", minutes: 30, genre: "和風", method: "煮る", course: "主菜", ingredients: [
+    { name: "手羽元", match: ["手羽元", "手羽"], per: 3, unit: "本" },
+    { name: "卵", match: ["卵", "たまご"], per: 1, unit: "個" },
+    { name: "酢", match: ["酢"], per: 1.5, unit: "大さじ" },
+    { name: "生姜", match: ["生姜", "しょうが"], per: 5, unit: "g" },
+  ], steps: ["手羽元を焼いてから酢・醤油・砂糖で煮る", "ゆで卵を入れて一緒に煮含める"], tip: "酢でお肉が柔らかく、さっぱり食べられます" },
+  { id: "buta-kakuni", title: "豚の角煮", minutes: 50, genre: "和風", method: "煮る", course: "主菜", ingredients: [
+    { name: "豚バラ肉", match: ["豚バラ", "豚肉"], per: 100, unit: "g" },
+    { name: "卵", match: ["卵", "たまご"], per: 1, unit: "個" },
+    { name: "生姜", match: ["生姜", "しょうが"], per: 5, unit: "g" },
+    { name: "ねぎ", match: ["ねぎ", "ネギ", "長ねぎ"], per: 0.3, unit: "本" },
+  ], steps: ["豚バラを下茹でして脂を落とす", "醤油・砂糖・酒で弱火でとろとろに煮る"], tip: "一度冷ますと味がしみて切りやすくなります" },
+  { id: "ika-butter", title: "いかのバター醤油炒め", minutes: 10, genre: "和風", method: "炒める", course: "主菜", ingredients: [
+    { name: "いか", match: ["いか", "イカ"], per: 0.5, unit: "杯" },
+    { name: "バター", match: ["バター"], per: 10, unit: "g" },
+    { name: "にんにく", match: ["にんにく"], per: 0.5, unit: "かけ" },
+  ], steps: ["いかを輪切りにする", "バターとにんにくで強火で炒め、醤油を回しかける"], tip: "炒めすぎると固くなるので手早く仕上げます" },
+  { id: "tara-hoiru", title: "たらのホイル焼き", minutes: 20, genre: "和風", method: "蒸す", course: "主菜", ingredients: [
+    { name: "たら", match: ["たら", "鱈"], per: 1, unit: "切れ" },
+    { name: "しめじ", match: ["しめじ"], per: 0.25, unit: "パック" },
+    { name: "玉ねぎ", match: ["玉ねぎ", "たまねぎ"], per: 0.25, unit: "個" },
+    { name: "バター", match: ["バター"], per: 5, unit: "g" },
+  ], steps: ["ホイルにたらと野菜、バターを包む", "フライパンやオーブンで蒸し焼きにする"], tip: "ポン酢をかけるとさっぱりします" },
+  { id: "karei-nitsuke", title: "かれいの煮付け", minutes: 20, genre: "和風", method: "煮る", course: "主菜", ingredients: [
+    { name: "かれい", match: ["かれい", "カレイ"], per: 1, unit: "切れ" },
+    { name: "生姜", match: ["生姜", "しょうが"], per: 5, unit: "g" },
+  ], steps: ["煮汁を煮立ててかれいを入れる", "落し蓋をして照りよく煮る"], tip: "皮目に切り込みを入れると味が入りやすいです" },
+  { id: "potofu", title: "ポトフ", minutes: 30, genre: "洋風", method: "煮る", course: "汁物", ingredients: [
+    { name: "ウインナー", match: ["ウインナー", "ソーセージ"], per: 2, unit: "本" },
+    { name: "じゃがいも", match: ["じゃがいも", "ジャガイモ"], per: 1, unit: "個" },
+    { name: "にんじん", match: ["にんじん", "人参"], per: 0.5, unit: "本" },
+    { name: "キャベツ", match: ["キャベツ"], per: 50, unit: "g" },
+    { name: "玉ねぎ", match: ["玉ねぎ", "たまねぎ"], per: 0.5, unit: "個" },
+  ], steps: ["野菜を大きめに切ってコンソメで煮る", "ウインナーを入れて塩こしょうで仕上げる"], tip: "粒マスタードを添えると大人の味になります" },
+  { id: "chapche", title: "チャプチェ", minutes: 20, genre: "中華", method: "炒める", course: "主菜", ingredients: [
+    { name: "春雨", match: ["春雨"], per: 30, unit: "g" },
+    { name: "牛肉", match: ["牛肉"], per: 50, unit: "g" },
+    { name: "ピーマン", match: ["ピーマン"], per: 1, unit: "個" },
+    { name: "にんじん", match: ["にんじん", "人参"], per: 0.3, unit: "本" },
+    { name: "玉ねぎ", match: ["玉ねぎ", "たまねぎ"], per: 0.25, unit: "個" },
+  ], steps: ["春雨をゆでて食べやすく切る", "牛肉と野菜を炒め、春雨と甘辛ダレを絡める"], tip: "韓国の春雨のお祝い料理。ごま油の香りが決め手です" },
+  { id: "ebi-chili", title: "エビチリ", minutes: 20, genre: "中華", method: "炒める", course: "主菜", ingredients: [
+    { name: "えび", match: ["えび", "海老"], per: 4, unit: "尾" },
+    { name: "ねぎ", match: ["ねぎ", "ネギ", "長ねぎ"], per: 0.3, unit: "本" },
+    { name: "ケチャップ", match: ["ケチャップ"], per: 2, unit: "大さじ" },
+    { name: "片栗粉", match: ["片栗粉"], per: 1, unit: "大さじ" },
+  ], steps: ["えびに片栗粉をまぶして揚げ焼きにする", "ケチャップベースのチリソース（辛さは大人の分だけ後がけ）で絡める"], tip: "卵白を加えたソースにするとまろやかになります" },
+  { id: "wonton-soup", title: "ワンタンスープ", minutes: 15, genre: "中華", method: "スープ", course: "汁物", ingredients: [
+    { name: "餃子", match: ["餃子", "ワンタン"], per: 3, unit: "個" },
+    { name: "チンゲン菜", match: ["チンゲン菜"], per: 0.5, unit: "株" },
+    { name: "ねぎ", match: ["ねぎ", "ネギ", "長ねぎ"], per: 0.2, unit: "本" },
+  ], steps: ["中華スープを沸かして餃子を入れる", "チンゲン菜を加え、ごま油を垂らす"], tip: "冷凍餃子で手軽にワンタン風スープになります" },
+  { id: "gomoku-takikomi", title: "五目炊き込みごはん", minutes: 15, genre: "和風", method: "煮る", course: "主食", ingredients: [
+    { name: "米", match: ["米", "ごはん"], per: 75, unit: "g" },
+    { name: "鶏もも肉", match: ["鶏もも", "鶏肉", "とり肉"], per: 40, unit: "g" },
+    { name: "にんじん", match: ["にんじん", "人参"], per: 0.3, unit: "本" },
+    { name: "ごぼう", match: ["ごぼう"], per: 0.3, unit: "本" },
+    { name: "油揚げ", match: ["油揚げ"], per: 0.5, unit: "枚" },
+  ], steps: ["具材を小さく切って米と一緒に炊飯器に入れる", "だし・醤油・みりんで味付けして炊く"], tip: "具は米の上にのせて混ぜずに炊くのがコツです" },
+  { id: "yaki-onigiri", title: "焼きおにぎり", minutes: 15, genre: "和風", method: "焼く", course: "主食", ingredients: [
+    { name: "米", match: ["米", "ごはん"], per: 100, unit: "g" },
+    { name: "味噌", match: ["味噌", "みそ"], per: 0.5, unit: "大さじ" },
+  ], steps: ["ごはんを三角に固くにぎる", "フライパンで両面を焼き、味噌（または醤油）を塗って焼く"], tip: "香ばしい焼き目がおいしさの決め手です" },
 ];
 
 export const ALL_RECIPES = [...RECIPES, ...EXTRA_RECIPES];
@@ -724,51 +1077,418 @@ export const EVENT_RECIPES = [
     { name: "さつまいも", match: ["さつまいも", "薩摩芋"], per: 100, unit: "g" },
     { name: "砂糖", match: ["砂糖"], per: 1, unit: "大さじ" },
   ], steps: ["さつまいもを輪切りにして水にさらす", "砂糖とレモン（あれば）で柔らかく煮る"], tip: "お弁当にも入る秋の甘い一品です" },
+  // ---- 大幅追加（2026-11-11「レパートリー目標1500品」に向けた固定レシピ積み上げ） ----
+  // おせち・年末年始
+  { id: "ev-tataki-gobou", title: "たたきごぼう", minutes: 15, course: "副菜", genre: "和風", method: "和える", note: "おせちの一つ。「ごぼうをたたく＝想いを込めて叩く」という語呂で、細く長く丈夫に育つよう願う料理。", ingredients: [
+    { name: "ごぼう", match: ["ごぼう"], per: 0.5, unit: "本" },
+    { name: "ごま", match: ["ごま"], per: 1, unit: "大さじ" },
+  ], steps: ["ごぼうをたたいて割り、酢水で茹でる", "ごまだれで和える"], tip: "ごぼうはたたくと味が入りやすくなります" },
+  { id: "ev-tazukuri", title: "田作り（ごまめ）", minutes: 10, course: "副菜", genre: "和風", method: "炒める", note: "おせちの一つ。小さなイワシが豊作の肥料になったことから「田作り」と呼ばれ、五穀豊穣を願う縁起物。カリカリに仕上げるのがコツ。", ingredients: [
+    { name: "いわし", match: ["いわし", "かたくちいわし", "田作り"], per: 10, unit: "g" },
+    { name: "砂糖", match: ["砂糖"], per: 1, unit: "大さじ" },
+  ], steps: ["小魚をから炒りする", "砂糖・醤油の蜜を絡める"], tip: "弱火で焦がさないようにから炒りします" },
+  { id: "ev-matsukaze", title: "松風焼き", minutes: 25, course: "主菜", genre: "和風", method: "焼く", note: "おせちの一つ。表面だけにごまを振り、裏には何もないことから「裏のない＝正直な一年に」という願いを込めたとも言われる、鶏ひき肉の焼き物。", ingredients: [
+    { name: "鶏ひき肉", match: ["ひき肉"], per: 75, unit: "g" },
+    { name: "卵", match: ["卵", "たまご"], per: 0.5, unit: "個" },
+    { name: "味噌", match: ["味噌", "みそ"], per: 0.5, unit: "大さじ" },
+    { name: "ごま", match: ["ごま"], per: 0.5, unit: "大さじ" },
+  ], steps: ["ひき肉に卵と味噌を混ぜて平らに伸ばす", "ごまを振って焼き、切り分ける"], tip: "表面にごまをたっぷり振ると松風らしくなります" },
+  // 節分
+  { id: "ev-fukumame-gohan", title: "福豆ごはん", minutes: 10, course: "主食", genre: "和風", method: "煮る", note: "節分でまいた福豆（炒り大豆）を無駄なく使うごはん。豆の香ばしさがごはんに移って、子どもにも人気。余った豆のリメイクにぴったり。", ingredients: [
+    { name: "米", match: ["米", "ごはん"], per: 75, unit: "g" },
+    { name: "大豆", match: ["大豆", "炒り豆"], per: 15, unit: "g" },
+    { name: "塩昆布", match: ["塩昆布", "昆布"], per: 3, unit: "g" },
+  ], steps: ["米と福豆、塩昆布を一緒に炊く", "蒸らして混ぜる"], tip: "福豆がなければ炒り大豆でも作れます" },
+  { id: "ev-iwashi-tsumire", title: "いわしのつみれ汁", minutes: 20, course: "汁物", genre: "和風", method: "スープ", note: "節分にいわしを食べるのは、焼く煙とにおいで鬼（邪気）を寄せつけないという言い伝えから。つみれにすると骨が気にならず子どもも食べやすい。", ingredients: [
+    { name: "いわし", match: ["いわし", "イワシ"], per: 1, unit: "尾" },
+    { name: "生姜", match: ["生姜", "しょうが"], per: 3, unit: "g" },
+    { name: "大根", match: ["大根", "だいこん"], per: 30, unit: "g" },
+    { name: "味噌", match: ["味噌", "みそ"], per: 1.5, unit: "大さじ" },
+  ], steps: ["いわしをたたいて生姜と片栗粉でつみれにする", "だしに野菜とつみれを入れて味噌で仕上げる"], tip: "つみれはスプーンで落とすと簡単です" },
+  { id: "ev-daizu-konbu-ni", title: "大豆と昆布の煮物", minutes: 25, course: "副菜", genre: "和風", method: "煮る", note: "節分のあとの福豆や戻した大豆で作る定番の煮物。「豆＝まめ（健康）に暮らせるように」という願いも込められた、栄養たっぷりの常備菜。", ingredients: [
+    { name: "大豆", match: ["大豆"], per: 30, unit: "g" },
+    { name: "昆布", match: ["昆布"], per: 5, unit: "g" },
+    { name: "にんじん", match: ["にんじん", "人参"], per: 0.3, unit: "本" },
+  ], steps: ["大豆を水で戻す", "昆布とにんじんと一緒に甘辛く煮る"], tip: "一晩置くと味がよくなじみます" },
+  { id: "ev-fukucha", title: "福茶", minutes: 5, course: "汁物", genre: "和風", method: "その他", note: "節分に飲む縁起のいいお茶。福豆3粒・梅干し・塩昆布にお湯を注ぐだけ。豆まきのあとのほっと一息に。", ingredients: [
+    { name: "大豆", match: ["大豆", "炒り豆"], per: 3, unit: "粒" },
+    { name: "梅干し", match: ["梅干し"], per: 0.5, unit: "個" },
+    { name: "昆布", match: ["昆布", "塩昆布"], per: 2, unit: "g" },
+  ], steps: ["湯のみに福豆・梅干し・昆布を入れる", "熱湯を注いで少し蒸らす"], tip: "豆は年の数だけ入れる人もいます" },
+  // バレンタイン
+  { id: "ev-gateau", title: "ガトーショコラ", minutes: 40, course: "デザート", genre: "洋風", method: "焼く", note: "フランス生まれの濃厚なチョコレートケーキ。しっとり焼き上げて、冷やすとさらに濃厚に。バレンタインの手作りの定番。", ingredients: [
+    { name: "チョコレート", match: ["チョコレート", "チョコ"], per: 25, unit: "g" },
+    { name: "卵", match: ["卵", "たまご"], per: 1, unit: "個" },
+    { name: "バター", match: ["バター"], per: 15, unit: "g" },
+    { name: "小麦粉", match: ["小麦粉"], per: 1, unit: "大さじ" },
+  ], steps: ["チョコとバターを溶かし、卵と砂糖を混ぜる", "型に入れて170℃で焼く"], tip: "冷蔵庫で冷やすとしっとり濃厚になります" },
+  { id: "ev-heart-croquette", title: "ハートのコロッケ", minutes: 30, course: "主菜", genre: "洋風", method: "揚げる", note: "いつものコロッケをハート型に成形した、バレンタイン仕様の一品。形が変わるだけで食卓がぐっと華やかになる。", ingredients: [
+    { name: "じゃがいも", match: ["じゃがいも", "ジャガイモ"], per: 1.5, unit: "個" },
+    { name: "ひき肉", match: ["ひき肉"], per: 40, unit: "g" },
+    { name: "玉ねぎ", match: ["玉ねぎ", "たまねぎ"], per: 0.25, unit: "個" },
+    { name: "パン粉", match: ["パン粉"], per: 2, unit: "大さじ" },
+  ], steps: ["じゃがいものたねをハート型に成形する", "衣をつけてカラッと揚げる"], tip: "少し平たく成形すると揚げやすいです" },
+  { id: "ev-tomato-cream-pasta", title: "トマトクリームパスタ", minutes: 20, course: "主食", genre: "洋風", method: "ゆでる", note: "ピンク色のソースがバレンタインにぴったり。トマトの酸味と生クリームのコクが一緒になった、特別な日のパスタ。", ingredients: [
+    { name: "パスタ", match: ["スパゲッティ", "パスタ"], per: 80, unit: "g" },
+    { name: "えび", match: ["えび", "海老"], per: 3, unit: "尾" },
+    { name: "トマト缶", match: ["トマト缶", "トマト"], per: 0.25, unit: "缶" },
+    { name: "牛乳", match: ["牛乳"], per: 50, unit: "mL" },
+  ], steps: ["えびを炒めてトマト缶で煮る", "牛乳を加えてピンクのソースにし、パスタを絡める"], tip: "ソースがピンクになったら火を止めます" },
+  { id: "ev-ichigo-tiramisu", title: "いちごのティラミス風", minutes: 15, course: "デザート", genre: "洋風", method: "冷やす", note: "イタリアのティラミスをいちごでアレンジ。コーヒーの代わりにいちごジャムを使えば、子どもも一緒に楽しめる。", ingredients: [
+    { name: "いちご", match: ["いちご", "イチゴ"], per: 3, unit: "粒" },
+    { name: "クリームチーズ", match: ["クリームチーズ", "チーズ"], per: 30, unit: "g" },
+    { name: "いちごジャム", match: ["いちごジャム", "ジャム"], per: 1, unit: "大さじ" },
+    { name: "ビスケット", match: ["ビスケット", "クッキー"], per: 2, unit: "枚" },
+  ], steps: ["クリームチーズとヨーグルトを滑らかに混ぜる", "ビスケット、クリーム、いちごを重ねて冷やす"], tip: "冷やすほど味がなじみます" },
+  // ひな祭り
+  { id: "ev-sanshoku-jelly", title: "三色ゼリー", minutes: 20, course: "デザート", genre: "洋風", method: "冷やす", note: "ひな祭りの三色（桃・白・緑）をゼリーで表現。緑はキウイ、白は牛乳、ピンクはいちご。ひし餅の代わりに冷たくてかわいいデザート。", ingredients: [
+    { name: "いちご", match: ["いちご", "イチゴ"], per: 2, unit: "粒" },
+    { name: "牛乳", match: ["牛乳"], per: 50, unit: "mL" },
+    { name: "キウイ", match: ["キウイ"], per: 0.5, unit: "個" },
+    { name: "寒天", match: ["寒天", "ゼラチン"], per: 1, unit: "g" },
+  ], steps: ["色ごとの液を作って順に固める", "一番上の層にいちごを飾る"], tip: "層ごとにしっかり固めてから次を注ぎます" },
+  { id: "ev-amazake", title: "甘酒", minutes: 10, course: "汁物", genre: "和風", method: "その他", note: "ひな祭りに飲む白酒の代わりとして、子どもには甘酒を。「飲む点滴」とも言われるほど栄養たっぷりで、ほんのり甘い発酵飲料。", ingredients: [
+    { name: "酒粕", match: ["酒粕", "米麹", "麹"], per: 20, unit: "g" },
+    { name: "砂糖", match: ["砂糖"], per: 1, unit: "大さじ" },
+    { name: "生姜", match: ["生姜", "しょうが"], per: 2, unit: "g" },
+  ], steps: ["酒粕を水で溶きのばして温める", "砂糖と生姜で味を整える"], tip: "生姜を入れると体が温まります" },
+  { id: "ev-ebi-broccoli-salad", title: "えびとブロッコリーのサラダ", minutes: 15, course: "副菜", genre: "洋風", method: "サラダ", note: "ピンクのえびと緑のブロッコリーで、ひな祭りらしい色合いのサラダ。えびは「長生き」の縁起物としても行事食に登場する。", ingredients: [
+    { name: "えび", match: ["えび", "海老"], per: 3, unit: "尾" },
+    { name: "ブロッコリー", match: ["ブロッコリー"], per: 50, unit: "g" },
+    { name: "卵", match: ["卵", "たまご"], per: 0.5, unit: "個" },
+    { name: "マヨネーズ", match: ["マヨネーズ"], per: 1, unit: "大さじ" },
+  ], steps: ["えびとブロッコリー、卵をゆでる", "マヨネーズで和える"], tip: "えびは茹で過ぎないのがプリプリのコツです" },
+  // ホワイトデー
+  { id: "ev-cream-stew", title: "クリームシチュー", minutes: 30, course: "主菜", genre: "洋風", method: "煮る", note: "白いシチューでホワイトデーらしく。牛乳とバターの優しい味わいで、家族みんなが喜ぶ定番の煮込み。", ingredients: [
+    { name: "鶏もも肉", match: ["鶏もも", "鶏肉", "とり肉"], per: 75, unit: "g" },
+    { name: "じゃがいも", match: ["じゃがいも", "ジャガイモ"], per: 1, unit: "個" },
+    { name: "にんじん", match: ["にんじん", "人参"], per: 0.5, unit: "本" },
+    { name: "玉ねぎ", match: ["玉ねぎ", "たまねぎ"], per: 0.5, unit: "個" },
+    { name: "牛乳", match: ["牛乳"], per: 150, unit: "mL" },
+    { name: "ブロッコリー", match: ["ブロッコリー"], per: 30, unit: "g" },
+  ], steps: ["鶏肉と野菜をバターで炒める", "水と牛乳で煮て、白く仕上げる"], tip: "牛乳は最後に加えると分離しにくいです" },
+  { id: "ev-white-gratin", title: "ホワイトグラタン", minutes: 30, course: "主菜", genre: "洋風", method: "焼く", note: "白いホワイトソースとチーズのグラタン。ホワイトデーの「白」にちなんだ、あつあつとろとろの一品。", ingredients: [
+    { name: "マカロニ", match: ["マカロニ", "パスタ"], per: 40, unit: "g" },
+    { name: "鶏もも肉", match: ["鶏もも", "鶏肉", "とり肉"], per: 50, unit: "g" },
+    { name: "牛乳", match: ["牛乳"], per: 150, unit: "mL" },
+    { name: "チーズ", match: ["チーズ"], per: 20, unit: "g" },
+    { name: "しめじ", match: ["しめじ"], per: 0.25, unit: "パック" },
+  ], steps: ["ホワイトソースを作り具材と和える", "チーズをのせてこんがり焼く"], tip: "焼き色がつくまでしっかり焼きます" },
+  { id: "ev-white-choco-mousse", title: "ホワイトチョコのムース", minutes: 15, course: "デザート", genre: "洋風", method: "冷やす", note: "ホワイトチョコレートを使った、ふんわり軽いムース。お返しスイーツの定番・ホワイトチョコをアレンジ。", ingredients: [
+    { name: "ホワイトチョコ", match: ["ホワイトチョコ", "チョコレート", "チョコ"], per: 20, unit: "g" },
+    { name: "牛乳", match: ["牛乳"], per: 50, unit: "mL" },
+    { name: "いちご", match: ["いちご", "イチゴ"], per: 2, unit: "粒" },
+  ], steps: ["ホワイトチョコを牛乳で溶かす", "冷やして固め、いちごを飾る"], tip: "いちごを飾ると華やかになります" },
+  // お花見
+  { id: "ev-inarizushi", title: "いなり寿司", minutes: 20, course: "主食", genre: "和風", method: "その他", note: "甘い油揚げに酢飯を詰めた、手でつまめる行楽の定番。お花見弁当にもぴったりで、子どもたちも大好き。", ingredients: [
+    { name: "油揚げ", match: ["油揚げ"], per: 2, unit: "枚" },
+    { name: "米", match: ["米", "ごはん"], per: 60, unit: "g" },
+    { name: "酢", match: ["酢"], per: 1, unit: "大さじ" },
+    { name: "にんじん", match: ["にんじん", "人参"], per: 0.2, unit: "本" },
+  ], steps: ["油揚げを甘辛く煮て半分に切る", "酢飯を詰める"], tip: "油揚げは熱いうちに酢飯を詰めます" },
+  { id: "ev-haru-coleslaw", title: "春キャベツのコールスロー", minutes: 10, course: "副菜", genre: "洋風", method: "サラダ", note: "春キャベツは柔らかくて甘いのが特徴。お花見の時期の旬野菜を、さっぱりしたサラダで楽しむ。", ingredients: [
+    { name: "キャベツ", match: ["キャベツ"], per: 60, unit: "g" },
+    { name: "にんじん", match: ["にんじん", "人参"], per: 0.3, unit: "本" },
+    { name: "コーン缶", match: ["コーン缶", "とうもろこし"], per: 0.25, unit: "缶" },
+    { name: "マヨネーズ", match: ["マヨネーズ"], per: 1.5, unit: "大さじ" },
+  ], steps: ["キャベツとにんじんを千切りにして塩もみする", "コーンとマヨネーズ・酢で和える"], tip: "春キャベツは塩もみしすぎないのがコツです" },
+  // 母の日
+  { id: "ev-french-toast", title: "フレンチトースト", minutes: 15, course: "主食", genre: "洋風", method: "焼く", note: "母の日の朝食やブランチにぴったりの甘いトースト。ふわふわに焼いて、いちごや粉砂糖でかわいく仕上げる。", ingredients: [
+    { name: "食パン", match: ["食パン", "パン"], per: 1, unit: "枚" },
+    { name: "卵", match: ["卵", "たまご"], per: 1, unit: "個" },
+    { name: "牛乳", match: ["牛乳"], per: 50, unit: "mL" },
+    { name: "いちご", match: ["いちご", "イチゴ"], per: 2, unit: "粒" },
+  ], steps: ["卵と牛乳、砂糖の液にパンを浸す", "バターで両面をこんがり焼く"], tip: "一晩浸すと中までしっとりします" },
+  { id: "ev-salmon-marine", title: "サーモンのマリネ", minutes: 15, course: "副菜", genre: "洋風", method: "サラダ", note: "ピンク色のサーモンがカーネーションのように華やか。母の日の食卓を彩る、前菜向きの一品。", ingredients: [
+    { name: "鮭", match: ["鮭", "サーモン", "さけ"], per: 50, unit: "g" },
+    { name: "玉ねぎ", match: ["玉ねぎ", "たまねぎ"], per: 0.25, unit: "個" },
+    { name: "レモン", match: ["レモン"], per: 0.25, unit: "個" },
+  ], steps: ["鮭と薄切り玉ねぎをマリネ液に漬ける", "冷蔵庫で30分なじませる"], tip: "玉ねぎは水にさらして辛みを抜きます" },
+  { id: "ev-ichigo-milk", title: "いちごミルク", minutes: 5, course: "デザート", genre: "洋風", method: "冷やす", note: "つぶしたいちごと牛乳の、かわいいピンクのドリンク。子どもと一緒に作れる簡単さも魅力。", ingredients: [
+    { name: "いちご", match: ["いちご", "イチゴ"], per: 4, unit: "粒" },
+    { name: "牛乳", match: ["牛乳"], per: 150, unit: "mL" },
+    { name: "砂糖", match: ["砂糖"], per: 1, unit: "大さじ" },
+  ], steps: ["いちごをフォークでつぶす", "牛乳と砂糖を注いで混ぜる"], tip: "いちごは完熟のものが甘くておすすめです" },
+  // こどもの日
+  { id: "ev-kashiwa-mochi", title: "柏餅風おやつ", minutes: 20, course: "デザート", genre: "和風", method: "蒸す", note: "柏の葉は新芽が出るまで古い葉が落ちないことから「子孫繁栄」の縁起物。家では白玉粉のもちにあんこを包んで、柏餅風に。", ingredients: [
+    { name: "白玉粉", match: ["白玉粉"], per: 30, unit: "g" },
+    { name: "あんこ", match: ["あんこ", "ゆであずき缶", "あずき"], per: 2, unit: "大さじ" },
+  ], steps: ["白玉粉をこねて平たく伸ばす", "あんこを包んで蒸す"], tip: "柏の葉があれば巻くと本物らしくなります" },
+  { id: "ev-koinobori-sand", title: "こいのぼりサンドイッチ", minutes: 15, course: "主食", genre: "洋風", method: "その他", note: "サンドイッチをこいのぼりの形に切って、うろこをきゅうりやハムで表現。作るのも食べるのも楽しい行事食。", ingredients: [
+    { name: "食パン", match: ["食パン", "パン"], per: 1, unit: "枚" },
+    { name: "卵", match: ["卵", "たまご"], per: 1, unit: "個" },
+    { name: "きゅうり", match: ["きゅうり"], per: 0.3, unit: "本" },
+    { name: "ハム", match: ["ハム"], per: 1, unit: "枚" },
+  ], steps: ["卵サラダをパンではさむ", "魚の形に切り、うろこと目を飾る"], tip: "目は海苔やチーズで作ります" },
+  { id: "ev-yasai-stick", title: "野菜スティック", minutes: 10, course: "副菜", genre: "洋風", method: "サラダ", note: "色とりどりの野菜をスティック状に切って、こいのぼりの吹き流しに見立てた一品。ディップで野菜が進む。", ingredients: [
+    { name: "きゅうり", match: ["きゅうり"], per: 0.5, unit: "本" },
+    { name: "にんじん", match: ["にんじん", "人参"], per: 0.5, unit: "本" },
+    { name: "大根", match: ["大根", "だいこん"], per: 40, unit: "g" },
+    { name: "マヨネーズ", match: ["マヨネーズ"], per: 1.5, unit: "大さじ" },
+    { name: "味噌", match: ["味噌", "みそ"], per: 0.5, unit: "大さじ" },
+  ], steps: ["野菜をスティック状に切る", "味噌マヨディップを添える"], tip: "野菜は色の組み合わせを楽しく" },
+  // 父の日
+  { id: "ev-garlic-rice", title: "ガーリックライス", minutes: 15, course: "主食", genre: "洋風", method: "炒める", note: "にんにくの香りが食欲をそそる、スタミナ系のごはんもの。お父さんの好きな牛肉と合わせても。", ingredients: [
+    { name: "米", match: ["米", "ごはん"], per: 100, unit: "g" },
+    { name: "にんにく", match: ["にんにく"], per: 1, unit: "かけ" },
+    { name: "牛肉", match: ["牛肉"], per: 40, unit: "g" },
+    { name: "バター", match: ["バター"], per: 5, unit: "g" },
+  ], steps: ["にんにくと牛肉を炒める", "ごはんを加えて醤油で香ばしく炒める"], tip: "にんにくは焦がさないように香りを出します" },
+  { id: "ev-nasu-miso-itame", title: "なすの味噌炒め", minutes: 15, course: "主菜", genre: "和風", method: "炒める", note: "とろとろのなすと甘辛い味噌がごはんによく合う。お父さんのごはんが進む、しっかり味の一品。", ingredients: [
+    { name: "なす", match: ["なす"], per: 1.5, unit: "本" },
+    { name: "豚肉", match: ["豚肉"], per: 50, unit: "g" },
+    { name: "味噌", match: ["味噌", "みそ"], per: 1, unit: "大さじ" },
+    { name: "ピーマン", match: ["ピーマン"], per: 1, unit: "個" },
+  ], steps: ["なすを炒めて一度取り出す", "豚肉とピーマンを炒め、なすと味噌だれを戻す"], tip: "なすは吸油が多いので少し多めの油で炒めます" },
+  { id: "ev-stamina-natto", title: "スタミナ納豆", minutes: 10, course: "副菜", genre: "和風", method: "和える", note: "鳥取県の給食で生まれた人気メニュー。ひき肉と納豆の組み合わせで、ごはんがどんどん進むスタミナ副菜。", ingredients: [
+    { name: "納豆", match: ["納豆"], per: 1, unit: "パック" },
+    { name: "ひき肉", match: ["ひき肉"], per: 40, unit: "g" },
+    { name: "ねぎ", match: ["ねぎ", "ネギ", "長ねぎ"], per: 0.2, unit: "本" },
+    { name: "にんにく", match: ["にんにく"], per: 0.5, unit: "かけ" },
+  ], steps: ["ひき肉をにんにくと炒めて醤油で味付けする", "納豆とねぎを混ぜ合わせる"], tip: "温泉卵をのせても美味しいです" },
+  // 七夕
+  { id: "ev-amanogawa-jelly", title: "天の川ゼリー", minutes: 20, course: "デザート", genre: "洋風", method: "冷やす", note: "青いゼリーに星形のフルーツを浮かべて天の川に見立てた、七夕ならではの涼しいデザート。バタフライピーがなければ食紅やかき氷シロップでも青くできる。", ingredients: [
+    { name: "みかん缶", match: ["みかん缶", "みかん"], per: 0.25, unit: "缶" },
+    { name: "寒天", match: ["寒天", "ゼラチン"], per: 1, unit: "g" },
+    { name: "キウイ", match: ["キウイ"], per: 0.5, unit: "個" },
+  ], steps: ["青いゼリー液を作って冷やし固める", "星形に抜いたフルーツをのせる"], tip: "星はクッキー型で抜くと簡単です" },
+  { id: "ev-natsuyasai-marine", title: "夏野菜のマリネ", minutes: 20, course: "副菜", genre: "洋風", method: "サラダ", note: "織姫と彦星の再会を祝う七夕に、カラフルな夏野菜を星の形に抜いて散らした、見た目も楽しいマリネ。", ingredients: [
+    { name: "パプリカ", match: ["パプリカ"], per: 0.5, unit: "個" },
+    { name: "ズッキーニ", match: ["ズッキーニ"], per: 0.5, unit: "本" },
+    { name: "なす", match: ["なす"], per: 0.5, unit: "本" },
+    { name: "オリーブオイル", match: ["オリーブオイル", "オリーブ油", "サラダ油"], per: 1, unit: "大さじ" },
+  ], steps: ["野菜を焼いてマリネ液に漬ける", "星形に抜いたパプリカを飾る"], tip: "冷やすほど味がなじみます" },
+  { id: "ev-hoshi-pizza", title: "星型ピザトースト", minutes: 10, course: "主食", genre: "洋風", method: "焼く", note: "チーズを星形に抜いてのせたピザトースト。七夕の朝食や軽食に、子どもと一緒に星を飾る楽しみも。", ingredients: [
+    { name: "食パン", match: ["食パン", "パン"], per: 1, unit: "枚" },
+    { name: "チーズ", match: ["チーズ"], per: 15, unit: "g" },
+    { name: "コーン缶", match: ["コーン缶", "とうもろこし"], per: 0.2, unit: "缶" },
+    { name: "ケチャップ", match: ["ケチャップ"], per: 1, unit: "大さじ" },
+  ], steps: ["パンにケチャップを塗り具をのせる", "星形のチーズをのせてトーストする"], tip: "チーズの星はクッキー型で抜くと簡単です" },
+  { id: "ev-suika-sherbet", title: "すいかのシャーベット", minutes: 10, course: "デザート", genre: "洋風", method: "冷やす", note: "七夕の夜に食べたい、夏の味覚すいかのシャーベット。種を取り除いて凍らせるだけの簡単デザート。", ingredients: [
+    { name: "すいか", match: ["すいか", "スイカ"], per: 100, unit: "g" },
+    { name: "はちみつ", match: ["はちみつ"], per: 1, unit: "小さじ" },
+    { name: "レモン", match: ["レモン"], per: 0.25, unit: "個" },
+  ], steps: ["すいかを潰してはちみつとレモン汁を混ぜる", "冷凍庫で凍らせ、途中で何回か混ぜる"], tip: "凍らせる途中で混ぜるとシャリシャリ感が出ます" },
+  // 土用の丑
+  { id: "ev-uzaku", title: "うざく（うなぎときゅうりの酢の物）", minutes: 10, course: "副菜", genre: "和風", method: "和える", note: "うなぎの蒲焼きときゅうりの酢の物。土用の丑の日に、こってり蒲焼きとさっぱり酢の物の組み合わせで食が進む。", ingredients: [
+    { name: "うなぎ", match: ["うなぎ", "蒲焼き"], per: 0.25, unit: "枚" },
+    { name: "きゅうり", match: ["きゅうり"], per: 0.5, unit: "本" },
+    { name: "酢", match: ["酢"], per: 1, unit: "大さじ" },
+  ], steps: ["きゅうりを塩もみする", "うなぎを温めて切り、甘酢で和える"], tip: "うなぎは温めてから和えると香ばしいです" },
+  { id: "ev-umaki", title: "う巻き（うなぎ入り卵焼き）", minutes: 15, course: "副菜", genre: "和風", method: "焼く", note: "だし巻き卵にうなぎを巻いた「う巻き」。うなぎが少量でも豪華に見えるので、家族で分け合う丑の日にぴったり。", ingredients: [
+    { name: "うなぎ", match: ["うなぎ", "蒲焼き"], per: 0.25, unit: "枚" },
+    { name: "卵", match: ["卵", "たまご"], per: 2, unit: "個" },
+  ], steps: ["うなぎを温めて細く切る", "だし入りの卵液で巻いていく"], tip: "うなぎを芯にして巻くと切り口がきれいです" },
+  { id: "ev-doyo-mochi", title: "土用餅", minutes: 10, course: "デザート", genre: "和風", method: "その他", note: "土用の時期に無病息災を願って食べるあんころ餅。暑い時期に力をつけるための、昔ながらの知恵のおやつ。", ingredients: [
+    { name: "あんこ", match: ["あんこ", "ゆであずき缶", "あずき"], per: 3, unit: "大さじ" },
+    { name: "白玉粉", match: ["白玉粉"], per: 30, unit: "g" },
+  ], steps: ["白玉を茹でる", "あんこをたっぷり絡める"], tip: "あんこは温かい白玉にたっぷりと" },
+  { id: "ev-ume-kyuri", title: "たたききゅうりの梅和え", minutes: 5, course: "副菜", genre: "和風", method: "和える", note: "「土用」には梅干しなど酸味のあるもので食欲を保つ工夫も。たたききゅうりと梅のさっぱりした一品。", ingredients: [
+    { name: "きゅうり", match: ["きゅうり"], per: 1, unit: "本" },
+    { name: "梅干し", match: ["梅干し"], per: 1, unit: "個" },
+    { name: "大葉", match: ["大葉", "しそ"], per: 2, unit: "枚" },
+  ], steps: ["きゅうりをたたいて割る", "梅肉と大葉、ごま油少しで和える"], tip: "たたくと味がよく絡みます" },
+  // 夏休み
+  { id: "ev-natsuyasai-curry", title: "夏野菜カレー", minutes: 25, course: "主食", genre: "洋風", method: "煮る", note: "なす・トマト・ピーマンなど夏野菜をたっぷりのせたカレー。夏休みのランチの定番で、野菜の彩りも楽しい。", ingredients: [
+    { name: "ひき肉", match: ["ひき肉"], per: 60, unit: "g" },
+    { name: "なす", match: ["なす"], per: 1, unit: "本" },
+    { name: "トマト", match: ["トマト"], per: 1, unit: "個" },
+    { name: "ピーマン", match: ["ピーマン"], per: 1, unit: "個" },
+    { name: "カレールー", match: ["カレールー", "ルー"], per: 1, unit: "かけ" },
+  ], steps: ["ひき肉と野菜を炒めてカレーを煮る", "素揚げした夏野菜を上にのせ、ごはんに添える（ごはんは別に用意）"], tip: "夏野菜は素揚げしてのせると彩りがよいです" },
+  { id: "ev-yaki-tomorokoshi", title: "焼きとうもろこし", minutes: 10, course: "副菜", genre: "和風", method: "焼く", note: "夏祭りの屋台の味。醤油を塗って香ばしく焼いたとうもろこしは、夏休みのおやつにもなる。", ingredients: [
+    { name: "とうもろこし", match: ["とうもろこし", "コーン缶"], per: 0.5, unit: "本" },
+    { name: "バター", match: ["バター"], per: 5, unit: "g" },
+  ], steps: ["とうもろこしを茹でる（またはレンジ加熱）", "醤油とバターを塗って焼き目をつける"], tip: "焼き網やフライパンで香ばしく焼きます" },
+  { id: "ev-edamame-pepe", title: "枝豆ペペロンチーノ風", minutes: 10, course: "副菜", genre: "洋風", method: "炒める", note: "夏の食卓の定番・枝豆をイタリアンにアレンジ。にんにくとオリーブオイルで炒めるだけで、おつまみにも副菜にもなる。", ingredients: [
+    { name: "枝豆", match: ["枝豆"], per: 75, unit: "g" },
+    { name: "にんにく", match: ["にんにく"], per: 0.5, unit: "かけ" },
+    { name: "オリーブオイル", match: ["オリーブオイル", "オリーブ油", "サラダ油"], per: 1, unit: "大さじ" },
+  ], steps: ["枝豆を茹でる", "にんにくオイルで炒める（辛みは大人の分だけ後がけ）"], tip: "さやごと炒めるので手でつまんで食べます" },
+  { id: "ev-natsuyasai-agebitashi", title: "夏野菜の揚げびたし", minutes: 20, course: "副菜", genre: "和風", method: "揚げる", note: "なす・ピーマン・かぼちゃを素揚げしてだしに浸ける、作り置きにも便利な夏の常備菜。冷やしてもおいしい。", ingredients: [
+    { name: "なす", match: ["なす"], per: 1, unit: "本" },
+    { name: "ピーマン", match: ["ピーマン"], per: 1, unit: "個" },
+    { name: "かぼちゃ", match: ["かぼちゃ"], per: 50, unit: "g" },
+  ], steps: ["野菜を素揚げする", "だし・醤油・みりんの汁に浸ける"], tip: "冷蔵庫で冷やしても美味しいです" },
+  // 敬老の日
+  { id: "ev-eringi-gohan", title: "きのこと鮭の炊き込みごはん", minutes: 15, course: "主食", genre: "和風", method: "煮る", note: "秋のきのこと鮭で、おじいちゃんおばあちゃんにも喜ばれる上品な炊き込みごはん。長寿を祝う敬老の日に。", ingredients: [
+    { name: "米", match: ["米", "ごはん"], per: 75, unit: "g" },
+    { name: "鮭", match: ["鮭", "サーモン", "さけ"], per: 40, unit: "g" },
+    { name: "しめじ", match: ["しめじ"], per: 0.25, unit: "パック" },
+    { name: "えのき", match: ["えのき"], per: 0.25, unit: "袋" },
+  ], steps: ["材料を米と一緒に炊飯器に入れる", "炊き上がったら鮭をほぐして混ぜる"], tip: "鮭の皮は炊き上がりに取り除きます" },
+  { id: "ev-kabocha-nimono", title: "かぼちゃの煮物", minutes: 20, course: "副菜", genre: "和風", method: "煮る", note: "ほくほく甘いかぼちゃの煮物は、世代を超えて愛される家庭の味。敬老の日には少し上品に、薄味に仕上げる。", ingredients: [
+    { name: "かぼちゃ", match: ["かぼちゃ"], per: 0.125, unit: "個" },
+    { name: "砂糖", match: ["砂糖"], per: 1, unit: "大さじ" },
+  ], steps: ["かぼちゃを一口大に切る", "だし・砂糖・醤油で柔らかく煮る"], tip: "煮崩れしないよう弱火でコトコト煮ます" },
+  // お月見
+  { id: "ev-tsukimi-udon", title: "月見うどん", minutes: 15, course: "主食", genre: "和風", method: "煮る", note: "卵の黄身を月に見立てたうどん。お月見の夜に温かい月見うどんで、家族で月を眺めながら。", ingredients: [
+    { name: "うどん", match: ["うどん"], per: 1, unit: "玉" },
+    { name: "卵", match: ["卵", "たまご"], per: 1, unit: "個" },
+    { name: "かまぼこ", match: ["かまぼこ"], per: 10, unit: "g" },
+    { name: "ねぎ", match: ["ねぎ", "ネギ", "長ねぎ"], per: 0.2, unit: "本" },
+  ], steps: ["うどんを温かいだしで煮る", "卵をそっと落とし、半熟で火を止める"], tip: "卵は半熟のうちに火を止めます" },
+  { id: "ev-tsukimi-burger", title: "月見バーガー風", minutes: 20, course: "主食", genre: "洋風", method: "焼く", note: "秋の風物詩になった月見バーガーを家庭で再現。目玉焼きの黄身が満月みたいで楽しい。", ingredients: [
+    { name: "バンズ", match: ["バンズ", "ロールパン", "パン"], per: 1, unit: "個" },
+    { name: "ひき肉", match: ["ひき肉"], per: 60, unit: "g" },
+    { name: "卵", match: ["卵", "たまご"], per: 1, unit: "個" },
+    { name: "レタス", match: ["レタス"], per: 1, unit: "枚" },
+    { name: "チーズ", match: ["チーズ"], per: 10, unit: "g" },
+  ], steps: ["パティを焼く", "目玉焼きとチーズをのせてバンズで挟む"], tip: "黄身を月に見立てて真ん中にのせます" },
+  { id: "ev-nashi", title: "梨のコンポート", minutes: 20, course: "デザート", genre: "洋風", method: "煮る", note: "秋の味覚・梨を白ワイン風（水と砂糖）で煮た上品なデザート。お月見の供物にもなる梨の、ひと味違う楽しみ方。", ingredients: [
+    { name: "梨", match: ["梨"], per: 0.5, unit: "個" },
+    { name: "砂糖", match: ["砂糖"], per: 1, unit: "大さじ" },
+    { name: "レモン", match: ["レモン"], per: 0.25, unit: "個" },
+  ], steps: ["梨をくし形に切る", "砂糖水とレモンで透き通るまで煮て冷やす"], tip: "冷やして食べると上品な甘さです" },
+  // 秋の味覚
+  { id: "ev-yakiimo", title: "焼き芋", minutes: 60, course: "デザート", genre: "和風", method: "焼く", note: "低温でじっくり焼くことで甘さが引き出される、秋の定番おやつ。オーブンや炊飯器でも石焼き芋のように仕上がる。", ingredients: [
+    { name: "さつまいも", match: ["さつまいも", "薩摩芋"], per: 0.5, unit: "本" },
+  ], steps: ["さつまいもを洗ってホイルで包む", "160℃でゆっくり焼く"], tip: "低温でゆっくり焼くほど甘くなります" },
+  { id: "ev-kinoko-hoiru", title: "きのこのホイル焼き", minutes: 15, course: "副菜", genre: "和風", method: "蒸す", note: "旬のきのこをバターと一緒にホイルで包む蒸し焼き。開けた瞬間の香りが秋そのもの。", ingredients: [
+    { name: "しめじ", match: ["しめじ"], per: 0.5, unit: "パック" },
+    { name: "まいたけ", match: ["まいたけ", "舞茸"], per: 0.5, unit: "パック" },
+    { name: "えのき", match: ["えのき"], per: 0.5, unit: "袋" },
+    { name: "バター", match: ["バター"], per: 10, unit: "g" },
+  ], steps: ["きのこをホイルにのせ、バターと塩を振る", "閉じて10分ほど蒸し焼きにする"], tip: "開けたときの香りもごちそうです" },
+  { id: "ev-kaki-shiraae", title: "柿の白和え", minutes: 15, course: "副菜", genre: "和風", method: "和える", note: "柿の甘さと豆腐の白和え衣が合う、秋の上品な和え物。柿が余ったときにもおすすめ。", ingredients: [
+    { name: "柿", match: ["柿"], per: 0.5, unit: "個" },
+    { name: "豆腐", match: ["豆腐"], per: 0.25, unit: "丁" },
+    { name: "ごま", match: ["ごま"], per: 0.5, unit: "大さじ" },
+  ], steps: ["豆腐の水切りをしてすり鉢で滑らかにする", "柿を切って和える"], tip: "柿は完熟手前の固めが和えやすいです" },
+  // ハロウィン
+  { id: "ev-obake-curry", title: "おばけカレー", minutes: 25, course: "主食", genre: "洋風", method: "煮る", note: "ごはんをおばけの形にして、海苔で顔をつけたハロウィンカレー。いつものカレーがイベント仕様に変身。", ingredients: [
+    { name: "ひき肉", match: ["ひき肉"], per: 50, unit: "g" },
+    { name: "かぼちゃ", match: ["かぼちゃ"], per: 50, unit: "g" },
+    { name: "カレールー", match: ["カレールー", "ルー"], per: 1, unit: "かけ" },
+    { name: "海苔", match: ["海苔"], per: 0.25, unit: "枚" },
+  ], steps: ["かぼちゃ入りのカレーを煮る", "ごはんをおばけ型に盛り、海苔で顔を飾る（ごはんは別に用意）"], tip: "おばけの顔は海苔をハサミで切って作ります" },
+  { id: "ev-kabocha-cheesecake", title: "かぼちゃのチーズケーキ", minutes: 40, course: "デザート", genre: "洋風", method: "焼く", note: "ジャック・オ・ランタンのかぼちゃで作るチーズケーキ。濃厚でしっとり、ハロウィンパーティーの主役に。", ingredients: [
+    { name: "かぼちゃ", match: ["かぼちゃ"], per: 75, unit: "g" },
+    { name: "クリームチーズ", match: ["クリームチーズ", "チーズ"], per: 40, unit: "g" },
+    { name: "卵", match: ["卵", "たまご"], per: 1, unit: "個" },
+    { name: "砂糖", match: ["砂糖"], per: 2, unit: "大さじ" },
+  ], steps: ["かぼちゃを蒸して潰す", "チーズと卵、砂糖を混ぜて焼く"], tip: "一晩冷やすとしっとりします" },
+  { id: "ev-kabocha-muffin", title: "かぼちゃマフィン", minutes: 25, course: "デザート", genre: "洋風", method: "焼く", note: "かぼちゃの生地のマフィンに、チョコペンでおばけの顔を描けばハロウィンおやつの完成。配るのにもぴったり。", ingredients: [
+    { name: "かぼちゃ", match: ["かぼちゃ"], per: 50, unit: "g" },
+    { name: "ホットケーキミックス", match: ["ホットケーキミックス"], per: 40, unit: "g" },
+    { name: "卵", match: ["卵", "たまご"], per: 0.5, unit: "個" },
+    { name: "牛乳", match: ["牛乳"], per: 30, unit: "mL" },
+  ], steps: ["かぼちゃペーストと材料を混ぜる", "カップに入れて180℃で焼く"], tip: "チョコペンで顔を描くとハロウィンらしくなります" },
+  { id: "ev-hot-apple", title: "ホットアップル", minutes: 10, course: "デザート", genre: "洋風", method: "その他", note: "秋のりんごを温かい飲み物に。ハロウィンの夜に、温かいカップを両手で持つ幸せ。生姜を少し入れると体が温まる。", ingredients: [
+    { name: "りんご", match: ["りんご"], per: 0.5, unit: "個" },
+    { name: "はちみつ", match: ["はちみつ"], per: 1, unit: "大さじ" },
+    { name: "生姜", match: ["生姜", "しょうが"], per: 2, unit: "g" },
+  ], steps: ["りんごをすりおろして水と煮る", "はちみつと生姜で味を整えて温かく出す"], tip: "温かいうちにどうぞ" },
+  // 七五三
+  { id: "ev-ebi-shioyaki", title: "えびの塩焼き", minutes: 10, course: "主菜", genre: "和風", method: "焼く", note: "えびは腰が曲がるまで長生きできるようにという「長寿」の象徴。七五三のお祝い膳に欠かせない一品。", ingredients: [
+    { name: "えび", match: ["えび", "海老"], per: 2, unit: "尾" },
+    { name: "レモン", match: ["レモン"], per: 0.25, unit: "個" },
+  ], steps: ["えびの背ワタを取る", "塩を振って焼き、レモンを添える"], tip: "えびは背ワタを取ると臭みがありません" },
+  { id: "ev-chitoseame-jelly", title: "千歳飴ゼリー", minutes: 20, course: "デザート", genre: "洋風", method: "冷やす", note: "千歳飴の紅白をイメージした、牛乳といちごのゼリー。細く長く丈夫に育つようにという千歳飴の願いをデザートで。", ingredients: [
+    { name: "牛乳", match: ["牛乳"], per: 100, unit: "mL" },
+    { name: "いちご", match: ["いちご", "イチゴ"], per: 2, unit: "粒" },
+    { name: "寒天", match: ["寒天", "ゼラチン"], per: 1, unit: "g" },
+    { name: "砂糖", match: ["砂糖"], per: 1, unit: "大さじ" },
+  ], steps: ["牛乳ゼリーといちごゼリーを交互に重ねて固める", "細長いグラスに入れると千歳飴みたいになる"], tip: "細長いグラスに入れると千歳飴らしくなります" },
+  { id: "ev-renkon-amazu", title: "れんこんの甘酢漬け", minutes: 15, course: "副菜", genre: "和風", method: "和える", note: "れんこんは穴から先が見通せることから「見通しが良い」縁起物。お祝いの食卓に、さっぱりした甘酢漬けで。", ingredients: [
+    { name: "れんこん", match: ["れんこん", "レンコン", "蓮根"], per: 50, unit: "g" },
+    { name: "酢", match: ["酢"], per: 1, unit: "大さじ" },
+    { name: "砂糖", match: ["砂糖"], per: 1, unit: "大さじ" },
+  ], steps: ["れんこんを薄切りにして酢水で茹でる", "甘酢に漬ける"], tip: "れんこんは酢水で色白に仕上げます" },
+  // 冬至
+  { id: "ev-yuzu-dengaku", title: "こんにゃくのゆず味噌田楽", minutes: 15, course: "副菜", genre: "和風", method: "焼く", note: "冬至のゆずを味噌に混ぜた、香りのいい田楽。ゆず湯に浸かる風習と同じく、ゆずの香りで邪気を払うと言われる。", ingredients: [
+    { name: "こんにゃく", match: ["こんにゃく"], per: 0.25, unit: "枚" },
+    { name: "ゆず", match: ["ゆず", "柚子"], per: 0.25, unit: "個" },
+    { name: "味噌", match: ["味噌", "みそ"], per: 1, unit: "大さじ" },
+  ], steps: ["こんにゃくを下茹でして焼く", "ゆずの皮と味噌の田楽味噌をのせる"], tip: "ゆずの皮は白い部分を避けると苦くありません" },
+  { id: "ev-kabocha-misoshiru", title: "かぼちゃの味噌汁", minutes: 15, course: "汁物", genre: "和風", method: "スープ", note: "冬至のかぼちゃを味噌汁でも。ほくほく甘いかぼちゃが溶け出した汁は、体が温まる冬の味。", ingredients: [
+    { name: "かぼちゃ", match: ["かぼちゃ"], per: 50, unit: "g" },
+    { name: "玉ねぎ", match: ["玉ねぎ", "たまねぎ"], per: 0.25, unit: "個" },
+    { name: "味噌", match: ["味噌", "みそ"], per: 1.5, unit: "大さじ" },
+  ], steps: ["かぼちゃと玉ねぎをだしで煮る", "味噌を溶く"], tip: "かぼちゃが少し溶け出すくらいが美味しいです" },
+  { id: "ev-yuzu-sherbet", title: "ゆずシャーベット", minutes: 10, course: "デザート", genre: "洋風", method: "冷やす", note: "ゆず湯で温まった冬至の夜の、爽やかなデザート。ゆずの香りと酸味が、食後の口をさっぱりさせる。", ingredients: [
+    { name: "ゆず", match: ["ゆず", "柚子"], per: 1, unit: "個" },
+    { name: "はちみつ", match: ["はちみつ"], per: 1.5, unit: "大さじ" },
+  ], steps: ["ゆずの果汁とはちみつ、水を混ぜる", "冷凍庫で凍らせ、シャリシャリに崩す"], tip: "ゆずの器に入れるとおしゃれです" },
+  // クリスマス
+  { id: "ev-minestrone", title: "ミネストローネ", minutes: 25, course: "汁物", genre: "洋風", method: "スープ", note: "赤いトマトのスープはクリスマスカラー。野菜たっぷりで、ごちそうの日の汁物にちょうどいい。", ingredients: [
+    { name: "トマト缶", match: ["トマト缶", "トマト"], per: 0.25, unit: "缶" },
+    { name: "じゃがいも", match: ["じゃがいも", "ジャガイモ"], per: 0.5, unit: "個" },
+    { name: "玉ねぎ", match: ["玉ねぎ", "たまねぎ"], per: 0.25, unit: "個" },
+    { name: "キャベツ", match: ["キャベツ"], per: 30, unit: "g" },
+    { name: "ベーコン", match: ["ベーコン"], per: 15, unit: "g" },
+  ], steps: ["野菜とベーコンを炒める", "トマト缶とコンソメで煮込む"], tip: "野菜は小さく切ると火の通りが均一です" },
+  { id: "ev-garlic-toast", title: "ガーリックトースト", minutes: 10, course: "主食", genre: "洋風", method: "焼く", note: "パーティーの付け合わせに。にんにくバターの香りで、スープやシチューがぐっと進む。", ingredients: [
+    { name: "フランスパン", match: ["フランスパン", "バゲット", "食パン", "パン"], per: 1, unit: "枚" },
+    { name: "バター", match: ["バター"], per: 10, unit: "g" },
+    { name: "にんにく", match: ["にんにく"], per: 0.5, unit: "かけ" },
+  ], steps: ["にんにくバターをパンに塗る", "こんがり焼く"], tip: "にんにくは切り口をこすりつける方法もあります" },
+  { id: "ev-buche", title: "ブッシュ・ド・ノエル風", minutes: 20, course: "デザート", genre: "洋風", method: "冷やす", note: "「クリスマスの薪（まき）」という意味のフランスのケーキ。ロールケーキにチョコクリームの年輪を描いて、切り株らしく仕上げる。", ingredients: [
+    { name: "ロールケーキ", match: ["ロールケーキ", "スポンジ", "カステラ"], per: 0.25, unit: "本" },
+    { name: "チョコレート", match: ["チョコレート", "チョコ"], per: 20, unit: "g" },
+    { name: "いちご", match: ["いちご", "イチゴ"], per: 2, unit: "粒" },
+  ], steps: ["チョコを溶かしてクリームを作る", "ロールケーキに塗り、フォークで木目を描く"], tip: "フォークで木目を描くのが楽しい作業です" },
+  { id: "ev-roast-potato", title: "ローストポテト", minutes: 30, course: "副菜", genre: "洋風", method: "焼く", note: "ローストチキンの付け合わせの定番。外はカリッ、中はホクホクに焼けたじゃがいもは大人気。", ingredients: [
+    { name: "じゃがいも", match: ["じゃがいも", "ジャガイモ"], per: 1.5, unit: "個" },
+    { name: "にんにく", match: ["にんにく"], per: 0.5, unit: "かけ" },
+    { name: "オリーブオイル", match: ["オリーブオイル", "オリーブ油", "サラダ油"], per: 1, unit: "大さじ" },
+  ], steps: ["じゃがいもを大きめに切る", "オイルと塩をまぶして200℃で焼く"], tip: "大きめに切るとホクホク感が出ます" },
+  // 大晦日
+  { id: "ev-buri-teriyaki", title: "ぶりの照り焼き", minutes: 15, course: "主菜", genre: "和風", method: "焼く", note: "ぶりは成長で名前が変わる「出世魚」。年越しやお正月のめでたい魚料理として、照り焼きで。", ingredients: [
+    { name: "ぶり", match: ["ぶり", "ブリ", "鰤"], per: 1, unit: "切れ" },
+    { name: "生姜", match: ["生姜", "しょうが"], per: 3, unit: "g" },
+  ], steps: ["ぶりに塩をして水分を拭く", "焼いて照り焼きのタレを絡める"], tip: "タレは最後に煮詰めて照りを出します" },
+  { id: "ev-kakiage", title: "年越しそば用の野菜かき揚げ", minutes: 20, course: "主食", genre: "和風", method: "揚げる", note: "年越しそばの上にのせるかき揚げ。天ぷらは「金を包む」形に似て縁起がいいとも言われ、大晦日のそばを豪華にする。", ingredients: [
+    { name: "玉ねぎ", match: ["玉ねぎ", "たまねぎ"], per: 0.5, unit: "個" },
+    { name: "にんじん", match: ["にんじん", "人参"], per: 0.3, unit: "本" },
+    { name: "さつまいも", match: ["さつまいも", "薩摩芋"], per: 50, unit: "g" },
+    { name: "天ぷら粉", match: ["天ぷら粉", "小麦粉"], per: 2, unit: "大さじ" },
+  ], steps: ["野菜を細切りにして衣を絡める", "平たくまとめて揚げる"], tip: "衣は冷水で作るとサクッと揚がります" },
 ];
 
 // ---- イベント献立セット（暦の順） ----
 // note は子どもにも分かる「なぜその食べ物なのか」を1〜2行で。
 // dishes は EVENT_RECIPES と既存 ALL_RECIPES の id を混ぜて参照する。
 export const EVENT_MENUS = [
-  { id: "osechi", name: "お正月", emoji: "🎍", when: "1月1日〜3日", dishes: ["ev-ozoni", "ev-datemaki", "ev-kurikinton", "ev-kuromame", "ev-namasu"],
+  { id: "osechi", name: "お正月", emoji: "🎍", when: "1月1日〜3日", dishes: ["ev-ozoni", "ev-datemaki", "ev-kurikinton", "ev-kuromame", "ev-namasu", "ev-tataki-gobou", "ev-tazukuri", "ev-matsukaze"],
     note: "おせちは1年のはじまりのお祝いごはん。伊達巻は学び、栗きんとんは金運、黒豆は元気に働けるように、と一品ごとに願いがこめられています。" },
-  { id: "setsubun", name: "節分", emoji: "👹", when: "2月3日ごろ", dishes: ["ev-ehomaki", "ev-iwashi", "ev-gomokuni", "ev-kenchin"],
+  { id: "setsubun", name: "節分", emoji: "👹", when: "2月3日ごろ", dishes: ["ev-ehomaki", "ev-iwashi", "ev-gomokuni", "ev-kenchin", "ev-fukumame-gohan", "ev-iwashi-tsumire", "ev-daizu-konbu-ni", "ev-fukucha"],
     note: "恵方巻をその年の良い方角を向いて食べると願いが叶うと言われます。豆まきの豆と、鬼が苦手ないわしで悪いものを追い払います。" },
-  { id: "valentine", name: "バレンタイン", emoji: "🍫", when: "2月14日", dishes: ["ev-beef-stew", "ev-heart-salad", "ev-corn-soup", "ev-choco-pudding"],
+  { id: "valentine", name: "バレンタイン", emoji: "🍫", when: "2月14日", dishes: ["ev-beef-stew", "ev-heart-salad", "ev-corn-soup", "ev-choco-pudding", "ev-gateau", "ev-heart-croquette", "ev-tomato-cream-pasta", "ev-ichigo-tiramisu"],
     note: "大切な人にチョコレートを贈る日。ごはんもハートを散らして、気持ちが伝わる献立にしました。" },
-  { id: "hinamatsuri", name: "ひな祭り", emoji: "🎎", when: "3月3日", dishes: ["ev-chirashi", "ev-hamaguri", "ev-nanohana", "ev-ichigo-kanten"],
+  { id: "hinamatsuri", name: "ひな祭り", emoji: "🎎", when: "3月3日", dishes: ["ev-chirashi", "ev-hamaguri", "ev-nanohana", "ev-ichigo-kanten", "ev-sanshoku-jelly", "ev-amazake", "ev-ebi-broccoli-salad"],
     note: "女の子の健やかな成長を願う桃の節句。ちらし寿司やはまぐりなど、春らしく彩りの良いものを食べます。" },
-  { id: "whiteday", name: "ホワイトデー", emoji: "🤍", when: "3月14日", dishes: ["ev-carbonara", "ev-caesar-salad", "ev-pudding"],
+  { id: "whiteday", name: "ホワイトデー", emoji: "🤍", when: "3月14日", dishes: ["ev-carbonara", "ev-caesar-salad", "ev-pudding", "ev-cream-stew", "ev-white-gratin", "ev-white-choco-mousse", "ev-corn-soup"],
     note: "バレンタインのお返しをする日。白いものを贈る風習にちなんで、白っぽい洋食の献立にしました。" },
-  { id: "hanami", name: "お花見", emoji: "🌸", when: "3月〜4月（桜の季節）", dishes: ["ev-takenoko-gohan", "karaage", "tamagoyaki", "ev-nanohana", "ev-sanshoku-dango"],
+  { id: "hanami", name: "お花見", emoji: "🌸", when: "3月〜4月（桜の季節）", dishes: ["ev-takenoko-gohan", "karaage", "tamagoyaki", "ev-nanohana", "ev-sanshoku-dango", "ev-inarizushi", "ev-haru-coleslaw"],
     note: "桜の下で春のごちそうを楽しむ行楽の献立。三色団子のピンク・白・緑は、桜・雪・新芽で春そのものを表します。" },
-  { id: "hahanohi", name: "母の日", emoji: "💐", when: "5月の第2日曜日", dishes: ["ev-heart-hamburg", "omurice", "potato-sarada", "ev-ichigo-yogurt"],
+  { id: "hahanohi", name: "母の日", emoji: "💐", when: "5月の第2日曜日", dishes: ["ev-heart-hamburg", "omurice", "potato-sarada", "ev-ichigo-yogurt", "ev-french-toast", "ev-salmon-marine", "ev-ichigo-milk"],
     note: "お母さんに「ありがとう」を伝える日。ハート形のハンバーグなど、子どもと一緒に作って感謝を届ける献立です。" },
-  { id: "kodomonohi", name: "こどもの日", emoji: "🎏", when: "5月5日", dishes: ["karaage", "ev-takenoko-gohan", "ev-wakatake-ni", "ev-fruit-punch"],
+  { id: "kodomonohi", name: "こどもの日", emoji: "🎏", when: "5月5日", dishes: ["karaage", "ev-takenoko-gohan", "ev-wakatake-ni", "ev-fruit-punch", "ev-kashiwa-mochi", "ev-koinobori-sand", "ev-yasai-stick"],
     note: "子どもの成長を祝う日。たけのこはまっすぐ伸びる元気の象徴で、柏餅やちまきを食べる風習もあります。" },
-  { id: "chichinohi", name: "父の日", emoji: "👔", when: "6月の第3日曜日", dishes: ["shogayaki", "ev-hiyayakko", "ev-edamame", "misoshiru"],
+  { id: "chichinohi", name: "父の日", emoji: "👔", when: "6月の第3日曜日", dishes: ["shogayaki", "ev-hiyayakko", "ev-edamame", "misoshiru", "ev-garlic-rice", "ev-nasu-miso-itame", "ev-stamina-natto", "tonkatsu"],
     note: "お父さんに「ありがとう」を伝える日。おつまみにもなる、がっつり元気の出る献立にしました。" },
-  { id: "tanabata", name: "七夕", emoji: "🎋", when: "7月7日", dishes: ["ev-tanabata-somen", "ev-hoshi-salad", "tamago-soup", "ev-suika"],
+  { id: "tanabata", name: "七夕", emoji: "🎋", when: "7月7日", dishes: ["ev-tanabata-somen", "ev-hoshi-salad", "tamago-soup", "ev-suika", "ev-amanogawa-jelly", "ev-natsuyasai-marine", "ev-hoshi-pizza", "ev-suika-sherbet"],
     note: "織姫と彦星が1年に1度会える日。そうめんは天の川、オクラの切り口は星に見立てて、願い事をしながら食べます。" },
-  { id: "doyou", name: "土用の丑の日", emoji: "🍱", when: "7月下旬ごろ", dishes: ["ev-unadon", "ev-sumono", "ev-shijimi-jiru"],
+  { id: "doyou", name: "土用の丑の日", emoji: "🍱", when: "7月下旬ごろ", dishes: ["ev-unadon", "ev-sumono", "ev-shijimi-jiru", "ev-uzaku", "ev-umaki", "ev-doyo-mochi", "ev-ume-kyuri"],
     note: "夏の暑さに負けないよう、栄養のあるうなぎを食べる日。「う」のつく食べ物で元気をつける江戸時代からの知恵です。" },
-  { id: "natsu", name: "夏の旬・夏祭り", emoji: "🎆", when: "7月〜8月（夏）", dishes: ["ev-goya-champuru", "ev-hiyashi-chuka", "ev-tomorokoshi", "ev-suika"],
+  { id: "natsu", name: "夏の旬・夏祭り", emoji: "🎆", when: "7月〜8月（夏）", dishes: ["ev-goya-champuru", "ev-hiyashi-chuka", "ev-tomorokoshi", "ev-suika", "ev-natsuyasai-curry", "ev-yaki-tomorokoshi", "ev-edamame-pepe", "ev-natsuyasai-agebitashi"],
     note: "夏祭りの屋台みたいな、暑い日に元気が出る旬の献立。冷たい麺と甘いとうもろこし、仕上げはすいかです。" },
-  { id: "keirou", name: "敬老の日", emoji: "🍵", when: "9月の第3月曜日", dishes: ["sake-shioyaki", "ev-chawanmushi", "ev-kuri-gohan", "misoshiru"],
+  { id: "keirou", name: "敬老の日", emoji: "🍵", when: "9月の第3月曜日", dishes: ["sake-shioyaki", "ev-chawanmushi", "ev-kuri-gohan", "misoshiru", "ev-eringi-gohan", "ev-kabocha-nimono"],
     note: "おじいちゃん・おばあちゃんに長生きと感謝を伝える日。柔らかく食べやすい和食の献立にしました。" },
-  { id: "tsukimi", name: "お月見", emoji: "🌕", when: "秋の十五夜", dishes: ["ev-sanma", "ev-satoimo-ni", "ev-tsukimi-jiru", "ev-tsukimi-dango"],
+  { id: "tsukimi", name: "お月見", emoji: "🌕", when: "秋の十五夜", dishes: ["ev-sanma", "ev-satoimo-ni", "ev-tsukimi-jiru", "ev-tsukimi-dango", "ev-tsukimi-udon", "ev-tsukimi-burger", "ev-nashi"],
     note: "きれいなお月さまに秋の実りを感謝する日。丸いお団子や里芋をお供えしてから、みんなでいただきます。" },
-  { id: "aki", name: "秋の味覚", emoji: "🍄", when: "9月〜11月（秋）", dishes: ["ev-sanma", "ev-kinoko-gohan", "ev-satsumaimo-ni", "ev-kenchin"],
+  { id: "aki", name: "秋の味覚", emoji: "🍄", when: "9月〜11月（秋）", dishes: ["ev-sanma", "ev-kinoko-gohan", "ev-satsumaimo-ni", "ev-kenchin", "ev-yakiimo", "ev-kinoko-hoiru", "ev-kaki-shiraae", "tonjiru"],
     note: "きのこ、さんま、栗、さつまいも。秋にいちばんおいしくなるものばかり集めた旬の献立です。" },
-  { id: "halloween", name: "ハロウィン", emoji: "🎃", when: "10月31日", dishes: ["ev-kabocha-gratin", "ev-halloween-salad", "ev-kabocha-soup", "ev-kabocha-pudding"],
+  { id: "halloween", name: "ハロウィン", emoji: "🎃", when: "10月31日", dishes: ["ev-kabocha-gratin", "ev-halloween-salad", "ev-kabocha-soup", "ev-kabocha-pudding", "ev-obake-curry", "ev-kabocha-cheesecake", "ev-kabocha-muffin", "ev-hot-apple"],
     note: "かぼちゃをくり抜いたランタンを飾る外国のお祭り。献立もかぼちゃづくしで、オレンジ色の食卓にしました。" },
-  { id: "shichigosan", name: "七五三", emoji: "👘", when: "11月15日", dishes: ["ev-sekihan", "ev-tai-shioyaki", "ev-chikuzenni", "ev-hamaguri"],
+  { id: "shichigosan", name: "七五三", emoji: "👘", when: "11月15日", dishes: ["ev-sekihan", "ev-tai-shioyaki", "ev-chikuzenni", "ev-hamaguri", "ev-ebi-shioyaki", "ev-chitoseame-jelly", "ev-renkon-amazu"],
     note: "3歳・5歳・7歳の成長をお祝いする日。赤飯や鯛などお祝いの食べ物を用意して、長い千歳飴で長生きを願います。" },
-  { id: "touji", name: "冬至", emoji: "🍊", when: "12月22日ごろ", dishes: ["ev-kabocha-croquette", "ev-itokoni", "ev-yuzu-daikon", "ev-kabocha-soup"],
+  { id: "touji", name: "冬至", emoji: "🍊", when: "12月22日ごろ", dishes: ["ev-kabocha-croquette", "ev-itokoni", "ev-yuzu-daikon", "ev-kabocha-soup", "ev-yuzu-dengaku", "ev-kabocha-misoshiru", "ev-yuzu-sherbet"],
     note: "1年でいちばん夜が長い日。かぼちゃを食べて栄養をつけ、ゆず湯に入ると風邪をひかないと言われます。" },
-  { id: "christmas", name: "クリスマス", emoji: "🎄", when: "12月24日〜25日", dishes: ["ev-roast-chicken", "potato-sarada", "ev-corn-soup", "ev-ichigo-cake"],
+  { id: "christmas", name: "クリスマス", emoji: "🎄", when: "12月24日〜25日", dishes: ["ev-roast-chicken", "potato-sarada", "ev-corn-soup", "ev-ichigo-cake", "ev-minestrone", "ev-garlic-toast", "ev-buche", "ev-roast-potato"],
     note: "家族で食卓を囲む特別な日。大きなチキンと赤いいちごのケーキで、クリスマスカラーの献立にしました。" },
-  { id: "toshikoshi", name: "年越し・大みそか", emoji: "🔔", when: "12月31日", dishes: ["ev-toshikoshi-soba", "ev-tempura", "ev-chikuzenni", "ev-yuzu-daikon"],
+  { id: "toshikoshi", name: "年越し・大みそか", emoji: "🔔", when: "12月31日", dishes: ["ev-toshikoshi-soba", "ev-tempura", "ev-chikuzenni", "ev-yuzu-daikon", "ev-kakiage", "ev-buri-teriyaki", "ev-kuromame"],
     note: "1年の最後のごはんは年越しそば。細く長いそばに長生きの願い、切れやすさに「今年の苦労は断ち切る」意味があります。" },
 ];
 
@@ -1122,6 +1842,36 @@ export const REGIONAL_RECIPES_MORE = [
   RG("rg2-porktamago", "ポーク玉子おにぎり風", 15, "和風", "焼く", "主食", "沖縄県", "沖縄県の定番おにぎり。焼いたランチョンミート（ポーク）と卵焼きを、ごはんと海苔でサンドするよ。コンビニでも大人気だよ。", [["ハム", ["ハム", "ランチョンミート"], 30, "g"], ["卵", ["卵", "たまご"], 1, "個"], ["米", ["米", "ごはん"], 75, "g"]], ["ハム（厚切り）を焼き、卵焼きを作る", "ごはんと一緒に海苔でサンドして包む"], "中身はツナマヨやゴーヤの天ぷらも人気です"),
   RG("rg2-soki", "ソーキ煮風", 40, "和風", "煮る", "主菜", "沖縄県", "沖縄県の名物。豚のあばら肉（ソーキ）を、黒糖と泡盛（お酒）でとろとろに煮るよ。沖縄そばにのせるのも定番だよ。", [["豚バラ肉", ["豚バラ", "豚肉"], 100, "g"], ["生姜", ["生姜", "しょうが"], 5, "g"], ["大根", ["大根", "だいこん"], 50, "g"]], ["豚肉を下茹でして脂を落とす", "黒糖（砂糖で代用）と醤油で大根と一緒に弱火で煮る"], "圧力鍋を使うと短時間でとろとろになります"),
   RG("rg2-mozukuten", "もずくの天ぷら風", 15, "和風", "揚げる", "副菜", "沖縄県", "沖縄県の名物天ぷら。海藻のもずくを衣と一緒に揚げると、もちもちカリッの楽しい食感になるよ。沖縄の食堂の定番だよ。", [["もずく", ["もずく"], 50, "g"], ["小麦粉", ["小麦粉"], 2, "大さじ"], ["にんじん", ["にんじん", "人参"], 0.3, "本"]], ["もずくの水気を切って衣とにんじんと混ぜる", "スプーンですくって油で揚げる"], "塩を少しかけるだけでおいしいです"),
+  // ---- 大幅追加（2026-11-11）：1品だけだった県を中心に補充 ----
+  RG("rg3-wankosoba", "わんこそば風", 15, "和風", "ゆでる", "主食", "岩手県", "岩手県の名物。お椀に一口ずつそばを入れて食べる賑やかな食事。家庭では小分けにして楽しく再現。", [["そば", ["そば"], 1, "玉"], ["鶏もも肉", ["鶏もも", "鶏肉"], 40, "g"], ["ねぎ", ["ねぎ", "ネギ", "長ねぎ"], 0.3, "本"]], ["そばをゆでて小皿に小分けする", "鶏肉入りの温かいつゆを用意する"], "つゆは少しずつ継ぎ足して楽しみます"),
+  RG("rg3-shizuoka-oden", "静岡おでん風", 30, "和風", "煮る", "主菜", "静岡県", "静岡県のおでんは濃い色のだしと黒はんぺんが特徴。家庭では練り物と大根で再現。", [["練り物", ["練り物", "はんぺん"], 2, "個"], ["大根", ["大根", "だいこん"], 80, "g"], ["卵", ["卵", "たまご"], 1, "個"], ["こんにゃく", ["こんにゃく"], 0.25, "枚"]], ["大根とこんにゃくを下ゆでする", "濃いめのだしで材料を煮込む"], "削り節と青のりをかけるのが静岡流です"),
+  RG("rg3-stamina-ramen", "スタミナラーメン風", 20, "中華", "煮る", "主食", "茨城県", "茨城県水戸発祥の、甘辛あんかけ野菜がのったラーメン。レバーが定番だが家庭では豚肉で手軽に。", [["中華麺", ["中華麺", "ラーメン"], 1, "玉"], ["豚肉", ["豚肉"], 50, "g"], ["キャベツ", ["キャベツ"], 60, "g"], ["にら", ["にら", "ニラ"], 0.25, "束"], ["にんにく", ["にんにく"], 1, "かけ"]], ["中華麺をゆでる", "野菜と豚肉の甘辛あんかけを作ってのせる"], "本場はレバー入り。辛さは控えめにどうぞ"),
+  RG("rg3-misopotato", "みそポテト", 15, "和風", "蒸す", "副菜", "埼玉県", "埼玉県秩父の名物。蒸したじゃがいもに甘い味噌だれを絡めた素朴なおやつ兼おかず。", [["じゃがいも", ["じゃがいも", "ジャガイモ"], 2, "個"], ["味噌", ["味噌", "みそ"], 1, "大さじ"]], ["じゃがいもを蒸す", "甘味噌だれを絡める"], "おやつにもなる秩父の味です"),
+  RG("rg3-torimotsu", "鳥もつ煮風", 20, "和風", "煮る", "副菜", "山梨県", "山梨県甲府の名物。鳥のもつを甘辛く照りよく煮詰めたご当地グルメ。家庭ではレバーで再現しやすい。", [["鶏レバー", ["鶏レバー", "レバー", "もつ"], 60, "g"], ["生姜", ["生姜", "しょうが"], 5, "g"]], ["レバーを下処理する", "甘辛く照りよく煮詰める"], "甲府では砂肝やハツも一緒に煮ます"),
+  RG("rg3-sanzokuyaki", "山賊焼き風", 20, "和風", "揚げる", "主菜", "長野県", "長野県中信地方の名物「山賊焼」は、一枚肉のにんにく醤油漬けを揚げた豪快な鶏料理。", [["鶏もも肉", ["鶏もも", "鶏肉"], 100, "g"], ["にんにく", ["にんにく"], 1, "かけ"], ["片栗粉", ["片栗粉"], 1, "大さじ"]], ["鶏肉をにんにく醤油に漬ける", "片栗粉をまぶして揚げる"], "「山賊は物を取る（揚げる）」が名前の由来とも言われます"),
+  RG("rg3-hobamiso", "朴葉味噌風", 15, "和風", "焼く", "副菜", "岐阜県", "岐阜県飛騨地方の郷土料理。朴の葉の上で味噌と具を焼く香ばしい一品。家庭ではホイルで代用できる。", [["味噌", ["味噌", "みそ"], 1, "大さじ"], ["ねぎ", ["ねぎ", "ネギ", "長ねぎ"], 0.3, "本"], ["しいたけ", ["しいたけ"], 1, "枚"], ["豚肉", ["豚肉"], 30, "g"]], ["ホイルに味噌と具をのせる", "焼いてごはんにのせる"], "朴の葉の代わりにホイルで作れます"),
+  RG("rg3-tekone", "てこね寿司風", 15, "和風", "その他", "主食", "三重県", "三重県志摩地方の漁師めし。まぐろの漬けを酢飯と手で混ぜる（手でこねる）ことからこの名前。", [["米", ["米", "ごはん"], 75, "g"], ["まぐろ", ["まぐろ"], 50, "g"], ["大葉", ["大葉", "しそ"], 2, "枚"], ["酢", ["酢"], 1, "大さじ"]], ["まぐろを醤油に漬ける", "酢飯と手で混ぜ合わせる"], "かつおで作るのが本場流です"),
+  RG("rg3-chagayu", "茶粥風", 20, "和風", "煮る", "主食", "奈良県", "奈良県の郷土料理。お茶で炊くさらさらのお粥で、朝ごはんの定番。さつまいもを入れる家も多い。", [["米", ["米", "ごはん"], 50, "g"], ["ほうじ茶", ["ほうじ茶", "お茶"], 300, "mL"]], ["ほうじ茶で米を炊く", "塩で味を整える"], "さつまいもを入れると甘みが増します"),
+  RG("rg3-akakonnyaku", "赤こんにゃくの甘辛煮", 15, "和風", "煮る", "副菜", "滋賀県", "滋賀県近江八幡の名物・赤こんにゃくを甘辛く煮付けた一品。鉄分で赤く染めるのが特徴。", [["こんにゃく", ["こんにゃく"], 0.5, "枚"]], ["こんにゃくを下ゆでする", "甘辛く煮含める"], "近江八幡のお祭り気分の一品です"),
+  RG("rg3-dondoroke", "どんどろけ飯風", 25, "和風", "煮る", "主食", "鳥取県", "鳥取県の郷土料理。豆腐と根菜の炊き込みごはん。豆腐を炒るときの「どんどろけ」という音が名前の由来。", [["米", ["米", "ごはん"], 75, "g"], ["豆腐", ["豆腐"], 0.25, "丁"], ["にんじん", ["にんじん", "人参"], 0.3, "本"], ["ごぼう", ["ごぼう"], 0.3, "本"], ["油揚げ", ["油揚げ"], 0.5, "枚"]], ["豆腐と根菜を炒める", "米と一緒に炊き込む"], "具は米の上にのせて炊くのがコツです"),
+  RG("rg3-shijimi-gohan", "しじみごはん風", 20, "和風", "煮る", "主食", "島根県", "島根県宍道湖のしじみを使った炊き込みごはん。しじみの旨みがごはんにしみる。", [["米", ["米", "ごはん"], 75, "g"], ["しじみ", ["しじみ"], 50, "g"], ["生姜", ["生姜", "しょうが"], 3, "g"]], ["しじみの砂抜きをする", "しじみと一緒に炊き込む"], "宍道湖のしじみは島根の宝物です"),
+  RG("rg3-onsen-tofu", "嬉野温泉湯豆腐風", 15, "和風", "煮る", "主菜", "佐賀県", "佐賀県嬉野温泉の名物。温泉水で煮ると豆腐がとろけるように柔らかくなる。", [["豆腐", ["豆腐"], 0.5, "丁"], ["白菜", ["白菜"], 0.06, "玉"], ["ねぎ", ["ねぎ", "ネギ", "長ねぎ"], 0.3, "本"]], ["鍋に豆腐と野菜を入れて煮る", "ポン酢やごまだれで食べる"], "重曹をほんの少し入れると豆腐がとろけます"),
+  RG("rg3-karashi-renkon", "からしれんこん風", 20, "和風", "揚げる", "副菜", "熊本県", "熊本県の郷土料理。れんこんの穴にからし味噌を詰めて揚げる。家庭では薄切りにはさんで手軽に。", [["れんこん", ["れんこん", "レンコン", "蓮根"], 60, "g"], ["味噌", ["味噌", "みそ"], 0.5, "大さじ"]], ["れんこんにからし味噌をはさむ", "衣をつけて揚げる"], "からし控えめなら子どもも食べられます"),
+  RG("rg3-ryukyu", "りゅうきゅう風", 10, "和風", "和える", "主菜", "大分県", "大分県の郷土料理。刺身を醤油ベースのタレに漬けた漁師めし。名前は琉球（沖縄）とのつながりが由来とも。", [["ぶり", ["ぶり", "ブリ", "鰤"], 60, "g"], ["大葉", ["大葉", "しそ"], 2, "枚"], ["ごま", ["ごま"], 0.5, "大さじ"]], ["ぶりの刺身をタレに漬ける", "大葉とごまを添える"], "鯛やアジでも美味しく作れます"),
+  RG("rg3-ika-menchi", "いかメンチ風", 20, "和風", "揚げる", "主菜", "青森県", "青森県弘前・津軽地方の家庭料理。いかと野菜のみじん切りを揚げた素朴なメンチ。", [["いか", ["いか", "イカ"], 0.5, "杯"], ["玉ねぎ", ["玉ねぎ", "たまねぎ"], 0.25, "個"], ["パン粉", ["パン粉"], 2, "大さじ"], ["小麦粉", ["小麦粉"], 1, "大さじ"]], ["いかと玉ねぎをみじん切りにして混ぜる", "成形して揚げる"], "津軽の家庭の味です"),
+  RG("rg3-shottsuru", "しょっつる鍋風", 25, "和風", "煮る", "主菜", "秋田県", "秋田県の魚醤「しょっつる」で味付けする鍋。はたはたが定番だが、家庭ではたらでも美味しい。", [["たら", ["たら", "鱈"], 1, "切れ"], ["白菜", ["白菜"], 0.125, "玉"], ["豆腐", ["豆腐"], 0.25, "丁"], ["ねぎ", ["ねぎ", "ネギ", "長ねぎ"], 0.3, "本"]], ["野菜と豆腐を煮る", "たらを入れて魚醤で味付けする"], "しょっつるがなければ塩と少しの醤油でも"),
+  RG("rg3-aburafu-don", "油麩丼風", 15, "和風", "煮る", "主食", "宮城県", "宮城県登米地方の名物。車麩のような油麩をカツ丼風に卵でとじた丼。肉なしでも満足感がある。", [["油麩", ["油麩", "麩"], 30, "g"], ["卵", ["卵", "たまご"], 1, "個"], ["玉ねぎ", ["玉ねぎ", "たまねぎ"], 0.25, "個"]], ["油麩と玉ねぎを煮る", "卵でとじてごはんにのせる（ごはんは別に用意）"], "登米の油麩は肉のような食べ応えです"),
+  RG("rg3-ika-ninjin", "いかにんじん", 10, "和風", "和える", "副菜", "福島県", "福島県の郷土料理。するめと人参の漬物風で、おせちや常備菜に。家庭では刺身用いかでも。", [["いか", ["いか", "イカ"], 0.5, "杯"], ["にんじん", ["にんじん", "人参"], 0.5, "本"]], ["いかと人参を細切りにする", "醤油とみりんで漬け込む"], "本場はするめいかを使います"),
+  RG("rg3-shimotsukare", "しもつかれ風", 30, "和風", "煮る", "副菜", "栃木県", "栃木県の郷土料理。鮭と根菜、大豆を煮込んだ栄養満点の一品。家庭では鮭の切り身で作りやすく。", [["鮭", ["鮭", "サーモン", "さけ"], 40, "g"], ["大根", ["大根", "だいこん"], 60, "g"], ["にんじん", ["にんじん", "人参"], 0.3, "本"], ["大豆", ["大豆"], 15, "g"], ["油揚げ", ["油揚げ"], 0.5, "枚"]], ["根菜と大豆を煮る", "鮭を入れて煮込む"], "初午（はつうま）の日に食べる行事食です"),
+  RG("rg3-okkirikomi", "おっきりこみ風", 25, "和風", "煮る", "主食", "群馬県", "群馬県の郷土料理。幅広の麺と根菜を味噌で煮込む、体が温まる一品。「切って入れる」が名前の由来。", [["うどん", ["うどん"], 1, "玉"], ["かぼちゃ", ["かぼちゃ"], 50, "g"], ["大根", ["大根", "だいこん"], 40, "g"], ["にんじん", ["にんじん", "人参"], 0.3, "本"], ["味噌", ["味噌", "みそ"], 1.5, "大さじ"]], ["根菜を味噌で煮る", "うどんを入れて煮込む"], "幅広麺で作るのが本場流です"),
+  RG("rg3-futomaki", "太巻き寿司（祭り寿司）風", 25, "和風", "その他", "主食", "千葉県", "千葉県の郷土料理。お祭りの日に作る華やかな太巻き。家庭では卵やかまぼこで色鮮やかに。", [["米", ["米", "ごはん"], 75, "g"], ["卵", ["卵", "たまご"], 1, "個"], ["きゅうり", ["きゅうり"], 0.3, "本"], ["かまぼこ", ["かまぼこ"], 20, "g"], ["海苔", ["海苔"], 1, "枚"]], ["酢飯と具を用意する", "海苔で太く巻く"], "切った断面の模様を楽しむ祭り寿司です"),
+  RG("rg3-shirasu-don", "しらす丼", 10, "和風", "その他", "主食", "神奈川県", "神奈川県湘南の名物。釜揚げしらすを熱々ごはんにたっぷりのせた丼。卵黄をのせても美味しい。", [["米", ["米", "ごはん"], 100, "g"], ["しらす", ["しらす"], 30, "g"], ["大葉", ["大葉", "しそ"], 2, "枚"], ["卵", ["卵", "たまご"], 1, "個"]], ["熱いごはんにしらすをのせる", "大葉と卵黄を添える"], "釜揚げしらすが手に入ったらぜひ"),
+  RG("rg3-noppe", "のっぺ風", 25, "和風", "煮る", "副菜", "新潟県", "新潟県の郷土料理。根菜を煮てとろみをつけた、お祝いの席にも出る煮物。", [["里芋", ["里芋"], 1, "個"], ["にんじん", ["にんじん", "人参"], 0.3, "本"], ["れんこん", ["れんこん", "レンコン", "蓮根"], 30, "g"], ["鮭", ["鮭", "サーモン", "さけ"], 30, "g"], ["銀杏", ["銀杏"], 2, "個"]], ["根菜を煮る", "里芋のとろみで仕上げる"], "お正月やお祝いの席の煮物です"),
+  RG("rg3-kaburazushi", "かぶら寿司風", 15, "和風", "その他", "副菜", "石川県", "石川県・富山県の冬の発酵食品。塩漬けのかぶにブリと麹を挟んだ「なれずし」。家庭では甘酢漬けで雰囲気を再現。", [["かぶ", ["かぶ"], 0.5, "個"], ["ぶり", ["ぶり", "ブリ", "鰤"], 40, "g"], ["米", ["米", "ごはん"], 30, "g"], ["酢", ["酢"], 1, "大さじ"]], ["かぶを甘酢に漬ける", "ぶりとごはんをはさむ"], "本物は麹で発酵させる冬の味覚です"),
+  RG("rg3-hasumushi", "加賀れんこんのはす蒸し風", 20, "和風", "蒸す", "副菜", "石川県", "石川県金沢の郷土料理。すりおろした加賀れんこんを蒸してあんをかけた、もっちり上品な一品。", [["れんこん", ["れんこん", "レンコン", "蓮根"], 60, "g"], ["えび", ["えび", "海老"], 2, "尾"], ["銀杏", ["銀杏"], 2, "個"], ["卵", ["卵", "たまご"], 0.5, "個"]], ["れんこんをすりおろして卵と混ぜる", "具をのせて蒸し、あんをかける"], "加賀れんこんのもっちり感が主役です"),
+  RG("rg3-kanimeshi", "かにめし風", 20, "和風", "煮る", "主食", "福井県", "福井県越前の冬の味覚・越前がにを使ったかにめし。家庭では缶詰やカニかまでも雰囲気が出る。", [["米", ["米", "ごはん"], 75, "g"], ["かに", ["かに"], 40, "g"], ["卵", ["卵", "たまご"], 0.5, "個"]], ["かにの身と一緒に炊き込む", "錦糸卵をのせる"], "越前がにの季節のごちそうです"),
+  RG("rg3-kujo-nuta", "九条ねぎのぬた", 10, "和風", "和える", "副菜", "京都府", "京都府の京野菜・九条ねぎを使った酢味噌和え。ねぎの甘みとぬたの酸味が好相性。", [["長ねぎ", ["ねぎ", "ネギ", "長ねぎ"], 1, "本"], ["わかめ", ["わかめ"], 3, "g"], ["味噌", ["味噌", "みそ"], 0.5, "大さじ"], ["酢", ["酢"], 1, "小さじ"]], ["ねぎをゆでる", "酢味噌で和える"], "九条ねぎの甘みが際立ちます"),
+  RG("rg3-bokkake", "ぼっかけ風", 20, "和風", "煮る", "主菜", "兵庫県", "兵庫県神戸・長田の名物。牛すじとこんにゃくを甘辛く煮て丼やお好み焼きにのせる。家庭では牛肉で再現。", [["牛肉", ["牛肉"], 50, "g"], ["こんにゃく", ["こんにゃく"], 0.25, "枚"], ["ねぎ", ["ねぎ", "ネギ", "長ねぎ"], 0.3, "本"]], ["牛肉とこんにゃくを甘辛く煮る", "ごはんや麺にのせる"], "神戸・長田ではお好み焼きにも入れます"),
 ];
 REGIONAL_RECIPES.push(...REGIONAL_RECIPES_MORE);
 
@@ -1144,19 +1894,19 @@ export const REGIONAL_PREF = {
 export const REGIONS = [
   { id: "hokkaido", name: "北海道", emoji: "❄️", dishes: ["rg-jingisukan", "chanchan", "rg-ishikari", "rg-buttercorn", "rg2-soupcurry", "rg2-zangi", "rg2-ikameshi", "rg2-butadon", "rg2-ramensalad", "rg2-sanpeijiru"],
     intro: "海の幸と大地の恵み。鮭・じゃがいも・とうもろこしと、寒い土地ならではの温かい鍋が自慢だよ。" },
-  { id: "tohoku", name: "東北", emoji: "🍎", dishes: ["rg-kiritanpo", "rg-imoni", "rg-senbeijiru", "rg-zunda", "rg2-barayaki", "rg2-jajamen", "rg2-gyutan", "rg2-harakomeshi", "rg2-yokoteyakisoba", "rg2-tsumetainikusoba", "rg2-kitakata", "rg2-enbangyoza"],
+  { id: "tohoku", name: "東北", emoji: "🍎", dishes: ["rg-kiritanpo", "rg-imoni", "rg-senbeijiru", "rg-zunda", "rg2-barayaki", "rg2-jajamen", "rg2-gyutan", "rg2-harakomeshi", "rg2-yokoteyakisoba", "rg2-tsumetainikusoba", "rg2-kitakata", "rg2-enbangyoza", "rg3-wankosoba", "rg3-ika-menchi", "rg3-shottsuru", "rg3-aburafu-don", "rg3-ika-ninjin"],
     intro: "山と里の恵み。きりたんぽや芋煮など、体が温まる鍋ものと、枝豆のずんだが有名だよ。" },
-  { id: "kanto", name: "関東", emoji: "🗼", dishes: ["rg-monja", "rg-fukagawa", "rg-shumai", "rg-chanko", "rg2-ankonabe", "rg2-sanoramen", "rg2-utsunomiyagyoza", "rg2-yakimanju", "rg2-mizusawaudon", "rg2-katsuura-tantan", "rg2-namero", "rg2-sanmamen", "rg2-zeryfry"],
+  { id: "kanto", name: "関東", emoji: "🗼", dishes: ["rg-monja", "rg-fukagawa", "rg-shumai", "rg-chanko", "rg2-ankonabe", "rg2-sanoramen", "rg2-utsunomiyagyoza", "rg2-yakimanju", "rg2-mizusawaudon", "rg2-katsuura-tantan", "rg2-namero", "rg2-sanmamen", "rg2-zeryfry", "rg3-stamina-ramen", "rg3-misopotato", "rg3-shimotsukare", "rg3-okkirikomi", "rg3-futomaki", "rg3-shirasu-don"],
     intro: "江戸・東京の下町ごはんと港町の味。もんじゃ焼きに深川めし、横浜のシュウマイだよ。" },
-  { id: "chubu", name: "中部", emoji: "🏯", dishes: ["rg-misokatsu", "rg-tebasaki", "rg-hoto", "rg-hamamatsu-gyoza", "rg2-tarekatsu", "rg2-hegisoba", "rg2-blackramen", "rg2-masuzushi", "rg2-jibuni", "rg2-kanazawacurry", "rg2-saucekatsu", "rg2-oroshisoba", "rg2-oyaki", "rg2-keichan", "rg2-iseudon", "rg2-misonikomi", "rg2-hitsumabushi"],
+  { id: "chubu", name: "中部", emoji: "🏯", dishes: ["rg-misokatsu", "rg-tebasaki", "rg-hoto", "rg-hamamatsu-gyoza", "rg2-tarekatsu", "rg2-hegisoba", "rg2-blackramen", "rg2-masuzushi", "rg2-jibuni", "rg2-kanazawacurry", "rg2-saucekatsu", "rg2-oroshisoba", "rg2-oyaki", "rg2-keichan", "rg2-iseudon", "rg2-misonikomi", "rg2-hitsumabushi", "rg3-torimotsu", "rg3-shizuoka-oden", "rg3-sanzokuyaki", "rg3-hobamiso", "rg3-tekone", "rg3-noppe", "rg3-kaburazushi", "rg3-hasumushi", "rg3-kanimeshi"],
     intro: "名古屋めしの甘い赤味噌、山梨のほうとう、浜松の餃子。真ん中の日本の味だよ。" },
-  { id: "kansai", name: "関西", emoji: "🐙", dishes: ["rg-takoyaki", "rg-okonomiyaki", "rg-kitsune-udon", "rg-kushikatsu", "rg2-nishinsoba", "rg2-yubagohan", "rg2-akashiyaki", "rg2-sobameshi", "rg2-kakinohazushi", "rg2-meharizushi", "rg2-wakayamaramen", "rg2-omigyusukiyaki"],
+  { id: "kansai", name: "関西", emoji: "🐙", dishes: ["rg-takoyaki", "rg-okonomiyaki", "rg-kitsune-udon", "rg-kushikatsu", "rg2-nishinsoba", "rg2-yubagohan", "rg2-akashiyaki", "rg2-sobameshi", "rg2-kakinohazushi", "rg2-meharizushi", "rg2-wakayamaramen", "rg2-omigyusukiyaki", "rg3-chagayu", "rg3-akakonnyaku", "rg3-kujo-nuta", "rg3-bokkake"],
     intro: "粉ものの本場。たこ焼き・お好み焼き・うどんと、大阪の楽しい食卓だよ。" },
-  { id: "chugoku", name: "中国", emoji: "🍋", dishes: ["rg-hiroshima-okonomi", "rg-kawara-soba", "rg-demikatsu", "ev-shijimi-jiru", "rg2-gyukotsuramen", "rg2-izumosoba", "rg2-ebimeshi", "rg2-hiroshimatsukemen", "rg2-hiruzenyakisoba", "rg2-fukuzosui"],
+  { id: "chugoku", name: "中国", emoji: "🍋", dishes: ["rg-hiroshima-okonomi", "rg-kawara-soba", "rg-demikatsu", "ev-shijimi-jiru", "rg2-gyukotsuramen", "rg2-izumosoba", "rg2-ebimeshi", "rg2-hiroshimatsukemen", "rg2-hiruzenyakisoba", "rg2-fukuzosui", "rg3-dondoroke", "rg3-shijimi-gohan"],
     intro: "瀬戸内の恵み。広島のお好み焼き、山口の瓦そば、宍道湖のしじみ汁だよ。" },
   { id: "shikoku", name: "四国", emoji: "🍊", dishes: ["rg-sanuki-udon", "rg-katsuo-tataki", "rg-taimeshi", "rg-imotaki", "rg2-tokushimaramen", "rg2-taraiudon", "rg2-honebutsudori", "rg2-yakibutatamago", "rg2-jakoten", "rg2-nabeyakiramen"],
     intro: "讃岐うどんに高知のかつお、愛媛の鯛めしと芋炊き。四つの県の名物がそろうよ。" },
-  { id: "kyushu", name: "九州", emoji: "🍜", dishes: ["rg-champon", "rg-tonkotsu", "rg-chicken-nanban", "rg-satsumajiru", "rg2-motsunabe", "rg2-mizutaki", "rg2-shishirian", "rg2-saraudon", "rg2-taiyoyen", "rg2-toriten", "rg2-hiyajiru", "rg2-kurobutashabu", "rg2-keihan"],
+  { id: "kyushu", name: "九州", emoji: "🍜", dishes: ["rg-champon", "rg-tonkotsu", "rg-chicken-nanban", "rg-satsumajiru", "rg2-motsunabe", "rg2-mizutaki", "rg2-shishirian", "rg2-saraudon", "rg2-taiyoyen", "rg2-toriten", "rg2-hiyajiru", "rg2-kurobutashabu", "rg2-keihan", "rg3-onsen-tofu", "rg3-karashi-renkon", "rg3-ryukyu"],
     intro: "長崎ちゃんぽん、博多ラーメン、宮崎チキン南蛮。南の元気な麺と鶏の国だよ。" },
   { id: "okinawa", name: "沖縄", emoji: "🌺", dishes: ["ev-goya-champuru", "rg-rafute", "rg-okinawa-soba", "rg-sata-andagi", "rg2-tacorice", "rg2-ninjinshirishiri", "rg2-porktamago", "rg2-soki", "rg2-mozukuten"],
     intro: "長寿の島の食卓。ゴーヤや豚肉を上手に食べて、暑さに負けない知恵が詰まっているよ。" },

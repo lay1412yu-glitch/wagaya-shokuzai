@@ -15,7 +15,9 @@
 
 import { el, uid, todayISO, daysUntil, formatDate, expiryLabel, expiryGroup, formatCode, fmtQtyValue, qtyStepFor, roundQty, isFractionUnit, matchesSearch, topPurchased, recentRegistered } from "./util.js";
 import { suggestRecipes, suggestMealSet, suggestEventMenu, EVENT_MENUS, suggestRegionalMenu, REGIONS } from "./recipes.js";
-import { buildGameQuestions, scoreGame, CORRECT_PRAISE, GAME_QUESTION_COUNT, GAME_COUNT_OPTIONS } from "./game.js";
+import { suggestCombos, repertoireSize } from "./combo.js";
+import { buildGameQuestions, scoreGame, CORRECT_PRAISE, GAME_QUESTION_COUNT, GAME_COUNT_OPTIONS, GAME_DIFFICULTIES, GAME_DIFFICULTY_DEFAULT } from "./game.js";
+import { createSuikaGame, VEG_STAGES } from "./suika.js";
 import { qrToCanvas } from "./qrcode.js";
 import { iconEl, CATALOG, rarityOf, rarityCategory } from "./icons.js";
 import { levelForCount, titleFor, remainingToNextLevel } from "./levels.js";
@@ -84,11 +86,16 @@ const state = {
   user: null, fridges: [], fridge: null, members: [],
   items: [], shopping: [], favRecipes: [], catalog: [], settings: { familySize: 2 },
   tab: "stock", authTab: "login", recipeMode: "stock", recipeView: "suggest",
+  suggestPage: 0, // おすすめ候補プールのページ（「別の提案を見る」で送る）
+  comboSeen: [], // 組み合わせ提案で表示済みの combo id（未表示分を出すため）
+  comboRound: 0, // 組み合わせ候補をひと通り見た回数（seed を変えて顔ぶれを変える）
   eventMenuId: null, // 選択中のイベント献立（null のときは先頭のイベント）
   regionId: null, // 選択中の地域（郷土料理。null のときは先頭の地域）
   gameView: false, // 食材クイズゲーム表示中
   game: null, // ゲームの進行状態 { questions, index, phase, selected, flags, streak, bestStreak }（保存しない）
-  gameCount: GAME_QUESTION_COUNT, // ゲームの出題数（5 / 10 / 15 から選択。保存しない）
+  gameCount: GAME_QUESTION_COUNT, // ゲームの出題数（5 / 10 / 15 / 20 / 30 から選択。保存しない）
+  gameDifficulty: GAME_DIFFICULTY_DEFAULT, // ゲームの難易度（こども / かぞく / 大人チャレンジ。保存しない）
+  suikaView: false, // やさいあわせゲーム表示中
   zukanFilter: "all", // 図鑑のレアリティ絞り込み: all | ultra | rare
   knowledgeName: null, knowledgeCategory: null, // 食材の知識ページ表示中（食育）
   presetAdd: null, // 図鑑から在庫登録フォームへ渡す下書き { name, category, unit? }
@@ -348,6 +355,7 @@ async function openFridge(fridgeId) {
   state.fridge = state.fridges.find((f) => f.id === fridgeId) || null;
   if (!state.fridge) { renderFridgePicker(); return; }
   state.sessionTrash = [];
+  state.suggestPage = 0; state.comboSeen = []; state.comboRound = 0;
   await refreshData();
   setupRealtime();
   // アプリを開いたタイミングのローカル通知（許可済み・1日1回・サーバー不要）
@@ -369,11 +377,13 @@ async function refreshData() {
 // ================= メイン画面 =================
 function renderMain() {
   if (state.legalView) { renderLegalPage(); return; }
+  if (!state.suikaView && suikaCtrl) suikaCtrl.detach(); // ゲーム画面を離れたら物理ループを止める
   appRoot.replaceChildren();
   const content = el("div", {});
   if (state.showGuide) content.append(renderGuideCard());
   if (state.knowledgeName) content.append(renderKnowledgePage());
   else if (state.gameView) content.append(renderGamePage());
+  else if (state.suikaView) content.append(renderSuikaPage());
   else if (state.tab === "stock") content.append(renderStockTab());
   else if (state.tab === "shopping") content.append(renderShoppingTab());
   else if (state.tab === "recipes") content.append(renderRecipesTab());
@@ -388,7 +398,7 @@ function renderMain() {
   document.getElementById("header-sub").textContent = state.fridge ? state.fridge.name : "";
 }
 function navBtn(tab, icon, label) {
-  return el("button", { class: state.tab === tab && !state.knowledgeName && !state.gameView ? "active" : "", onclick: () => { state.tab = tab; state.knowledgeName = null; state.gameView = false; state.game = null; renderMain(); } },
+  return el("button", { class: state.tab === tab && !state.knowledgeName && !state.gameView && !state.suikaView ? "active" : "", onclick: () => { state.tab = tab; state.knowledgeName = null; state.gameView = false; state.game = null; state.suikaView = false; renderMain(); } },
     el("span", { class: "nav-icon" }, icon), label);
 }
 
@@ -488,6 +498,7 @@ function startGame() {
   const questions = buildGameQuestions(gamePool(), {
     count: state.gameCount || GAME_QUESTION_COUNT,
     seed: (Date.now() % 2147483646) + 1,
+    difficulty: state.gameDifficulty || GAME_DIFFICULTY_DEFAULT,
   });
   state.game = { questions, index: 0, phase: "ask", selected: null, flags: [], streak: 0, bestStreak: 0 };
   state.gameView = true;
@@ -518,13 +529,19 @@ function renderGamePage() {
     const hero = el("div", { class: "card knowledge-hero game-hero" },
       iconEl("トマト", "野菜"), iconEl("にんじん", "野菜"), iconEl("卵", "卵・乳製品"),
       el("div", { class: "k-name" }, "🎮 食材クイズゲーム"),
-      el("p", { class: "k-text" }, "3択クイズ・旬クイズ・なまえ当てのほかに、栄養クイズ、見分け方クイズ、旬の食べ物クイズ、郷土料理クイズも出るよ。もんだいのかずを選んでね。集めた食材から問題が出るから、図鑑を集めるほど楽しくなるよ！"),
+      el("p", { class: "k-text" }, "3択クイズ・旬クイズ・なまえ当てのほかに、栄養クイズ、見分け方クイズ、レア度クイズ、都道府県クイズ、レシピクイズ、行事のごちそうクイズも出るよ。もんだいのかずと むずかしさを選んでね。集めた食材から問題が出るから、図鑑を集めるほど楽しくなるよ！"),
       el("div", { class: "tabs game-count-tabs", role: "tablist", "aria-label": "もんだいのかずを選ぶ" },
         GAME_COUNT_OPTIONS.map((n) => el("button", {
           class: (state.gameCount || GAME_QUESTION_COUNT) === n ? "active" : "",
           role: "tab", "aria-selected": (state.gameCount || GAME_QUESTION_COUNT) === n ? "true" : "false",
           onclick: () => { state.gameCount = n; renderMain(); },
         }, `${n}もん`))),
+      el("div", { class: "tabs game-difficulty-tabs", role: "tablist", "aria-label": "むずかしさを選ぶ" },
+        GAME_DIFFICULTIES.map((d) => el("button", {
+          class: (state.gameDifficulty || GAME_DIFFICULTY_DEFAULT) === d.id ? "active" : "",
+          role: "tab", "aria-selected": (state.gameDifficulty || GAME_DIFFICULTY_DEFAULT) === d.id ? "true" : "false",
+          onclick: () => { state.gameDifficulty = d.id; renderMain(); },
+        }, d.label))),
       el("button", { class: "btn wide", onclick: () => startGame() }, "ゲームスタート！"),
     );
     wrap.append(hero);
@@ -550,10 +567,13 @@ function renderGamePage() {
   const q = g.questions[g.index];
   const scoreNow = g.flags.filter(Boolean).length;
   const heroIcon = iconEl(q.name, q.category);
-  if ((q.type === "name" || q.type === "seasonfood") && g.phase === "ask") heroIcon.classList.add("game-mystery"); // 名前当て・旬の食べ物当ては答えがバレないようシルエット
+  if ((q.type === "name" || q.type === "seasonfood" || q.type === "bodyhint") && g.phase === "ask") heroIcon.classList.add("game-mystery"); // 名前当て・旬の食べ物当て・からだヒント当ては答えがバレないようシルエット
   const typeLabel = {
     knowledge: "3択クイズ", season: "旬クイズ", name: "なまえ当てクイズ",
     nutrition: "栄養クイズ", choose: "見分け方クイズ", seasonfood: "旬の食べ物クイズ", regional: "郷土料理クイズ",
+    rarity: "レア度クイズ", category: "なかま分けクイズ", trivia: "まめちしきクイズ", bodyhint: "からだヒント当て",
+    prefecture: "都道府県クイズ", prefdish: "都道府県クイズ", recipein: "レシピクイズ", recipeout: "レシピクイズ",
+    eventdish: "行事のごちそうクイズ",
   }[q.type] || "3択クイズ";
   const card = el("div", { class: "card game-card" },
     el("div", { class: "game-score" },
@@ -591,6 +611,121 @@ function renderGamePage() {
     );
   }
   wrap.append(card);
+  return wrap;
+}
+
+// ---------- やさいあわせゲーム（合体パズル） ----------
+// 図鑑タブから入る。js/suika.js が物理・合体・描画を担い、進行状態は
+// コントローラ側に保持する（画面の再描画で盤面が消えない）。
+// ベストスコアだけ端末の localStorage（専用キー）に保存し、
+// 在庫データには一切触れない。
+let suikaCtrl = null; // createSuikaGame のコントローラ（1つだけ使い回す）
+let suikaUi = null; // 現在表示中のページの DOM 更新フック { update(state) }
+function renderSuikaPage() {
+  const wrap = el("div", {});
+  wrap.append(el("button", {
+    class: "btn secondary small", onclick: () => { state.suikaView = false; renderMain(); },
+  }, "← 図鑑にもどる"));
+
+  const scoreVal = el("span", { class: "suika-stat-num" }, "0");
+  const bestVal = el("span", { class: "suika-stat-num accent" }, "0");
+  const curIcon = el("span", { class: "suika-piece cur" });
+  const curName = el("span", { class: "suika-piece-name" }, "");
+  const nextIcon = el("span", { class: "suika-piece next" });
+  const nextName = el("span", { class: "suika-piece-name" }, "");
+  const melonBanner = el("p", { class: "suika-banner melon", role: "status" }, "🍉 すいかが できた！ すごい！");
+  melonBanner.style.display = "none";
+  const overBanner = el("p", { class: "suika-banner danger", role: "alert" }, "あふれそう！ 野菜をくっつけて 合体させて！");
+  overBanner.style.display = "none";
+
+  const canvas = el("canvas", { class: "suika-canvas", "aria-hidden": "true" });
+  const overScore = el("span", { class: "suika-over-score" }, "0");
+  const overRecord = el("p", { class: "suika-over-record" }, "ベストスコア更新！");
+  overRecord.style.display = "none";
+  const overlay = el("div", { class: "suika-overlay" },
+    el("div", { class: "suika-over-card" },
+      el("p", { class: "suika-over-title" }, "あふれちゃった！"),
+      el("p", { class: "hint" }, "ゲームオーバー"),
+      el("p", { class: "suika-over-line" }, "スコア ", overScore),
+      overRecord,
+      el("button", { class: "btn wide", type: "button", onclick: () => suikaCtrl?.restart() }, "もう一度あそぶ"),
+    ),
+  );
+  overlay.style.display = "none";
+  const playWrap = el("div", {
+    class: "suika-wrap", role: "application",
+    "aria-label": "やさいあわせゲームのプレイ画面。左右に動かして、はなすと野菜が落ちます",
+  }, canvas, overlay);
+
+  const dropBtn = el("button", {
+    class: "btn suika-drop", type: "button", "aria-label": "野菜を落とす",
+    onclick: () => suikaCtrl?.drop(),
+  }, "おとす！");
+
+  wrap.append(el("div", { class: "card" },
+    el("div", { class: "k-name" }, "🍉 やさいあわせゲーム"),
+    el("p", { class: "k-text" }, "同じ野菜同士がくっつくと、大きな野菜に進化！ プチトマトから育てて、最後は すいかを目指そう。点線を超えたままになると、あふれてゲームオーバーだよ。"),
+    el("div", { class: "suika-stats" },
+      el("div", { class: "suika-stat" }, el("span", { class: "suika-stat-label" }, "スコア"), scoreVal),
+      el("div", { class: "suika-stat" }, el("span", { class: "suika-stat-label" }, "ベスト"), bestVal),
+      el("div", { class: "suika-nextbox" },
+        el("div", { class: "suika-piece-box" }, el("span", { class: "suika-stat-label" }, "いま"), curIcon, curName),
+        el("span", { class: "suika-arrow-mark", "aria-hidden": "true" }, "→"),
+        el("div", { class: "suika-piece-box dim" }, el("span", { class: "suika-stat-label" }, "つぎ"), nextIcon, nextName),
+      ),
+    ),
+    melonBanner, overBanner,
+    playWrap,
+    el("div", { class: "suika-controls" },
+      el("button", { class: "btn secondary suika-arrow", type: "button", "aria-label": "左へ動かす", onclick: () => suikaCtrl?.nudge(-1) }, "←"),
+      dropBtn,
+      el("button", { class: "btn secondary suika-arrow", type: "button", "aria-label": "右へ動かす", onclick: () => suikaCtrl?.nudge(1) }, "→"),
+    ),
+    el("p", { class: "hint" }, "野菜を左右に動かして、はなすか「おとす！」で落とすよ。"),
+    el("button", { class: "btn secondary wide", type: "button", onclick: () => suikaCtrl?.restart() }, "↺ はじめから（リスタート）"),
+  ));
+
+  // 進化の順番
+  const evoKids = [];
+  VEG_STAGES.forEach((s, i) => {
+    const ic = iconEl(s.name, "野菜");
+    const px = Math.round(26 + i * 3.4);
+    ic.style.width = `${px}px`;
+    ic.style.height = `${px}px`;
+    evoKids.push(el("span", { class: "suika-evo-item" }, ic,
+      el("span", { class: "suika-evo-name" }, s.name),
+      el("span", { class: "suika-evo-score" }, `${s.score}点`)));
+    if (i < VEG_STAGES.length - 1) evoKids.push(el("span", { class: "suika-evo-arrow", "aria-hidden": "true" }, "→"));
+  });
+  wrap.append(el("div", { class: "card" },
+    el("h3", {}, "進化の順番（小さい野菜 → 大きい野菜）"),
+    el("div", { class: "suika-evo" }, ...evoKids),
+    el("p", { class: "hint" }, "落とせるのは プチトマト〜玉ねぎ の小さい野菜だけ。くっつけて合体させると、だんだん大きな野菜になります。"),
+  ));
+
+  suikaUi = {
+    update(s) {
+      scoreVal.textContent = String(s.score);
+      bestVal.textContent = String(s.best);
+      const cur = VEG_STAGES[s.current], nxt = VEG_STAGES[s.next];
+      curIcon.replaceChildren(iconEl(cur.name, "野菜"));
+      curName.textContent = cur.name;
+      nextIcon.replaceChildren(iconEl(nxt.name, "野菜"));
+      nextName.textContent = nxt.name;
+      melonBanner.style.display = s.madeWatermelon && !s.gameOver ? "" : "none";
+      overBanner.style.display = s.overflowing && !s.gameOver ? "" : "none";
+      overlay.style.display = s.gameOver ? "" : "none";
+      if (s.gameOver) {
+        overScore.textContent = String(s.score);
+        overRecord.style.display = s.isRecord ? "" : "none";
+      }
+      dropBtn.disabled = !!s.gameOver;
+    },
+  };
+  if (!suikaCtrl) {
+    suikaCtrl = createSuikaGame({ onUpdate: (s) => { if (suikaUi) suikaUi.update(s); } });
+  }
+  suikaCtrl.attach(canvas, playWrap);
   return wrap;
 }
 
@@ -888,9 +1023,13 @@ function renderZukanTab() {
       filterBtn("rare", "レアだけ"),
     ),
     el("button", {
-      class: "btn wide", onclick: () => { state.game = null; state.gameView = true; renderMain(); },
+      class: "btn wide", onclick: () => { state.game = null; state.gameView = true; state.suikaView = false; renderMain(); },
     }, "🎮 食材クイズゲームであそぶ"),
     el("p", { class: "hint" }, "集めた食材の旬やまめちしきがクイズになるよ。遊びながら食材に詳しくなろう！"),
+    el("button", {
+      class: "btn wide", onclick: () => { state.gameView = false; state.game = null; state.suikaView = true; renderMain(); },
+    }, "🍉 やさいあわせゲームであそぶ"),
+    el("p", { class: "hint" }, "同じ野菜をくっつけて合体・進化させるパズルだよ。プチトマトから育てて、すいかを目指そう！"),
   ));
   const cellFor = (name, category) => {
     const rec = collected.get(name);
@@ -1166,6 +1305,58 @@ function renderRegionalMenuSection(size) {
   }
   return wrap;
 }
+/**
+ * 組み合わせ提案セクション: 主食材×調理法×味付けのテンプレート生成
+ * （combo.js）から、手持ちの食材で作れる候補を出す。主役は大きな
+ * 「🔄 別の提案を見る」更新ボタンで、押すたびに未表示の候補から
+ * 新しいセットを出す（候補をひと通り見たら seed を変えて出し直す）。
+ * カードは通常レシピと同じ renderRecipeCard／お気に入り保存フローを使う。
+ */
+function renderComboSection(size) {
+  const wrap = el("div", {});
+  const rep = repertoireSize();
+  const seedKey = `${todayISO()}#${state.comboRound}`;
+  const ask = (excludeIds) => suggestCombos(state.items, {
+    servings: size, mode: state.recipeMode, limit: 6, seedKey, excludeIds,
+  });
+  const combos = ask(state.comboSeen);
+  const shownIds = combos.map((c) => c.id);
+  const refresh = () => {
+    const next = ask([...state.comboSeen, ...shownIds]);
+    if (next.length === 0) {
+      state.comboRound += 1;
+      state.comboSeen = [];
+      toast("組み合わせ候補をひと通り見たので、顔ぶれを変えて出し直します");
+    } else {
+      state.comboSeen = [...state.comboSeen, ...shownIds];
+    }
+    renderMain();
+  };
+  const refreshBtn = () => el("button", { class: "btn wide refresh-btn", onclick: refresh }, "🔄 別の提案を見る");
+  wrap.append(el("div", { class: "card combo-head" },
+    el("h2", {}, "🧩 組み合わせ提案"),
+    el("p", { class: "hint" }, `内蔵レシピ${rep.fixed}品と、主食材×調理法×味付けの組み合わせ${rep.generated}通り、あわせて全${rep.total}通りのレパートリーから、手持ちの食材で作れるものを提案します。気に入るものがなければ「別の提案を見る」で次の候補へ。`),
+    (combos.length > 0 || state.comboSeen.length > 0) ? refreshBtn() : null,
+  ));
+  if (combos.length === 0) {
+    wrap.append(el("div", { class: "card" }, el("p", { class: "empty" },
+      state.comboSeen.length > 0
+        ? "組み合わせ候補をひと通り見ました。\n「別の提案を見る」でもう一度、顔ぶれを変えて出せます。"
+        : "今の在庫で作れる組み合わせはまだありません。\n肉・魚・野菜などを登録すると提案が増えます。")));
+    return wrap;
+  }
+  for (const r of combos) {
+    const fav = findFavorite(r, state.recipeMode);
+    wrap.append(renderRecipeCard(r, {
+      servingsLabel: `${size}人分`,
+      savedNote: "組み合わせ提案",
+      starBtn: favStarBtn(!!fav, () => toggleRecipeFavorite(r, state.recipeMode, size)),
+    }));
+  }
+  wrap.append(refreshBtn());
+  return wrap;
+}
+
 function renderRecipesTab() {
   const wrap = el("div", {});
   const size = state.settings.familySize || 2;
@@ -1184,8 +1375,8 @@ function renderRecipesTab() {
       el("button", { class: state.recipeView === "favorites" ? "active" : "", role: "tab", "aria-selected": state.recipeView === "favorites" ? "true" : "false", onclick: () => { state.recipeView = "favorites"; renderMain(); } }, `★ お気に入り（${state.favRecipes.length}）`),
     ),
     state.recipeView === "suggest" ? el("div", { class: "tabs" },
-      el("button", { class: state.recipeMode === "stock" ? "active" : "", onclick: () => { state.recipeMode = "stock"; renderMain(); } }, "あるもので作る"),
-      el("button", { class: state.recipeMode === "shop" ? "active" : "", onclick: () => { state.recipeMode = "shop"; renderMain(); } }, "買い出しで作る"),
+      el("button", { class: state.recipeMode === "stock" ? "active" : "", onclick: () => { state.recipeMode = "stock"; state.suggestPage = 0; state.comboSeen = []; renderMain(); } }, "あるもので作る"),
+      el("button", { class: state.recipeMode === "shop" ? "active" : "", onclick: () => { state.recipeMode = "shop"; state.suggestPage = 0; state.comboSeen = []; renderMain(); } }, "買い出しで作る"),
     ) : null,
     el("p", { class: "hint" }, state.recipeView === "favorites"
       ? "★で保存したレシピです。保存したときの材料・分量・手順をそのまま表示します。★を押すと取り消せます。"
@@ -1228,7 +1419,12 @@ function renderRecipesTab() {
     wrap.append(renderRegionalMenuSection(size));
     return wrap;
   }
-  const recipes = suggestRecipes(state.items, { mode: state.recipeMode, servings: size });
+  // おすすめ候補プール全体を取り、「別の提案を見る」でページ送りする
+  const SUGGEST_PAGE_SIZE = 8;
+  const pool = suggestRecipes(state.items, { mode: state.recipeMode, servings: size, limit: 1000 });
+  const pageCount = Math.max(1, Math.ceil(pool.length / SUGGEST_PAGE_SIZE));
+  if (state.suggestPage >= pageCount) state.suggestPage = 0;
+  const recipes = pool.slice(state.suggestPage * SUGGEST_PAGE_SIZE, (state.suggestPage + 1) * SUGGEST_PAGE_SIZE);
   // 献立セット（主菜＋副菜＋汁物）: 在庫だけで揃う場合だけ先頭に出す
   if (state.recipeMode === "stock") {
     const set = suggestMealSet(state.items, { servings: size });
@@ -1242,7 +1438,7 @@ function renderRecipesTab() {
       ));
     }
   }
-  if (recipes.length === 0) {
+  if (pool.length === 0) {
     wrap.append(el("div", { class: "card" }, el("p", { class: "empty" },
       state.recipeMode === "stock"
         ? "今の在庫だけで作れるレシピがまだありません。\n「買い出しで作る」も見てみてください。"
@@ -1255,6 +1451,16 @@ function renderRecipesTab() {
       starBtn: favStarBtn(!!fav, () => toggleRecipeFavorite(r, state.recipeMode, size)),
     }));
   }
+  if (pageCount > 1) {
+    wrap.append(el("button", {
+      class: "btn wide refresh-btn",
+      onclick: () => { state.suggestPage = (state.suggestPage + 1) % pageCount; renderMain(); },
+    }, "🔄 別の提案を見る"));
+    wrap.append(el("p", { class: "hint", style: "text-align:center" },
+      `おすすめ候補 ${pool.length} 件中 ${state.suggestPage + 1} / ${pageCount} ページ目`));
+  }
+  // 組み合わせ提案（テンプレート生成）: 通常の提案の下に出す
+  wrap.append(renderComboSection(size));
   return wrap;
 }
 async function setFamilySize(n) {

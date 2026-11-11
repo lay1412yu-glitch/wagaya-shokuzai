@@ -398,3 +398,43 @@ select.inline-select { width: auto; display: inline-block; padding: 6px 8px; fon
 .game-choice { text-align: left; font-size: 15.5px; }
 .game-message { font-weight: 700; font-size: 16px; }
 .game-card .quiz-result { font-size: 16px; }
+
+/* ---- やさいあわせゲーム（合体パズル） ---- */
+.suika-stats { display: flex; align-items: stretch; gap: 8px; margin: 10px 0 4px; }
+.suika-stat { background: var(--card); border: 1.5px solid var(--line-soft); border-radius: 14px; padding: 6px 14px; text-align: center; box-shadow: var(--shadow); }
+.suika-stat-label { display: block; font-size: 11px; font-weight: 700; color: var(--ink-soft); }
+.suika-stat-num { font-size: 26px; font-weight: 800; line-height: 1.1; color: var(--ink); }
+.suika-stat-num.accent { color: var(--accent); }
+.suika-nextbox { display: flex; align-items: center; gap: 6px; background: #f7ecd4; border: 1.5px solid var(--line); border-radius: 14px; padding: 4px 10px; }
+.suika-piece-box { display: flex; flex-direction: column; align-items: center; }
+.suika-piece-box.dim { opacity: 0.8; }
+.suika-piece { display: inline-flex; align-items: center; justify-content: center; }
+.suika-piece .food-icon { margin-right: 0; vertical-align: 0; }
+.suika-piece.cur .food-icon { width: 40px; height: 40px; }
+.suika-piece.next .food-icon { width: 32px; height: 32px; }
+.suika-piece-name { font-size: 11px; font-weight: 700; line-height: 1.1; color: var(--ink); }
+.suika-arrow-mark { font-size: 17px; font-weight: 800; color: var(--ink-soft); }
+.suika-banner { border-radius: 999px; padding: 8px 14px; text-align: center; font-size: 15px; font-weight: 800; margin: 8px 0 0; }
+.suika-banner.melon { background: #f7ecd4; color: #a5762a; border: 1.5px solid #e9c979; }
+.suika-banner.danger { background: #fbeae6; color: var(--red); border: 1.5px solid #eec5ba; }
+.suika-wrap { position: relative; max-width: 400px; margin: 10px auto 0; touch-action: none; user-select: none; -webkit-user-select: none; }
+.suika-canvas { width: 100%; height: auto; display: block; }
+.suika-overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(67, 56, 44, 0.45); border-radius: 22px; padding: 20px; }
+.suika-over-card { background: #fffaf0; border-radius: 24px; padding: 20px; text-align: center; width: 100%; max-width: 280px; box-shadow: var(--shadow-lift); }
+.suika-over-title { font-size: 23px; font-weight: 800; margin: 0; color: var(--ink); }
+.suika-over-line { font-size: 17px; font-weight: 700; margin: 10px 0 0; }
+.suika-over-score { font-size: 30px; font-weight: 800; color: var(--accent); }
+.suika-over-record { color: #a5762a; font-weight: 800; font-size: 14px; margin: 4px 0 0; }
+.suika-controls { display: grid; grid-template-columns: 64px 1fr 64px; gap: 8px; max-width: 400px; margin: 10px auto 0; align-items: center; }
+.suika-arrow { height: 64px; border-radius: 999px; font-size: 28px; font-weight: 800; padding: 0; }
+.suika-drop { height: 64px; font-size: 20px; font-weight: 800; border-radius: 999px; }
+.suika-evo { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 2px; margin-top: 8px; }
+.suika-evo-item { display: inline-flex; flex-direction: column; align-items: center; width: 52px; }
+.suika-evo-item .food-icon { margin-right: 0; vertical-align: 0; }
+.suika-evo-name { font-size: 10px; font-weight: 700; line-height: 1.15; text-align: center; color: var(--ink); }
+.suika-evo-score { font-size: 10px; font-weight: 700; line-height: 1; color: var(--ink-soft); }
+.suika-evo-arrow { font-size: 13px; font-weight: 800; color: var(--ink-soft); }
+
+/* ---------- 組み合わせ提案・更新ボタン ---------- */
+.refresh-btn { font-size: 17px; font-weight: 800; padding: 16px 22px; margin-top: 16px; }
+.combo-head .refresh-btn { margin-top: 12px; }
