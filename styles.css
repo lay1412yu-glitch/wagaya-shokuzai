@@ -500,6 +500,25 @@ select.inline-select { width: auto; display: inline-block; padding: 6px 8px; fon
   font-size: 11px; font-weight: 700; color: var(--accent-deep);
   background: #f7ecd9; border-radius: 999px; padding: 2px 8px; white-space: nowrap;
 }
+
+/* ---- レシピ「食材を選んで作る」のピッカー ---- */
+.picker-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.picker-chip {
+  display: inline-flex; align-items: center; gap: 7px; min-height: 48px;
+  background: #fff; border: 1.5px solid #e5d9c5; border-radius: 999px;
+  padding: 6px 13px 6px 9px; cursor: pointer; color: var(--ink); font-family: inherit;
+  text-align: left;
+}
+.picker-chip:active { background: #f7ecd9; }
+.picker-chip .food-icon { width: 32px; height: 32px; margin-right: 0; vertical-align: middle; }
+.picker-chip.selected {
+  border-color: var(--accent, #b98a4a); background: #fdf0d5;
+  box-shadow: 0 0 0 2px rgba(185, 138, 74, .28);
+}
+.picker-chip-main { display: inline-flex; flex-direction: column; line-height: 1.25; }
+.picker-chip-name { font-size: 14.5px; font-weight: 700; }
+.picker-chip-sub { font-size: 11px; color: var(--ink-soft); }
+.picker-summary { display: flex; align-items: center; gap: 10px; margin-top: 12px; font-weight: 700; }
 .legal-page h2 { margin-top: 12px; }
 .legal-h { margin: 20px 0 6px; font-size: 15px; }
 .legal-row { padding: 8px 0; border-bottom: 1px dashed #e5d9c5; }

@@ -1507,6 +1507,46 @@ export function evaluateRecipe(recipe, stockItems, servings = 2, today = todayLo
 
 
 // ============================================================
+// 食材を選んで作るモード用: 選択した在庫食材をどれだけ使うかで並べ替える
+// ============================================================
+/** 材料が在庫アイテム名にマッチするか（matches() と同じ規則を、名前同士で判定する版） */
+export function ingredientMatchesStockName(ingredient, stockName) {
+  const name = String(stockName || "");
+  if (!name) return false;
+  const kws = Array.isArray(ingredient && ingredient.match) && ingredient.match.length
+    ? ingredient.match
+    : [ingredient && ingredient.name].filter(Boolean);
+  return kws.some((kw) => kw && (name.includes(kw) || kw.includes(name)));
+}
+
+/** レシピが「選択した在庫食材」のうち何種類を使うか（選択名の重複は除いて数える） */
+export function countUsedSelected(recipe, selectedNames) {
+  const selected = [...new Set((selectedNames || []).filter(Boolean))];
+  if (!recipe || !selected.length) return 0;
+  return selected.filter((name) =>
+    (recipe.ingredients || []).some((ing) => ingredientMatchesStockName(ing, name))).length;
+}
+
+/**
+ * 評価済みレシピ（evaluateRecipe の戻り値。組み合わせ生成の評価結果も可）を、
+ * 選択食材の使用数で並べ替える純粋関数。
+ * - 残すのは「選択食材を1種類以上使う」レシピだけ
+ * - 順序: 使用数 desc → 不足材料数 asc → 期限ボーナス desc
+ * - 各要素に usedSelected（使用した選択食材の数）を付けて返す
+ */
+export function rankRecipesByIngredients(evaluatedRecipes, selectedNames) {
+  const rows = [];
+  for (const r of evaluatedRecipes || []) {
+    const used = countUsedSelected(r, selectedNames);
+    if (used === 0) continue;
+    rows.push({ r, used, missing: (r.missing || []).length, bonus: r.bonus || 0 });
+  }
+  rows.sort((a, b) => b.used - a.used || a.missing - b.missing || b.bonus - a.bonus);
+  return rows.map(({ r, used }) => ({ ...r, usedSelected: used }));
+}
+
+
+// ============================================================
 // detailedSteps(recipe): 短い steps を「下ごしらえ→加熱→味付け→仕上げ」の
 // 詳細手順に展開する。UI はこれがあれば使い、なければ recipe.steps を使う。
 // 返り値: [{ text, minutes }]（minutes は目安分数、総時間が不明なら null）

@@ -129,6 +129,14 @@ export function isLowStock(item) {
   if (!item || !item.isFavorite) return false;
   return Number(item.quantity) <= effectiveLowThreshold(item);
 }
+
+// ---- アプリ更新（Service Worker のキャッシュ判定） ----
+// アプリの殻キャッシュは "wagaya-shokuzai-vXX"。食材キャラ画像の
+// ランタイムキャッシュ "wagaya-chars-v1" は更新時も消さない対象なので、
+// 「アプリを最新に更新する」ボタンでは殻だけを削除する。
+export function isAppShellCacheName(name) {
+  return typeof name === "string" && name.startsWith("wagaya-shokuzai-");
+}
 // ---- 在庫検索（カナの揺れを吸収する正規化） ----
 // カタカナ→ひらがな化＋小文字化＋空白除去をしてから、名前同士を部分一致で比べる。
 // 例: 検索「きゃべつ」は登録名「キャベツ」に一致する（表記ゆれを吸収）。

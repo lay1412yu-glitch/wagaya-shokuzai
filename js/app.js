@@ -13,8 +13,8 @@
 // - 参加用リンク ?join=<code> を受けたら、コードを sessionStorage に退避し、
 //   ログイン完了後に自動で参加を試みる（URL の履歴からは即座に消す）。
 
-import { el, uid, todayISO, daysUntil, formatDate, expiryLabel, expiryGroup, expiryChipClass, formatCode, fmtQtyValue, qtyStepFor, roundQty, isFractionUnit, isLowStock, matchesSearch, topPurchased, recentRegistered, oneTapCandidates, inListQuantity, planOneTapAdd, RECIPE_QUICK_FILTERS, matchesRecipeFilter, filterRecipes, STORAGE_ZONES, STORAGE_ZONE_ALL, countByStorage, filterByStorage, suggestStorage, UNIT_OPTIONS, UNIT_OTHER_VALUE, unitSelectValueFor, resolveUnitValue, upsertTodayMenuEntry, removeTodayMenuEntry, groupTodayMenuEntries, mergeMissingIngredients } from "./util.js";
-import { suggestRecipes, suggestMealSet, suggestEventMenu, EVENT_MENUS, suggestRegionalMenu, REGIONS, evaluateRecipe } from "./recipes.js";
+import { el, uid, todayISO, daysUntil, formatDate, expiryLabel, expiryGroup, expiryChipClass, formatCode, fmtQtyValue, qtyStepFor, roundQty, isFractionUnit, isLowStock, matchesSearch, topPurchased, recentRegistered, oneTapCandidates, inListQuantity, planOneTapAdd, RECIPE_QUICK_FILTERS, matchesRecipeFilter, filterRecipes, STORAGE_ZONES, STORAGE_ZONE_ALL, countByStorage, filterByStorage, suggestStorage, UNIT_OPTIONS, UNIT_OTHER_VALUE, unitSelectValueFor, resolveUnitValue, upsertTodayMenuEntry, removeTodayMenuEntry, groupTodayMenuEntries, mergeMissingIngredients, isAppShellCacheName } from "./util.js";
+import { suggestRecipes, suggestMealSet, suggestEventMenu, EVENT_MENUS, suggestRegionalMenu, REGIONS, evaluateRecipe, ALL_RECIPES, rankRecipesByIngredients } from "./recipes.js";
 import * as recipesNs from "./recipes.js";
 import { suggestCombos, repertoireSize } from "./combo.js";
 import { buildGameQuestions, scoreGame, CORRECT_PRAISE, GAME_QUESTION_COUNT, GAME_COUNT_OPTIONS, GAME_DIFFICULTIES, GAME_DIFFICULTY_DEFAULT } from "./game.js";
@@ -91,6 +91,8 @@ const state = {
   todayMenuThanks: false, // 「作った！」で片付けた直後の感謝表示フラグ（保存しない）
   tab: "stock", authTab: "login", recipeMode: "stock", recipeView: "suggest",
   recipeFilter: "all", // レシピのクイックフィルタ: all | microwave | otsumami | quick（保存しない・タブを離れると all に戻す）
+  recipeSource: "omakase", // レシピの探し方: "omakase"（おまかせ提案） | "picker"（食材を選んで作る）
+  pickerSelected: [], // 食材ピッカーで選んだ在庫アイテム名（保存しない）
   suggestPage: 0, // おすすめ候補プールのページ（「別の提案を見る」で送る）
   comboSeen: [], // 組み合わせ提案で表示済みの combo id（未表示分を出すため）
   comboRound: 0, // 組み合わせ候補をひと通り見た回数（seed を変えて顔ぶれを変える）
@@ -474,6 +476,7 @@ async function openFridge(fridgeId) {
   state.sessionTrash = [];
   state.suggestPage = 0; state.comboSeen = []; state.comboRound = 0;
   state.stockZone = STORAGE_ZONE_ALL; state.recipeDetail = null; state.recipeFilter = "all";
+  state.recipeSource = "omakase"; state.pickerSelected = [];
   state.todayMenuThanks = false;
   renderLoadingView(); // データ取得中は読み込み画面（キャラ＋豆知識）を出す
   try {
@@ -1865,6 +1868,129 @@ function renderComboSection(size) {
   return wrap;
 }
 
+/**
+ * 食材ピッカーの検索: 固定レシピ（ALL_RECIPES 全件を今の在庫で評価）と
+ * 組み合わせ生成の両方から、「選んだ食材を1種類以上使う」レシピを集めて
+ * rankRecipesByIngredients で並べる（使用数 desc → 不足数 asc）。
+ * 組み合わせは (1) 在庫全体から生成した候補と、(2) 選んだ食材だけを
+ * 主食材・相方にして生成した候補の合併。(2) は生成時の評価が選択食材
+ * 基準になっているため、在庫全体で再評価して不足数を正しくする。
+ * クイックフィルタ（レンジだけ等）もここに効かせる。
+ */
+function pickerSearchResults(size) {
+  const selected = state.pickerSelected;
+  const selectedItems = state.items.filter((i) => selected.includes(i.name));
+  const fixed = ALL_RECIPES
+    .map((r) => evaluateRecipe(r, state.items, size))
+    .filter((r) => r.missing.length <= 5);
+  const seedKey = todayISO();
+  const comboByTitle = new Map();
+  for (const c of suggestCombos(state.items, { servings: size, mode: "shop", limit: 400, seedKey })) {
+    if (!comboByTitle.has(c.title)) comboByTitle.set(c.title, c);
+  }
+  for (const c of suggestCombos(selectedItems, { servings: size, mode: "shop", limit: 400, seedKey })) {
+    if (!comboByTitle.has(c.title)) comboByTitle.set(c.title, evaluateRecipe(c, state.items, size));
+  }
+  const ranked = rankRecipesByIngredients([...fixed, ...comboByTitle.values()], selected);
+  return filterRecipes(ranked, state.recipeFilter).slice(0, 30);
+}
+
+/**
+ * 「食材を選んで作る」モードの本体: 在庫をキャラチップで並べ（複数選択）、
+ * 選んだ食材を使うレシピを下にカード表示する。
+ * チップは在庫アイテムを名前でまとめ、複数ロットは同一単位どうし合算して表示。
+ * 並びは期限の近い順（使い切りたいものから選びやすく）。
+ */
+function renderPickerSection(size) {
+  const wrap = el("div", {});
+  const byName = new Map();
+  for (const item of state.items) {
+    const cur = byName.get(item.name);
+    if (!cur) {
+      byName.set(item.name, {
+        name: item.name, category: item.category, unit: item.unit,
+        quantity: Number(item.quantity) || 0, expiryDate: item.expiryDate || null,
+      });
+    } else {
+      if (cur.unit === item.unit) cur.quantity = Math.round((cur.quantity + (Number(item.quantity) || 0)) * 100) / 100;
+      if (item.expiryDate && (!cur.expiryDate || item.expiryDate < cur.expiryDate)) cur.expiryDate = item.expiryDate;
+    }
+  }
+  const stockList = [...byName.values()].sort((a, b) => {
+    const ea = a.expiryDate || "9999-12-31", eb = b.expiryDate || "9999-12-31";
+    if (ea !== eb) return ea < eb ? -1 : 1;
+    return a.name < b.name ? -1 : 1;
+  });
+  // 在庫から消えた名前は選択から落とす
+  state.pickerSelected = state.pickerSelected.filter((n) => byName.has(n));
+  const selected = state.pickerSelected;
+
+  const pickerCard = el("div", { class: "card" }, el("h2", {}, "🥕 使いたい食材を選ぶ"));
+  if (!stockList.length) {
+    pickerCard.append(el("p", { class: "empty" },
+      "在庫がまだありません。\n食材を登録すると、ここで選んでレシピを探せます。"));
+    wrap.append(pickerCard);
+    return wrap;
+  }
+  pickerCard.append(el("p", { class: "hint" }, "タップで選べます（複数OK）。もう一度タップすると外れます。"));
+  pickerCard.append(el("div", { class: "picker-chips" }, stockList.map((s) => {
+    const on = selected.includes(s.name);
+    return el("button", {
+      type: "button",
+      class: "picker-chip" + (on ? " selected" : ""),
+      "aria-pressed": on ? "true" : "false",
+      onclick: () => {
+        state.pickerSelected = on ? selected.filter((n) => n !== s.name) : [...selected, s.name];
+        renderMain();
+      },
+    },
+      iconEl(s.name, s.category),
+      el("span", { class: "picker-chip-main" },
+        el("span", { class: "picker-chip-name" }, (on ? "✓ " : "") + s.name),
+        el("span", { class: "picker-chip-sub" }, `在庫 ${fmtQtyValue(s.quantity, s.unit)}${s.unit}`)));
+  })));
+  pickerCard.append(el("div", { class: "picker-summary" },
+    el("span", { class: "grow" }, `選んだ食材：${selected.length}個`),
+    selected.length ? el("button", {
+      class: "btn secondary small", onclick: () => { state.pickerSelected = []; renderMain(); },
+    }, "クリア") : null,
+  ));
+  wrap.append(pickerCard);
+
+  if (!selected.length) {
+    wrap.append(el("div", { class: "card" }, el("p", { class: "empty" },
+      "上の食材を選ぶと、その食材で作れるレシピがここに出ます。")));
+    return wrap;
+  }
+  const results = pickerSearchResults(size);
+  if (!results.length) {
+    wrap.append(el("div", { class: "card" }, el("p", { class: "empty" },
+      state.recipeFilter !== "all"
+        ? "選んだ食材を使うレシピはありますが、今の絞り込み（レンジだけ／おつまみ／時短）には合いませんでした。\n絞り込みを「すべて」に戻すか、食材を1つ外してみてください。"
+        : "選んだ食材を使うレシピが見つかりませんでした。\n食材を1つ外してみてください。")));
+    return wrap;
+  }
+  const allUsed = results.filter((r) => r.usedSelected === selected.length).length;
+  wrap.append(el("div", { class: "card" },
+    el("h2", {}, "🍳 選んだ食材のレシピ"),
+    el("p", { class: "hint" },
+      `${selected.join("・")} を使うレシピ ${results.length} 件です（選んだ食材を多く使う順）。`
+      + (allUsed ? `うち ${allUsed} 件は選んだ食材を全部使います。` : "")),
+  ));
+  for (const r of results) {
+    const isCombo = String(r.id).startsWith("combo-");
+    const fav = findFavorite(r, "picker");
+    wrap.append(renderRecipeCard(r, {
+      servingsLabel: `${size}人分`,
+      savedNote: isCombo ? "組み合わせ提案" : "",
+      starBtn: favStarBtn(!!fav, () => toggleRecipeFavorite(r, "picker", size)),
+      onOpen: () => openRecipeDetail(r, { mode: "picker", size, servingsLabel: `${size}人分` }),
+      onPin: () => pinToTodayMenu(r, "picker", size),
+    }));
+  }
+  return wrap;
+}
+
 function renderRecipesTab() {
   const wrap = el("div", {});
   const size = state.settings.familySize || 2;
@@ -1882,7 +2008,11 @@ function renderRecipesTab() {
       el("button", { class: state.recipeView === "region" ? "active" : "", role: "tab", "aria-selected": state.recipeView === "region" ? "true" : "false", onclick: () => { state.recipeView = "region"; renderMain(); } }, "🗾 郷土料理"),
       el("button", { class: state.recipeView === "favorites" ? "active" : "", role: "tab", "aria-selected": state.recipeView === "favorites" ? "true" : "false", onclick: () => { state.recipeView = "favorites"; renderMain(); } }, `★ お気に入り（${state.favRecipes.length}）`),
     ),
-    state.recipeView === "suggest" ? el("div", { class: "tabs" },
+    state.recipeView === "suggest" ? el("div", { class: "tabs recipe-source-tabs", style: "margin-top:8px", role: "tablist", "aria-label": "レシピの探し方を切り替える" },
+      el("button", { class: state.recipeSource === "omakase" ? "active" : "", role: "tab", "aria-selected": state.recipeSource === "omakase" ? "true" : "false", onclick: () => { state.recipeSource = "omakase"; renderMain(); } }, "✨ おまかせ"),
+      el("button", { class: state.recipeSource === "picker" ? "active" : "", role: "tab", "aria-selected": state.recipeSource === "picker" ? "true" : "false", onclick: () => { state.recipeSource = "picker"; renderMain(); } }, "🥕 食材を選んで作る"),
+    ) : null,
+    state.recipeView === "suggest" && state.recipeSource === "omakase" ? el("div", { class: "tabs" },
       el("button", { class: state.recipeMode === "stock" ? "active" : "", onclick: () => { state.recipeMode = "stock"; state.suggestPage = 0; state.comboSeen = []; renderMain(); } }, "あるもので作る"),
       el("button", { class: state.recipeMode === "shop" ? "active" : "", onclick: () => { state.recipeMode = "shop"; state.suggestPage = 0; state.comboSeen = []; renderMain(); } }, "買い出しで作る"),
     ) : null,
@@ -1899,6 +2029,8 @@ function renderRecipesTab() {
         ? "ハロウィン・クリスマス・お正月・冬至などの行事の献立です。下の行事タブを選ぶと献立が切り替わります。分量は家族の人数に合わせてあります。"
       : state.recipeView === "region"
         ? "北海道から沖縄まで、地域の郷土料理・名物グルメの献立です。下の地域タブを選ぶと献立が切り替わります。各料理に、その土地の由来メモが付いています。"
+      : state.recipeSource === "picker"
+        ? "使いたい食材をタップで選ぶと、その食材を使うレシピ（固定レシピ＋組み合わせ提案）を、選んだ食材を多く使う順に探します。足りない材料は買い物リストに追加できます。"
       : state.recipeMode === "stock"
         ? "登録されている食材だけで作れるレシピです（買い足しなし）。食材は消費期限の近いもの→先に買ったものの順で使う前提で提案します。気に入ったレシピは☆で保存できます。"
         : "あと少し買い足せば作れるレシピです。足りない材料は買い物リストに追加できます。食材は消費期限の近いもの→先に買ったものの順で使う前提で提案します。気に入ったレシピは☆で保存できます。"),
@@ -1940,6 +2072,11 @@ function renderRecipesTab() {
   // 郷土料理タブ（北海道〜沖縄）: 地域タブで献立を切り替える
   if (state.recipeView === "region") {
     wrap.append(renderRegionalMenuSection(size));
+    return wrap;
+  }
+  // 食材を選んで作るモード: おまかせ提案の代わりにピッカー＋検索結果を出す
+  if (state.recipeSource === "picker") {
+    wrap.append(renderPickerSection(size));
     return wrap;
   }
   // おすすめ候補プール全体を取り、「別の提案を見る」でページ送りする
@@ -2021,6 +2158,24 @@ async function setFamilySize(n) {
   const size = Math.min(10, Math.max(1, n));
   state.settings = await store.updateSettings(state.user.id, state.fridge.id, { familySize: size });
   renderMain();
+}
+
+// アプリを最新に更新: SW の更新確認 → アプリの殻キャッシュだけ削除 →
+// 再読み込み。キャラ画像キャッシュ（wagaya-chars-v1）は消さない。
+// SW が無い環境でも、失敗しても、最後は必ず再読み込みする。
+async function forceAppUpdate(btn) {
+  if (btn) { btn.disabled = true; btn.textContent = "更新を確認しています…"; }
+  try {
+    if ("serviceWorker" in navigator) {
+      const reg = await navigator.serviceWorker.getRegistration().catch(() => null);
+      if (reg) await reg.update().catch(() => {});
+    }
+    if (typeof caches !== "undefined") {
+      const keys = await caches.keys().catch(() => []);
+      await Promise.all(keys.filter(isAppShellCacheName).map((k) => caches.delete(k).catch(() => false)));
+    }
+  } catch { /* 更新確認に失敗しても再読み込みはする */ }
+  location.reload();
 }
 
 // ---------- 共有・設定タブ ----------
@@ -2190,6 +2345,15 @@ function renderSettingsTab() {
     ));
   }
   wrap.append(trashCard);
+
+  // アプリの更新（端末側に古いアプリ本体が残っているときの手動リフレッシュ）
+  wrap.append(el("div", { class: "card" },
+    el("h2", {}, "🔄 アプリの更新"),
+    el("p", { class: "hint" }, "新しい機能が届かない・表示が古いままのときに押してください。最新のアプリを取り直して読み込み直します（食材キャラの画像は手元に残るので、次回も速く表示されます）。"),
+    el("button", {
+      class: "btn secondary wide", onclick: (e) => forceAppUpdate(e.currentTarget),
+    }, "アプリを最新に更新する"),
+  ));
 
   // 設定
   wrap.append(el("div", { class: "card" },
