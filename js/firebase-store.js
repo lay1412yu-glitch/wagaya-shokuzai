@@ -198,15 +198,17 @@ export class FirebaseStore {
     const fridgeId = fridgeRef.id;
     const code = generateInviteCode();
     const hash = await inviteCodeHash(code);
-    const batch = fs.writeBatch(this.db);
-    batch.set(fridgeRef, { name: name || "わが家の冷蔵庫", ownerId: userId, createdAt: todayISO() });
-    batch.set(fs.doc(this.db, "fridge_members", memberDocId(fridgeId, userId)), {
+    // 逐次書き込みにする（バッチだと、ルールの isOwner/isMember が参照する
+    // fridges / fridge_members が「コミット前の状態」ではまだ存在せず、
+    // Missing or insufficient permissions になるため）。
+    // 順序: 冷蔵庫本体 → 自分のメンバー登録 → 設定 → コード類。
+    await fs.setDoc(fridgeRef, { name: name || "わが家の冷蔵庫", ownerId: userId, createdAt: todayISO() });
+    await fs.setDoc(fs.doc(this.db, "fridge_members", memberDocId(fridgeId, userId)), {
       fridgeId, userId, role: "owner", displayName: me?.displayName || "なまえ未設定", joinedAt: new Date().toISOString(),
     });
-    batch.set(fs.doc(this.db, "fridge_settings", fridgeId), { familySize: 2 });
-    batch.set(fs.doc(this.db, "fridge_codes", hash), { fridgeId, createdAt: new Date().toISOString() });
-    batch.set(fs.doc(this.db, "fridge_invite_codes", fridgeId), { codePlain: code, ownerId: userId, updatedAt: new Date().toISOString() });
-    await batch.commit();
+    await fs.setDoc(fs.doc(this.db, "fridge_settings", fridgeId), { familySize: 2 });
+    await fs.setDoc(fs.doc(this.db, "fridge_codes", hash), { fridgeId, createdAt: new Date().toISOString() });
+    await fs.setDoc(fs.doc(this.db, "fridge_invite_codes", fridgeId), { codePlain: code, ownerId: userId, updatedAt: new Date().toISOString() });
     return { fridge: { id: fridgeId, name: name || "わが家の冷蔵庫", ownerId: userId, role: "owner" }, inviteCode: code };
   }
   async getInviteCode(userId, fridgeId) {
