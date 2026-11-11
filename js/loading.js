@@ -1,17 +1,37 @@
 // loading.js — 読み込み画面（食材キャラ＋豆知識）のデータと純粋ロジック
 //
 // 読み込み中も「わが家の食材手帳」の世界観で楽しく待てるように、
-// - 跳ねる食材キャラの顔ぶれ
+// - 跳ねる食材キャラの顔ぶれ（図鑑カタログ全体から表示のたびに抽選）
 // - 切り替わるステータスメッセージ
 // - 食育データ（knowledge.js の個別記事「まめちしき」）からの豆知識プール
 // をここに集約する。豆知識は新規に作らず、KNOWLEDGE の実在エントリだけを使う
 // （キャラ画像が解決できる食材に限る＝サムネイルが必ず出せる）。
 
 import { KNOWLEDGE } from "./knowledge.js";
-import { charUrlFor } from "./chars.js";
+import { charUrlFor, allCharUrls } from "./chars.js";
 
-/** 読み込み画面で波のように跳ねる定番食材キャラ（全てキャラ画像が解決できることをテストで担保） */
-export const LOADING_CHAR_NAMES = ["トマト", "にんじん", "卵", "牛乳", "ブロッコリー"];
+/** 読み込み画面に並べるキャラの数 */
+export const LOADING_CHAR_COUNT = 5;
+
+/**
+ * 跳ねるキャラの抽選: 図鑑カタログ全体のキャラ画像（chars.js の
+ * allCharUrls = 静的データ）から、重複なしで LOADING_CHAR_COUNT 体を
+ * ランダムに選んで返す。表示のたびに顔ぶれが変わる。
+ * 読み込み画面はストア初期化前にも出るため、カタログのストアデータには
+ * 依存せず、静的情報だけで完結させる。
+ * rng はテスト用に差し替え可能（0以上1未満を返す関数）。
+ */
+export function pickLoadingChars(rng = Math.random) {
+  const pool = allCharUrls();
+  const n = Math.min(LOADING_CHAR_COUNT, pool.length);
+  const copy = pool.slice();
+  for (let i = 0; i < n; i++) {
+    const span = copy.length - i;
+    const j = i + Math.min(span - 1, Math.max(0, Math.floor(rng() * span)));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy.slice(0, n);
+}
 
 /** 約1.6秒ごとに切り替わるステータスメッセージ */
 export const LOADING_MESSAGES = [

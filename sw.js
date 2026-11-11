@@ -2,7 +2,7 @@
 // 方針: アプリの殻（HTML/CSS/JS）はキャッシュして高速・オフライン表示に対応。
 // Firebase への通信は常にネットワーク（キャッシュしない）ことで、
 // 在庫データが古いまま固定される事故を防ぐ。
-const CACHE = "wagaya-shokuzai-v29";
+const CACHE = "wagaya-shokuzai-v30";
 // ミュゼ版キャラ画像（img/chars/*.webp・200枚超）は SHELL に入れず、
 // 初回表示時にここへ貯めるランタイムキャッシュにする（cache-first）。
 // アプリ本体の版数が上がってもキャラキャッシュは消さない。

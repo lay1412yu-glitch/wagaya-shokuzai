@@ -551,6 +551,28 @@ select.inline-select { width: auto; display: inline-block; padding: 6px 8px; fon
 /* ---------- 組み合わせ提案・更新ボタン ---------- */
 .refresh-btn { font-size: 17px; font-weight: 800; padding: 16px 22px; margin-top: 16px; }
 .combo-head .refresh-btn { margin-top: 12px; }
+/* 「別の提案を見る」の処理中表示: スピナー＋「探しています…」で
+   「いま処理している」ことが見えるようにする */
+.btn-spinner {
+  display: inline-block; width: 15px; height: 15px; margin-right: 9px;
+  border: 2.5px solid rgba(255, 255, 255, 0.4); border-top-color: #fff;
+  border-radius: 50%; vertical-align: -2px;
+  animation: btn-spin 0.7s linear infinite;
+}
+@keyframes btn-spin { to { transform: rotate(360deg); } }
+.refresh-btn.is-busy { opacity: 0.88; cursor: wait; }
+/* 更新直後のさりげない確認表示 */
+.refresh-note { color: var(--accent-deep); font-weight: 700; }
+/* 更新直後のカード: ふわりと順番に現れる（transform/opacity のみ） */
+.recipe-card.card-enter { animation: card-enter 0.38s ease both; }
+@keyframes card-enter {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .recipe-card.card-enter { animation: none; }
+  .btn-spinner { animation-duration: 1.8s; }
+}
 
 /* ---------- スマホアプリらしさ ---------- */
 /* 画面端での引っ張り（バウンス）でブラウザらしく見せない */

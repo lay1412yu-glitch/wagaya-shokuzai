@@ -523,6 +523,15 @@ export function charUrlFor(name) {
   return null;
 }
 
+/**
+ * 図鑑カタログ全食材のキャラ画像URLの一覧（重複なし）。
+ * 「カタログ全体からランダムに選ぶ」用途（読み込み画面のキャラ抽選など）。
+ * CHAR_BY_NAME は静的データなので、ストア初期化前でもそのまま使える。
+ */
+export function allCharUrls() {
+  return [...new Set(Object.values(CHAR_BY_NAME))].map((f) => CHAR_DIR + f);
+}
+
 /** やさいあわせゲームの段階（ミュゼ版 SuikaGame の段階キーと同一）。
  * 最終段階だけはゲーム専用の新規キャラ「やさいバスケット」（vegbasket.webp、
  * 図鑑カタログとは無関係）を使う。食材「すいか」自体のキャラは従来どおり

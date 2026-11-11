@@ -1288,7 +1288,7 @@ export function iconSvg(name, category) {
 }
 
 /** 仮表示（ミュゼ版キャラが無い食材用・絵のないプレースホルダー） */
-function charPlaceholderEl() {
+export function charPlaceholderEl() {
   const ph = document.createElement("span");
   ph.className = "char-placeholder";
   ph.textContent = "？";

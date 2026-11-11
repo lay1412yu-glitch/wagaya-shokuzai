@@ -20,14 +20,14 @@ import { suggestCombos, repertoireSize } from "./combo.js";
 import { buildGameQuestions, scoreGame, CORRECT_PRAISE, GAME_QUESTION_COUNT, GAME_COUNT_OPTIONS, GAME_DIFFICULTIES, GAME_DIFFICULTY_DEFAULT } from "./game.js";
 import { createSuikaGame, VEG_STAGES } from "./suika.js";
 import { qrToCanvas } from "./qrcode.js";
-import { iconEl, CATALOG, rarityOf, rarityCategory } from "./icons.js";
+import { iconEl, charPlaceholderEl, CATALOG, rarityOf, rarityCategory } from "./icons.js";
 import { levelForCount, titleFor, remainingToNextLevel } from "./levels.js";
 import { knowledgeFor } from "./knowledge.js";
 import { DemoStore, DEMO_DB_KEY } from "./demo-store.js";
 import { GUIDE_STEPS, guideSeen, markGuideSeen } from "./guide.js";
 import { legalDocs } from "./legal.js";
 import { buildReminders, notifyOnOpen, permissionState, subscribePush } from "./notify.js";
-import { LOADING_MESSAGES, LOADING_CHAR_NAMES, loadingFactPool, pickLoadingFact } from "./loading.js";
+import { LOADING_MESSAGES, pickLoadingChars, loadingFactPool, pickLoadingFact } from "./loading.js";
 
 const CATEGORIES = ["野菜", "肉", "魚", "卵・乳製品", "豆腐・大豆", "調味料", "乾物・缶詰", "冷凍食品", "飲み物", "果物", "その他"];
 // 保管場所の区分（冷蔵庫／冷凍庫／野菜室／常温）は util.js の STORAGE_ZONES が正。
@@ -189,9 +189,13 @@ function renderLoadingView() {
   stopLoadingView();
   appRoot.replaceChildren();
   const msgNode = el("p", { class: "loading-msg", role: "status" }, LOADING_MESSAGES[0]);
-  const charsRow = el("div", { class: "loading-chars" }, LOADING_CHAR_NAMES.map((name, i) => {
-    const c = iconEl(name);
-    c.classList.add("loading-char");
+  // キャラは表示のたびに図鑑カタログ全体から抽選する（固定の顔ぶれにしない）
+  const charsRow = el("div", { class: "loading-chars" }, pickLoadingChars().map((url, i) => {
+    const img = el("img", { class: "char-img", src: url, alt: "" });
+    img.draggable = false;
+    const c = el("span", { class: "food-icon loading-char", "aria-hidden": "true" }, img);
+    // 画像が読めなかった場合は仮表示にする（iconEl と同じ扱い）
+    img.addEventListener("error", () => { c.replaceChildren(charPlaceholderEl()); }, { once: true });
     c.style.animationDelay = `${(i * 0.13).toFixed(2)}s`;
     // タップすると大きく跳ねる（状態を持たない、見た目だけのお楽しみ）
     c.addEventListener("click", () => {
@@ -235,10 +239,49 @@ function renderLoadingView() {
   loadingTimers = [msgTimer, factTimer];
 }
 
+// ---------- 「別の提案を見る」の処理中フィードバック ----------
+// 計算自体は一瞬で終わるため、そのまま描き直すと「押せたのか」が分からない。
+// 押したボタンはスピナー＋「探しています…」の処理中表示（無効化）になり、
+// 最低 REFRESH_MIN_MS はその状態を保ってから新しい提案を描く。描き直し後は
+// カードが順番にふわりと現れ（.card-enter）、切り替わったことが目で分かる。
+// 処理中表示は、成功時は描き直しで、失敗時は catch で必ず元に戻す。
+const REFRESH_MIN_MS = 450;
+let refreshBusy = false; // おすすめ・組み合わせ共通の二重押し防止
+let refreshEnterSection = null; // 直後の描画で出現アニメーションを付けるセクション: "suggest" | "combo"
+
+function runRefreshWithFeedback(btn, apply) {
+  if (refreshBusy) return;
+  refreshBusy = true;
+  const originalLabel = btn ? btn.textContent : "";
+  if (btn) {
+    btn.disabled = true;
+    btn.classList.add("is-busy");
+    btn.setAttribute("aria-busy", "true");
+    btn.replaceChildren(el("span", { class: "btn-spinner", "aria-hidden": "true" }), "探しています…");
+  }
+  setTimeout(() => {
+    try {
+      apply(); // 中で renderMain() され、ボタンごと描き直される（処理中表示はそこで消える）
+    } catch (e) {
+      // 失敗しても処理中表示は必ず元に戻す
+      if (btn && btn.isConnected) {
+        btn.disabled = false;
+        btn.classList.remove("is-busy");
+        btn.removeAttribute("aria-busy");
+        btn.textContent = originalLabel;
+      }
+      toast("提案の更新に失敗しました。もう一度お試しください");
+    } finally {
+      refreshBusy = false;
+    }
+  }, REFRESH_MIN_MS);
+}
+
 // ---------- はじめてガイド ----------
 function renderGuideCard() {
   return el("div", { class: "card guide-card" },
     el("h2", {}, "👋 はじめてガイド"),
+    el("p", { class: "hint" }, "冷蔵庫の在庫と期限を家族で共有する手帳です。コンセプトは、家族みんなで楽しむ食材管理と「家族みんなでできる食育」。食材の知識ページやクイズで、遊びながら食べ物のことを学べます。"),
     GUIDE_STEPS.map((s) => el("div", { class: "guide-step" },
       el("span", { class: "guide-icon" }, s.icon),
       el("div", { class: "grow" }, el("strong", {}, s.title), el("p", { class: "hint" }, s.body)))),
@@ -461,6 +504,7 @@ async function refreshData() {
 function renderMain() {
   if (state.legalView) { renderLegalPage(); return; }
   stopLoadingView();
+  if (state.tab !== "recipes") refreshEnterSection = null; // 別タブの描画に出現アニメーションを持ち越さない
   if (!state.suikaView && suikaCtrl) suikaCtrl.detach(); // ゲーム画面を離れたら物理ループを止める
   appRoot.replaceChildren();
   const content = el("div", {});
@@ -1648,7 +1692,10 @@ function renderComboSection(size) {
   // （候補の巡回＝comboSeen の記録は、絞り込み前の候補全体で数える）。
   const combos = filterRecipes(rawCombos, state.recipeFilter);
   const shownIds = rawCombos.map((c) => c.id);
-  const refresh = () => {
+  // 直前に「別の提案を見る」が押されていたら、この描画のカードに出現アニメーションを付ける
+  const enterCombo = refreshEnterSection === "combo";
+  if (enterCombo) refreshEnterSection = null;
+  const refresh = (e) => runRefreshWithFeedback(e.currentTarget, () => {
     const next = ask([...state.comboSeen, ...shownIds]);
     if (next.length === 0) {
       state.comboRound += 1;
@@ -1657,12 +1704,14 @@ function renderComboSection(size) {
     } else {
       state.comboSeen = [...state.comboSeen, ...shownIds];
     }
+    refreshEnterSection = "combo";
     renderMain();
-  };
+  });
   const refreshBtn = () => el("button", { class: "btn wide refresh-btn", onclick: refresh }, "🔄 別の提案を見る");
   wrap.append(el("div", { class: "card combo-head" },
     el("h2", {}, "🧩 組み合わせ提案"),
     el("p", { class: "hint" }, `内蔵レシピ${rep.fixed}品と、主食材×調理法×味付けの組み合わせ${rep.generated}通り、あわせて全${rep.total}通りのレパートリーから、手持ちの食材で作れるものを提案します。気に入るものがなければ「別の提案を見る」で次の候補へ。`),
+    enterCombo ? el("p", { class: "hint refresh-note" }, "✨ 新しい提案を表示しました") : null,
     (combos.length > 0 || state.comboSeen.length > 0 || rawCombos.length > 0) ? refreshBtn() : null,
   ));
   if (combos.length === 0) {
@@ -1674,15 +1723,20 @@ function renderComboSection(size) {
           : "今の在庫で作れる組み合わせはまだありません。\n肉・魚・野菜などを登録すると提案が増えます。")));
     return wrap;
   }
-  for (const r of combos) {
+  combos.forEach((r, idx) => {
     const fav = findFavorite(r, state.recipeMode);
-    wrap.append(renderRecipeCard(r, {
+    const card = renderRecipeCard(r, {
       servingsLabel: `${size}人分`,
       savedNote: "組み合わせ提案",
       starBtn: favStarBtn(!!fav, () => toggleRecipeFavorite(r, state.recipeMode, size)),
       onOpen: () => openRecipeDetail(r, { mode: state.recipeMode, size, servingsLabel: `${size}人分` }),
-    }));
-  }
+    });
+    if (enterCombo) {
+      card.classList.add("card-enter");
+      card.style.animationDelay = `${Math.min(idx, 7) * 60}ms`;
+    }
+    wrap.append(card);
+  });
   wrap.append(refreshBtn());
   return wrap;
 }
@@ -1800,21 +1854,35 @@ function renderRecipesTab() {
           ? "今の在庫だけで作れるレシピがまだありません。\n「買い出しで作る」も見てみてください。"
           : "提案できるレシピがありません。在庫を登録すると提案が増えます。")));
   }
-  for (const r of recipes) {
+  // 直前に「別の提案を見る」が押されていたら、この描画のカードに出現アニメーションを付ける
+  const enterSuggest = refreshEnterSection === "suggest";
+  if (enterSuggest) refreshEnterSection = null;
+  recipes.forEach((r, idx) => {
     const fav = findFavorite(r, state.recipeMode);
-    wrap.append(renderRecipeCard(r, {
+    const card = renderRecipeCard(r, {
       servingsLabel: `${size}人分`,
       starBtn: favStarBtn(!!fav, () => toggleRecipeFavorite(r, state.recipeMode, size)),
       onOpen: () => openRecipeDetail(r, { mode: state.recipeMode, size, servingsLabel: `${size}人分` }),
-    }));
-  }
+    });
+    if (enterSuggest) {
+      card.classList.add("card-enter");
+      card.style.animationDelay = `${Math.min(idx, 7) * 60}ms`;
+    }
+    wrap.append(card);
+  });
   if (pageCount > 1) {
     wrap.append(el("button", {
       class: "btn wide refresh-btn",
-      onclick: () => { state.suggestPage = (state.suggestPage + 1) % pageCount; renderMain(); },
+      onclick: (e) => runRefreshWithFeedback(e.currentTarget, () => {
+        const wrapped = state.suggestPage + 1 >= pageCount;
+        state.suggestPage = (state.suggestPage + 1) % pageCount;
+        refreshEnterSection = "suggest";
+        renderMain();
+        if (wrapped) toast("おすすめ候補をひと通り見たので、最初から出し直します");
+      }),
     }, "🔄 別の提案を見る"));
     wrap.append(el("p", { class: "hint", style: "text-align:center" },
-      `おすすめ候補 ${filteredPool.length} 件中 ${state.suggestPage + 1} / ${pageCount} ページ目`));
+      `おすすめ候補 ${filteredPool.length} 件中 ${state.suggestPage + 1} / ${pageCount} ページ目` + (enterSuggest ? "（新しい提案を表示しました）" : "")));
   }
   // 組み合わせ提案（テンプレート生成）: 通常の提案の下に出す
   wrap.append(renderComboSection(size));
