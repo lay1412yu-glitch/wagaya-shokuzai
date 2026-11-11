@@ -2,22 +2,39 @@
 // 方針: アプリの殻（HTML/CSS/JS）はキャッシュして高速・オフライン表示に対応。
 // Firebase への通信は常にネットワーク（キャッシュしない）ことで、
 // 在庫データが古いまま固定される事故を防ぐ。
-const CACHE = "wagaya-shokuzai-v25";
+const CACHE = "wagaya-shokuzai-v26";
+// ミュゼ版キャラ画像（img/chars/*.webp・200枚超）は SHELL に入れず、
+// 初回表示時にここへ貯めるランタイムキャッシュにする（cache-first）。
+// アプリ本体の版数が上がってもキャラキャッシュは消さない。
+const CHAR_CACHE = "wagaya-chars-v1";
 const SHELL = [
   "./", "./index.html", "./styles.css", "./config.js", "./manifest.webmanifest", "./icon.svg",
   "./icon-192.png", "./icon-512.png", "./apple-touch-icon.png", "./favicon-32.png", "./favicon.ico",
-  "./js/app.js", "./js/util.js", "./js/recipes.js", "./js/levels.js", "./js/knowledge.js", "./js/demo-store.js", "./js/supabase-store.js", "./js/firebase-store.js", "./js/firebase-model.js", "./js/qrcode.js", "./js/icons.js",
+  "./js/app.js", "./js/util.js", "./js/recipes.js", "./js/levels.js", "./js/knowledge.js", "./js/demo-store.js", "./js/supabase-store.js", "./js/firebase-store.js", "./js/firebase-model.js", "./js/qrcode.js", "./js/icons.js", "./js/chars.js",
   "./js/guide.js", "./js/legal.js", "./js/notify.js", "./js/game.js", "./js/suika.js", "./js/combo.js",
 ];
 self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
 });
 self.addEventListener("activate", (e) => {
-  e.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)))).then(() => self.clients.claim()));
+  e.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== CACHE && k !== CHAR_CACHE).map((k) => caches.delete(k)))).then(() => self.clients.claim()));
 });
 self.addEventListener("fetch", (e) => {
   const url = new URL(e.request.url);
   if (e.request.method !== "GET" || url.origin !== self.location.origin) return; // 外部（Firebase等）は素通し
+  // キャラ画像は不変ファイルなので cache-first（初回だけ取得して貯める）。
+  if (url.pathname.includes("/img/chars/")) {
+    e.respondWith(
+      caches.open(CHAR_CACHE).then(async (c) => {
+        const hit = await c.match(e.request);
+        if (hit) return hit;
+        const res = await fetch(e.request);
+        if (res && res.ok) c.put(e.request, res.clone());
+        return res;
+      })
+    );
+    return;
+  }
   // ネットワーク優先（オンライン時は常に最新を取得し、キャッシュを更新。
   // オフライン時だけキャッシュにフォールバックする）。
   // キャッシュ優先だとコード修正が端末に届くまで時間がかかる事故があったため。

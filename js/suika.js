@@ -7,11 +7,12 @@
 // - 物理演算は自前の円物理（重力・壁・床・円同士の衝突）
 // - 合体判定は「接触」ベース: 衝突処理が円同士をちょうど触れる距離
 //   （半径の合計）まで押し戻すため、半径合計 ×1.04 以内なら合体する
-// - キャラ画像は js/icons.js の食材キャラ（SVG）をそのまま使う
+// - キャラ画像はミュゼ版の食材キャラ画像（js/chars.js）を使う。全11段階が
+//   ミュゼ版の専用キャラに解決される（Web版SVGイラストは使わない）
 // - 既存データ（ストア・Firestore・在庫）には一切触らない。
 //   ベストスコアだけ端末の localStorage（専用キー）に保存する
 
-import { iconSvg } from "./icons.js";
+import { charUrlForSuikaStage } from "./chars.js";
 
 export const VEG_STAGES = [
   { name: "プチトマト", radius: 17, score: 1, tint: "#f6dfc9" },
@@ -56,10 +57,14 @@ export function shouldMerge(a, b, now) {
   return dist <= (a.r + b.r) * MERGE_TOLERANCE;
 }
 
-/** 段階のキャラ画像URL（icons.js の SVG を data URL 化） */
+/** 段階のキャラ画像URL（ミュゼ版キャラ画像。全11段階に専用キャラがある。
+ * 万一無い段階は、Web版SVGは使わず無地の丸の仮表示にする） */
 export function stageImageUrl(stage) {
+  const charUrl = charUrlForSuikaStage(stage);
+  if (charUrl) return charUrl;
   const st = stageOf(stage);
-  return "data:image/svg+xml;charset=utf-8," + encodeURIComponent(iconSvg(st.name, "野菜"));
+  const ph = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='46' fill='${st.tint}'/></svg>`;
+  return "data:image/svg+xml;charset=utf-8," + encodeURIComponent(ph);
 }
 
 function loadBest() {

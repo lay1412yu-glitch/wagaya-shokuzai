@@ -1035,7 +1035,7 @@ function renderZukanTab() {
     const rec = collected.get(name);
     const tier = rarityOf(name);
     const icon = iconEl(name, category);
-    if (!rec) icon.classList.add(tier ? "mystery" : "locked");
+    if (!rec) icon.classList.add("locked"); // 未登録はミュゼ版の見せ方に合わせ、同じキャラをグレー淡色で表示（レア食材もシルエットにしない）
     const kids = [icon, el("span", { class: "zukan-name" }, name)];
     if (tier === "ultra") kids.push(el("span", { class: "rare-badge ultra" }, "激レア！"));
     else if (tier === "rare") kids.push(el("span", { class: "rare-badge rare" }, "レア"));

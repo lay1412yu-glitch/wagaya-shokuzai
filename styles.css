@@ -42,7 +42,8 @@ h1, h2, .btn, .tabs button, .bottom-nav button, .code-text {
 .app-header {
   background: rgba(250, 246, 239, 0.88);
   backdrop-filter: blur(12px) saturate(1.15); -webkit-backdrop-filter: blur(12px) saturate(1.15);
-  padding: 12px 18px 8px;
+  /* ノッチのある iPhone でもヘッダーがステータスバーに潜らないように */
+  padding: calc(12px + env(safe-area-inset-top)) 18px 8px;
   position: sticky; top: 0; z-index: 20;
 }
 .app-header::after {
@@ -82,16 +83,27 @@ h1, h2, .btn, .tabs button, .bottom-nav button, .code-text {
 
 /* ---------- フォーム ---------- */
 label { display: block; font-size: 12.5px; margin: 12px 0 5px; color: var(--ink-soft); letter-spacing: 0.06em; }
-input, select {
-  width: 100%; padding: 12px 13px; font-size: 16px; color: var(--ink);
+input, select, textarea {
+  width: 100%; min-width: 0; max-width: 100%; padding: 12px 13px; font-size: 16px; color: var(--ink);
   background: #fffefa; border: 1.5px solid var(--line); border-radius: 12px; outline: none;
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
-input:focus, select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(176, 134, 84, 0.16); }
+input:focus, select:focus, textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(176, 134, 84, 0.16); }
 input[type="checkbox"] { width: 20px; height: 20px; accent-color: var(--accent); }
-.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
+/* iOS Safari の date 入力は固有の最小幅を持ち、appearance を切らないと
+   グリッド列より縮まない（期限欄が隣の「残りわずか判定」に重なる不具合の根本対処）。
+   列側も minmax(0,1fr) で、内容の min-content に引きずられて広がらないようにする。 */
+input[type="date"] {
+  -webkit-appearance: none; appearance: none;
+  width: 100%; min-width: 0; max-width: 100%; box-sizing: border-box;
+  display: block; text-align: left;
+}
+.form-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0 12px; }
 .form-grid > div { min-width: 0; }
-.form-grid input[type="date"] { min-width: 0; max-width: 100%; }
+/* 極端に狭い画面ではフォームを1カラムに落として重なりを完全に防ぐ（保険） */
+@media (max-width: 340px) {
+  .form-grid { grid-template-columns: minmax(0, 1fr); }
+}
 .check-line { display: flex; align-items: center; gap: 8px; font-size: 14px; margin-top: 14px; color: var(--ink); letter-spacing: 0; }
 .check-line input { width: 20px; }
 
@@ -160,18 +172,33 @@ input[type="checkbox"] { width: 20px; height: 20px; accent-color: var(--accent);
 .chip.soon-chip { background: #f9e0d2; border-color: #efcbb2; color: var(--red); }
 .qty-ctrl { display: flex; align-items: center; gap: 6px; }
 .qty-btn {
-  width: 38px; height: 38px; border-radius: 50%; border: 1.5px solid var(--line);
+  width: 42px; height: 42px; border-radius: 50%; border: 1.5px solid var(--line);
   background: linear-gradient(180deg, #f8efdc, var(--cream)); color: var(--accent-deep);
   font-size: 18px; font-weight: 700; cursor: pointer; font-family: inherit;
   transition: transform 0.1s ease;
 }
 .qty-btn:active { transform: scale(0.94); }
 .qty-num { min-width: 56px; text-align: center; font-weight: 800; font-size: 15.5px; letter-spacing: 0.02em; }
-.icon-btn { background: none; border: none; font-size: 18px; cursor: pointer; padding: 8px; min-width: 40px; min-height: 40px; }
+.icon-btn { background: none; border: none; font-size: 18px; cursor: pointer; padding: 8px; min-width: 44px; min-height: 44px; }
 
 /* ---------- 食材アイコン ---------- */
 .food-icon { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; flex: none; vertical-align: -7px; margin-right: 5px; }
 .food-icon svg { width: 100%; height: 100%; }
+/* ミュゼ版キャラ画像（透過WebP・余白込みの正方形）。SVGと同じ見かけの
+   大きさになるよう少し大きめに表示する（ミュゼ版本体と同じ考え方） */
+.food-icon img.char-img { width: 118%; height: 118%; max-width: none; object-fit: contain; pointer-events: none; }
+/* 仮表示: ミュゼ版キャラが無い食材用。絵は描かず、無地の角丸に「？」だけ */
+.food-icon .char-placeholder {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 100%; height: 100%; border-radius: 30%;
+  background: rgba(179, 155, 109, 0.14); color: #b39b6d;
+  font-size: 13px; font-weight: 800; line-height: 1;
+}
+.food-icon.tile .char-placeholder { font-size: 22px; }
+.zukan-cell .food-icon .char-placeholder { font-size: 18px; }
+.knowledge-hero .food-icon .char-placeholder { font-size: 48px; }
+.game-hero .food-icon .char-placeholder { font-size: 38px; }
+.suika-piece.cur .food-icon .char-placeholder { font-size: 18px; }
 .food-icon.tile {
   width: 54px; height: 54px; margin-right: 0; vertical-align: middle;
   background: radial-gradient(circle at 30% 22%, #fffdf4 0%, #f9edd3 58%, #f3e2c2 100%);
@@ -179,6 +206,7 @@ input[type="checkbox"] { width: 20px; height: 20px; accent-color: var(--accent);
   box-shadow: 0 3px 9px rgba(176, 141, 95, 0.20), inset 0 1.5px 0 rgba(255, 255, 255, 0.9), inset 0 -3px 6px rgba(217, 164, 65, 0.12);
 }
 .food-icon.tile svg { width: 39px; height: 39px; }
+.food-icon.tile img.char-img { width: 46px; height: 46px; }
 .name-preview { display: flex; align-items: center; gap: 4px; margin-top: 8px; font-size: 12.5px; color: var(--ink-soft); letter-spacing: 0.03em; }
 .name-preview .food-icon { width: 32px; height: 32px; }
 .recipe-ing .food-icon { width: 22px; height: 22px; vertical-align: -5px; margin-right: 3px; }
@@ -198,12 +226,19 @@ input[type="checkbox"] { width: 20px; height: 20px; accent-color: var(--accent);
 .zukan-cell:active { transform: scale(0.96); }
 .zukan-cell .food-icon {
   width: 46px; height: 46px; margin-right: 0; vertical-align: middle;
-  background: radial-gradient(circle at 32% 24%, #fffdf4 0%, #f9edd3 62%, #f4e3c3 100%);
+  /* 未登録の丸背景はごく淡いグレー（ミュゼ版図鑑の見せ方） */
+  background: radial-gradient(circle at 32% 24%, #fdfdf8 0%, #eff0e6 62%, #e3e6d8 100%);
   border-radius: 999px; box-shadow: inset 0 1.5px 0 rgba(255, 255, 255, 0.9), 0 2px 6px rgba(176, 141, 95, 0.16);
 }
+/* 収集済みは薄い緑の丸背景にカラーのキャラ（ミュゼ版図鑑の見せ方） */
+.zukan-cell.got .food-icon {
+  background: radial-gradient(circle at 32% 24%, #f6fbee 0%, #e4f1d0 62%, #d2e6b6 100%);
+}
 .zukan-cell .food-icon svg { width: 35px; height: 35px; }
+.zukan-cell .food-icon img.char-img { width: 42px; height: 42px; }
 .zukan-cell.got { border-color: #ecd9b4; box-shadow: 0 4px 12px rgba(176, 141, 95, 0.18); }
-.zukan-cell .food-icon.locked { filter: grayscale(0.9); opacity: 0.38; box-shadow: none; }
+/* 未登録: 同じキャラ画像をグレー〜淡色に落として表示（別画像は作らない） */
+.zukan-cell .food-icon.locked { filter: grayscale(0.95); opacity: 0.5; box-shadow: none; }
 .zukan-cell:not(.got) { background: rgba(255, 253, 248, 0.6); box-shadow: none; }
 .zukan-cell:not(.got) .zukan-name { color: var(--ink-soft); }
 .zukan-name { font-size: 12.5px; font-weight: 700; letter-spacing: 0.02em; line-height: 1.3; text-align: center; }
@@ -230,7 +265,6 @@ input[type="checkbox"] { width: 20px; height: 20px; accent-color: var(--accent);
 }
 .rare-badge.ultra { background: linear-gradient(135deg, #f7df8e, #eec95c); color: #7a5608; border: 1px solid #d9ae3c; }
 .rare-badge.rare { background: #e4efcf; color: #56743a; border: 1px solid #b9d18f; }
-.zukan-cell .food-icon.mystery { filter: brightness(0.45) saturate(0.25) contrast(0.9); opacity: 0.75; box-shadow: none; }
 .zukan-lv { font-size: 11px; font-weight: 800; color: var(--accent-deep); letter-spacing: 0.03em; }
 .zukan-title { font-size: 10.5px; color: #8a6414; font-weight: 700; line-height: 1.35; text-align: center; }
 .zukan-next { font-size: 9.5px; color: var(--ink-soft); letter-spacing: 0.02em; }
@@ -272,6 +306,7 @@ input[type="checkbox"] { width: 20px; height: 20px; accent-color: var(--accent);
   border-radius: 999px; box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.9), 0 4px 12px rgba(176, 141, 95, 0.2);
 }
 .knowledge-hero .food-icon svg { width: 92px; height: 92px; }
+.knowledge-hero .food-icon img.char-img { width: 108px; height: 108px; }
 .knowledge-hero .recipe-chips { justify-content: center; margin-bottom: 12px; }
 .k-name { font-size: 24px; font-weight: 800; letter-spacing: 0.03em; margin-bottom: 8px; }
 .k-section { margin-top: 10px; }
@@ -359,7 +394,8 @@ input[type="checkbox"] { width: 20px; height: 20px; accent-color: var(--accent);
   font-size: 14px; box-shadow: var(--shadow-lift); max-width: 88vw; text-align: center;
 }
 .empty { text-align: center; color: var(--ink-soft); font-size: 14px; padding: 24px 0; line-height: 1.9; }
-select.inline-select { width: auto; display: inline-block; padding: 6px 8px; font-size: 14px; }
+/* 16px 未満だと iOS Safari がフォーカス時に自動ズームするため 16px にそろえる */
+select.inline-select { width: auto; display: inline-block; padding: 6px 8px; font-size: 16px; }
 
 /* ---- 追加機能（ガイド／検索／クイック登録／元に戻す／法的ページ／通知） ---- */
 .toast-action {
@@ -392,6 +428,7 @@ select.inline-select { width: auto; display: inline-block; padding: 6px 8px; fon
 /* ---- 食材クイズゲーム（学びながら遊べるゲーム） ---- */
 .game-hero .food-icon { width: 96px; height: 96px; }
 .game-hero .food-icon svg { width: 74px; height: 74px; }
+.game-hero .food-icon img.char-img { width: 88px; height: 88px; }
 .game-hero .food-icon.game-mystery { filter: brightness(0.45) saturate(0.25) contrast(0.9); }
 .game-score { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
 .game-q { font-size: 17.5px; font-weight: 800; line-height: 1.75; letter-spacing: 0.02em; margin: 6px 0 4px; }

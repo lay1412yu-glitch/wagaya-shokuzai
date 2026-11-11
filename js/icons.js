@@ -40,6 +40,13 @@
 //   形から描き分け（たらこ=2つの房、シャインマスカット=縦長の粒）。
 // - アイコンSVGはすべて静的な自前データで、食材名などのユーザー入力を
 //   SVG文字列に混ぜることはない（XSS対策は従来通り）。
+// - キャラ表示（iconEl）は、ミュゼ版のキャラ画像がある食材ではそちらを
+//   採用する（ユーザー決定「野菜のキャラクターの絵などはミュゼ版を採用」。
+//   解決ルールと使い回し禁止の扱いは js/chars.js の冒頭コメント参照）。
+// - ユーザー方針「WEB版のイラストは不採用」: 食材キャラの表示にこのSVGは
+//   使わない。ミュゼ版アートが無い食材は、絵なしの仮表示にする。
+
+import { charUrlFor } from "./chars.js";
 
 const STROKE = "#9e744a";
 function svg(inner) {
@@ -1280,11 +1287,37 @@ export function iconSvg(name, category) {
   return ICONS[iconKeyFor(name, category)] || ICONS.cat_generic;
 }
 
-/** DOM要素としてアイコンを返す（span.food-icon > svg）。 */
+/** 仮表示（ミュゼ版キャラが無い食材用・絵のないプレースホルダー） */
+function charPlaceholderEl() {
+  const ph = document.createElement("span");
+  ph.className = "char-placeholder";
+  ph.textContent = "？";
+  return ph;
+}
+
+/**
+ * DOM要素として食材キャラを返す（span.food-icon）。
+ * ユーザー方針: 食材キャラの表示には Web版SVGイラストは使わない。
+ * ミュゼ版キャラ画像がある食材はそれを表示し、無い食材は絵なしの
+ * 仮表示（char-placeholder）にする。iconSvg() は表示には使わない
+ * （SVGデータ自体は残すが、食材キャラの描画経路からは外してある）。
+ */
 export function iconEl(name, category) {
   const span = document.createElement("span");
   span.className = "food-icon";
   span.setAttribute("aria-hidden", "true");
-  span.innerHTML = iconSvg(name, category);
+  const url = charUrlFor(name);
+  if (url) {
+    const img = document.createElement("img");
+    img.className = "char-img";
+    img.src = url;
+    img.alt = "";
+    img.draggable = false;
+    // 画像が読めなかった場合も SVG にはせず仮表示にする
+    img.addEventListener("error", () => { span.replaceChildren(charPlaceholderEl()); }, { once: true });
+    span.appendChild(img);
+    return span;
+  }
+  span.appendChild(charPlaceholderEl());
   return span;
 }
