@@ -205,7 +205,7 @@ export class DemoStore {
   async addItem(userId, fridgeId, data) {
     const db = this._load();
     this._assertMember(db, userId, fridgeId);
-    const item = { id: uid(), fridgeId, createdBy: userId, createdAt: todayISO(), photoDataUrl: null, photoPath: null, ...data };
+    const item = { id: uid(), fridgeId, createdBy: userId, createdAt: todayISO(), ...data };
     db.items.push(item);
     // 食材図鑑コレクションへ自動登録（冷蔵庫単位）。登録のたびに購入回数+1
     // （在庫が尽きて再登録した場合も「買った」として数える。レベル/称号用）
@@ -358,21 +358,6 @@ export class DemoStore {
     this._save(db);
     return { ...db.settings[fridgeId] };
   }
-
-  // ---- 写真（デモ: 端末内に dataURL で保持） ----
-  async attachPhoto(userId, item, file) {
-    if (!file) return null;
-    if (file.size > 1024 * 1024) throw new Error("写真は1MB以下にしてください（デモ）");
-    const dataUrl = await new Promise((resolve, reject) => {
-      const r = new FileReader();
-      r.onload = () => resolve(r.result);
-      r.onerror = reject;
-      r.readAsDataURL(file);
-    });
-    await this.updateItem(userId, item.id, { photoDataUrl: dataUrl });
-    return dataUrl;
-  }
-  async photoUrl() { return null; } // デモは item.photoDataUrl を直接使う
 
   // ---- プッシュ通知の購読（デモでは保存先が無いので何もしない） ----
   async savePushSubscription() { return { saved: false, reason: "demo" }; }

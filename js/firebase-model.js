@@ -57,7 +57,6 @@ export function itemToDoc(item) {
     storage: item.storage || "冷蔵庫",
     isFavorite: !!item.isFavorite,
     lowThreshold: Number(item.lowThreshold ?? 1),
-    photoPath: item.photoPath || null,
     createdBy: item.createdBy || null,
     createdAt: item.createdAt || todayISO(),
   };
@@ -69,7 +68,7 @@ export function itemFromDoc(id, doc) {
     quantity: Number(doc.quantity) || 0, unit: doc.unit || "",
     expiryDate: doc.expiryDate || null, storage: doc.storage || "冷蔵庫",
     isFavorite: !!doc.isFavorite, lowThreshold: Number(doc.lowThreshold ?? 1),
-    photoPath: doc.photoPath || null, photoDataUrl: null,
+    // 旧データに photoPath 等が残っていても無視する（写真機能は廃止済み）
     createdBy: doc.createdBy || null,
     // 登録日（レシピの消費順＝期限の近さ→購入の古さ の並び替え用）
     createdAt: doc.createdAt ? String(doc.createdAt).slice(0, 10) : null,
@@ -78,7 +77,7 @@ export function itemFromDoc(id, doc) {
 /** updateItem のパッチ（アプリ側キー）をドキュメント側キーへ変換する */
 export function itemPatchToDoc(patch) {
   const out = {};
-  const keys = ["name", "category", "quantity", "unit", "storage", "isFavorite", "photoPath"];
+  const keys = ["name", "category", "quantity", "unit", "storage", "isFavorite"];
   for (const k of keys) if (k in patch) out[k] = patch[k];
   if ("expiryDate" in patch) out.expiryDate = patch.expiryDate || null;
   if ("lowThreshold" in patch) out.lowThreshold = Number(patch.lowThreshold ?? 1);

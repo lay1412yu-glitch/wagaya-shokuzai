@@ -1,11 +1,12 @@
-// firebase-store.js — 本番モード用データ層（Firebase Auth + Firestore + Storage）
+// firebase-store.js — 本番モード用データ層（Firebase Auth + Firestore）
+// ※ 写真機能は廃止したため Firebase Storage は使わない（2026-11-11 ユーザー決定）。
 //
 // 2026-11-09: バックエンドを Supabase から Firebase へ移行（ユーザーの決定）。
 // 旧実装 js/supabase-store.js と supabase/schema.sql はロールバック用に残置。
 //
 // セキュリティ設計（旧 RLS 設計と同じ保証を Firestore セキュリティルールで実現）:
 // - フロントエンドが使うのは公開設定（apiKey 等）のみ。管理者用の秘密鍵は置かない。
-// - firestore.rules / storage.rules（firebase/ フォルダ）で「冷蔵庫のメンバー
+// - firestore.rules（firebase/ フォルダ）で「冷蔵庫のメンバー
 //   だけが、その冷蔵庫のデータを読み書きできる」を強制する。匿名アクセスなし。
 // - フレンドコードの平文は置かない。fridge_codes/{SHA-256ハッシュ} に fridgeId
 //   だけを置き、参加は「ハッシュをドキュメントIDとして引く」だけ（list/query 不可）。
@@ -27,19 +28,17 @@ const SDK = "https://www.gstatic.com/firebasejs/10.12.5";
 export class FirebaseStore {
   constructor(mods, config) {
     this.mode = "firebase";
-    this._mods = mods; // { auth, fs, storage } の名前空間モジュール
+    this._mods = mods; // { auth, fs } の名前空間モジュール
     this.app = mods.initializeApp(config);
     this.auth = mods.getAuth(this.app);
     this.db = mods.getFirestore(this.app);
-    this.storage = mods.getStorage(this.app);
     this._userCache = null;
   }
   static async create(config) {
-    const [appM, authM, fsM, stM] = await Promise.all([
+    const [appM, authM, fsM] = await Promise.all([
       import(`${SDK}/firebase-app.js`),
       import(`${SDK}/firebase-auth.js`),
       import(`${SDK}/firebase-firestore.js`),
-      import(`${SDK}/firebase-storage.js`),
     ]);
     const mods = {
       initializeApp: appM.initializeApp,
@@ -55,8 +54,6 @@ export class FirebaseStore {
       setDoc: fsM.setDoc, addDoc: fsM.addDoc, updateDoc: fsM.updateDoc, deleteDoc: fsM.deleteDoc,
       query: fsM.query, where: fsM.where, orderBy: fsM.orderBy, writeBatch: fsM.writeBatch,
       onSnapshot: fsM.onSnapshot, increment: fsM.increment,
-      getStorage: stM.getStorage, ref: stM.ref, uploadBytes: stM.uploadBytes,
-      getDownloadURL: stM.getDownloadURL, deleteObject: stM.deleteObject,
     };
     return new FirebaseStore(mods, config);
   }
@@ -116,7 +113,7 @@ export class FirebaseStore {
   // ---- 退会（アカウントと自分のデータを削除） ----
   // 共有冷蔵庫の在庫・買い物リスト・図鑑は家族のものとして残す。自分が作った
   // 冷蔵庫は、他のメンバーがいれば一番古くからのメンバーへ作成者を引き継ぎ、
-  // メンバーが自分だけなら冷蔵庫ごと削除する（写真ファイルも可能な範囲で削除）。
+  // メンバーが自分だけなら冷蔵庫ごと削除する。
   // 最後に Firebase Auth のユーザー自体を削除する。再認証が必要な場合は
   // auth/requires-recent-login が返るので、ログインし直して再実行を案内する。
   async deleteAccount(userId) {
@@ -166,10 +163,6 @@ export class FirebaseStore {
     for (const col of ["items", "shopping_items", "fridge_catalog", "favorite_recipes", "fridge_members"]) {
       const snap = await fs.getDocs(fs.query(fs.collection(this.db, col), fs.where("fridgeId", "==", fridgeId)));
       for (const d of snap.docs) {
-        // 写真ファイルの後始末（失敗してもDB削除は続ける）
-        if (col === "items" && d.data().photoPath) {
-          await fs.deleteObject(fs.ref(this.storage, d.data().photoPath)).catch(() => {});
-        }
         await fs.deleteDoc(d.ref).catch(() => {});
       }
     }
@@ -285,7 +278,6 @@ export class FirebaseStore {
       if (b.expiryDate) return 1;
       return String(a.name).localeCompare(String(b.name));
     });
-    for (const item of items) if (item.photoPath) item.photoDataUrl = await this.photoUrl(item).catch(() => null);
     return items;
   }
   async _bumpCatalog(userId, fridgeId, name, category) {
@@ -334,7 +326,6 @@ export class FirebaseStore {
     const ref = snapshot.id ? fs.doc(this.db, "items", snapshot.id) : fs.doc(fs.collection(this.db, "items"));
     await fs.setDoc(ref, docData);
     const item = itemFromDoc(ref.id, docData);
-    if (snapshot.photoDataUrl) item.photoDataUrl = snapshot.photoDataUrl;
     return item;
   }
   /** 本番ではゴミ箱は端末内セッションのみ（app.js 側で保持）。常に空を返す */
@@ -432,22 +423,5 @@ export class FirebaseStore {
       }
       return () => { for (const off of offs) { try { off(); } catch { /* noop */ } } };
     } catch { return null; }
-  }
-
-  // ---- 写真（Firebase Storage・パス先頭でメンバー判定） ----
-  async attachPhoto(userId, item, file) {
-    if (!file) return null;
-    if (!/^image\/(jpeg|png|webp)$/.test(file.type)) throw new Error("写真は JPEG / PNG / WebP のみ対応しています");
-    if (file.size > 5 * 1024 * 1024) throw new Error("写真は5MB以下にしてください");
-    const fs = this._mods;
-    const path = `fridges/${item.fridgeId}/items/${item.id}-${Date.now()}.jpg`;
-    await fs.uploadBytes(fs.ref(this.storage, path), file, { contentType: file.type });
-    await this.updateItem(userId, item.id, { photoPath: path });
-    return path;
-  }
-  async photoUrl(item) {
-    if (!item.photoPath) return null;
-    try { return await this._mods.getDownloadURL(this._mods.ref(this.storage, item.photoPath)); }
-    catch { return null; }
   }
 }
