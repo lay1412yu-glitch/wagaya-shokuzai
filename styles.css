@@ -152,6 +152,14 @@ input[type="date"] {
 .group-title {
   font-size: 14.5px; font-weight: 800; letter-spacing: 0.10em; color: var(--accent-deep);
   margin: 22px 2px 10px; display: flex; align-items: center; gap: 9px;
+  /* スクロールしても今のグループが分かるよう、ヘッダーのすぐ下に貼り付ける */
+  position: sticky; top: calc(84px + env(safe-area-inset-top)); z-index: 10;
+  background: var(--bg); padding: 7px 2px;
+}
+.group-count {
+  font-size: 11.5px; font-weight: 800; letter-spacing: 0.04em; flex: none;
+  background: var(--cream); border: 1px solid var(--line); color: var(--accent-deep);
+  border-radius: 999px; padding: 1px 9px;
 }
 .group-title::after {
   content: ""; flex: 1; height: 1px;
@@ -159,17 +167,22 @@ input[type="date"] {
 }
 .group-title .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
 .dot.soon { background: var(--red); } .dot.week { background: var(--orange); } .dot.later { background: var(--green); }
-.item-card { display: flex; gap: 10px; align-items: center; box-shadow: var(--shadow); }
+.item-card { display: flex; gap: 12px; align-items: center; box-shadow: var(--shadow); margin-bottom: 18px; }
 .item-main { flex: 1; min-width: 0; }
-.item-name { font-weight: 700; font-size: 16px; letter-spacing: 0.02em; }
+.item-name { font-weight: 800; font-size: 18px; letter-spacing: 0.02em; }
 .item-name .star { color: var(--gold); }
-.item-meta { font-size: 12px; color: var(--ink-soft); margin-top: 3px; line-height: 1.6; }
+.item-meta { font-size: 12px; color: var(--ink-soft); margin-top: 5px; line-height: 1.8; }
 .chip {
   display: inline-block; font-size: 11px; font-weight: 600; letter-spacing: 0.04em; padding: 2px 9px; border-radius: 999px;
   background: rgba(247, 239, 221, 0.75); border: 1px solid #eee0c2; color: var(--accent-deep); margin-right: 4px;
 }
 .chip.warn { background: #f9e0d2; border-color: #efcbb2; color: var(--red); }
 .chip.soon-chip { background: #f9e0d2; border-color: #efcbb2; color: var(--red); }
+/* 期限チップは色で一目で分かるように（文字も少し大きく・太く） */
+.chip.expiry-chip { font-size: 12.5px; font-weight: 800; padding: 3px 10px; }
+.chip.exp-red { background: #f8d8cc; border-color: #e89a7d; color: #a03a24; }
+.chip.exp-orange { background: #fce8cd; border-color: #f0bd7e; color: #9a5b16; }
+.chip.exp-calm { background: #e9efe0; border-color: #c3d2ab; color: #55663c; }
 .qty-ctrl { display: flex; align-items: center; gap: 6px; }
 .qty-btn {
   width: 42px; height: 42px; border-radius: 50%; border: 1.5px solid var(--line);
@@ -178,7 +191,7 @@ input[type="date"] {
   transition: transform 0.1s ease;
 }
 .qty-btn:active { transform: scale(0.94); }
-.qty-num { min-width: 56px; text-align: center; font-weight: 800; font-size: 15.5px; letter-spacing: 0.02em; }
+.qty-num { min-width: 60px; text-align: center; font-weight: 800; font-size: 17px; letter-spacing: 0.02em; }
 .icon-btn { background: none; border: none; font-size: 18px; cursor: pointer; padding: 8px; min-width: 44px; min-height: 44px; }
 
 /* ---------- 食材アイコン ---------- */
@@ -194,19 +207,19 @@ input[type="date"] {
   background: rgba(179, 155, 109, 0.14); color: #b39b6d;
   font-size: 13px; font-weight: 800; line-height: 1;
 }
-.food-icon.tile .char-placeholder { font-size: 22px; }
+.food-icon.tile .char-placeholder { font-size: 27px; }
 .zukan-cell .food-icon .char-placeholder { font-size: 18px; }
 .knowledge-hero .food-icon .char-placeholder { font-size: 48px; }
 .game-hero .food-icon .char-placeholder { font-size: 38px; }
 .suika-piece.cur .food-icon .char-placeholder { font-size: 18px; }
 .food-icon.tile {
-  width: 54px; height: 54px; margin-right: 0; vertical-align: middle;
+  width: 64px; height: 64px; margin-right: 0; vertical-align: middle;
   background: radial-gradient(circle at 30% 22%, #fffdf4 0%, #f9edd3 58%, #f3e2c2 100%);
-  border: 1.5px solid #ecd9b4; border-radius: 19px;
+  border: 1.5px solid #ecd9b4; border-radius: 22px;
   box-shadow: 0 3px 9px rgba(176, 141, 95, 0.20), inset 0 1.5px 0 rgba(255, 255, 255, 0.9), inset 0 -3px 6px rgba(217, 164, 65, 0.12);
 }
-.food-icon.tile svg { width: 39px; height: 39px; }
-.food-icon.tile img.char-img { width: 46px; height: 46px; }
+.food-icon.tile svg { width: 48px; height: 48px; }
+.food-icon.tile img.char-img { width: 58px; height: 58px; }
 .name-preview { display: flex; align-items: center; gap: 4px; margin-top: 8px; font-size: 12.5px; color: var(--ink-soft); letter-spacing: 0.03em; }
 .name-preview .food-icon { width: 32px; height: 32px; }
 .recipe-ing .food-icon { width: 22px; height: 22px; vertical-align: -5px; margin-right: 3px; }
@@ -355,6 +368,39 @@ input[type="date"] {
 .recipe-ing .missing { color: var(--red); font-weight: 700; }
 .recipe-steps { font-size: 13.5px; line-height: 1.85; color: var(--ink); padding-left: 19px; margin: 8px 0; }
 .stepper { display: flex; align-items: center; gap: 12px; }
+
+/* ---------- 保管場所チップ・単位プルダウン ---------- */
+.zone-tabs { flex-wrap: wrap; }
+.zone-tabs button { flex: 1 1 30%; }
+.unit-custom { margin-top: 6px; }
+
+/* ---------- レシピ詳細ページ ---------- */
+.recipe-card.openable { cursor: pointer; }
+.detail-hint { margin-top: 8px; }
+.recipe-detail h3 { margin: 18px 0 6px; }
+.detail-ings { display: flex; flex-direction: column; }
+.detail-ing {
+  display: flex; align-items: center; gap: 8px; padding: 8px 2px;
+  border-bottom: 1px dashed var(--line-soft); font-size: 15px; line-height: 1.5;
+}
+.detail-ing:last-child { border-bottom: none; }
+.detail-ing .prep-check { flex: none; margin: 0; }
+.detail-ing .detail-ing-mark { flex: none; font-weight: 800; color: var(--green); }
+.detail-ing.is-missing .detail-ing-mark { color: var(--red); }
+.detail-ing.is-missing .detail-ing-amt { color: var(--red); font-weight: 700; }
+.detail-ing .detail-ing-amt { flex: none; font-weight: 700; }
+.detail-ing.prep-done { opacity: 0.55; }
+.detail-ing.prep-done .grow { text-decoration: line-through; }
+.detail-steps { display: flex; flex-direction: column; gap: 10px; margin-top: 4px; }
+.detail-step { display: flex; align-items: flex-start; gap: 10px; font-size: 15px; line-height: 1.75; }
+.detail-step .step-num {
+  flex: none; width: 26px; height: 26px; border-radius: 50%; margin-top: 2px;
+  background: var(--cream); border: 1.5px solid var(--line); color: var(--accent-deep);
+  font-size: 13.5px; font-weight: 800; display: inline-flex; align-items: center; justify-content: center;
+}
+.detail-step .step-min { flex: none; margin-top: 3px; }
+.detail-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
+.detail-actions .btn { flex: 1 1 150px; min-height: 44px; }
 .stepper .num { font-size: 20px; font-weight: 800; min-width: 64px; text-align: center; letter-spacing: 0.03em; }
 
 /* ---------- 下部ナビ・トースト ---------- */
@@ -475,3 +521,36 @@ select.inline-select { width: auto; display: inline-block; padding: 6px 8px; fon
 /* ---------- 組み合わせ提案・更新ボタン ---------- */
 .refresh-btn { font-size: 17px; font-weight: 800; padding: 16px 22px; margin-top: 16px; }
 .combo-head .refresh-btn { margin-top: 12px; }
+
+/* ---------- スマホアプリらしさ ---------- */
+/* 画面端での引っ張り（バウンス）でブラウザらしく見せない */
+html, body { overscroll-behavior: none; }
+/* タップの反応を速く（ダブルタップズーム待ちの遅延をなくす）。
+   やさいあわせの盤面（.suika-wrap の touch-action: none）はクラス指定が優先される。 */
+button, a, input, select, textarea, label, [role="button"], [role="tab"] { touch-action: manipulation; }
+/* 押した感触: タップできるカードにも軽い沈み込みを付ける */
+.item-card, .recipe-card { transition: transform 0.1s ease, filter 0.1s ease; }
+.item-card:active, .recipe-card:active { transform: scale(0.985); filter: brightness(0.99); }
+.tabs button:active { transform: scale(0.96); }
+/* 画面切り替え時の短いフェード＋スライドイン（メインコンテンツだけ） */
+.app-main > div { animation: view-in 0.22s ease both; }
+@keyframes view-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .app-main > div { animation: none; }
+  .item-card:active, .recipe-card:active, .tabs button:active { transform: none; }
+}
+/* ホーム画面追加の案内バナー（iPhone Safari・未インストール時のみ表示） */
+.install-banner {
+  max-width: 640px; margin: 8px auto; padding: 8px 8px 8px 14px; border-radius: 12px;
+  background: #eef2e2; border: 1px solid #b9c48f; color: #42501f;
+  font-size: 13px; line-height: 1.6; display: flex; align-items: center; gap: 8px;
+}
+.install-close {
+  flex: none; min-width: 44px; min-height: 44px; border: none; border-radius: 999px;
+  background: transparent; color: #42501f; font-size: 17px; font-weight: 700; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+}
+.install-close:active { background: rgba(66, 80, 31, 0.12); }

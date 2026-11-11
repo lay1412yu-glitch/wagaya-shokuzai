@@ -66,6 +66,15 @@ export function expiryGroup(isoDate) {
   if (days <= 7) return "week";
   return "later";
 }
+// 期限チップの色分け（残り日数→色クラス）:
+// 期限切れ・今日まで = 赤 (exp-red) / 3日以内 = オレンジ (exp-orange) / それ以外 = 緑〜グレー (exp-calm)
+// 期限なし（days が null）のときは null を返す（チップ自体を出さない）。
+export function expiryChipClass(days) {
+  if (days === null || days === undefined) return null;
+  if (days <= 0) return "exp-red";
+  if (days <= 3) return "exp-orange";
+  return "exp-calm";
+}
 
 // DOM 生成ヘルパー: 文字列はすべて textContent になる（XSS 対策）
 export function el(tag, attrs = {}, ...children) {
@@ -140,6 +149,57 @@ export function recentRegistered(items, limit = 8) {
     if (out.length >= limit) break;
   }
   return out;
+}
+
+// ---- 保管場所（冷蔵庫の区分け） ----
+// 在庫は「冷蔵庫／冷凍庫／野菜室／常温」の区分で登録でき、在庫画面では
+// 区分チップで絞り込める。区分が無い・未知の値のアイテムは、ストア側の
+// 既定値と同じく「冷蔵庫」として扱う（既存データを移行しないための互換処理）。
+export const STORAGE_ZONES = ["冷蔵庫", "冷凍庫", "野菜室", "常温"];
+export const STORAGE_ZONE_ALL = "すべて";
+export function storageOf(item) {
+  const s = item && item.storage;
+  return STORAGE_ZONES.includes(s) ? s : "冷蔵庫";
+}
+export function countByStorage(items) {
+  const counts = {};
+  for (const z of STORAGE_ZONES) counts[z] = 0;
+  for (const item of items || []) counts[storageOf(item)] += 1;
+  return counts;
+}
+export function filterByStorage(items, zone) {
+  const list = [...(items || [])];
+  if (!zone || zone === STORAGE_ZONE_ALL) return list;
+  return list.filter((item) => storageOf(item) === zone);
+}
+// 登録フォームの保管場所プリセット: カテゴリが「野菜」なら野菜室、それ以外は冷蔵庫。
+export function suggestStorage(category) {
+  return category === "野菜" ? "野菜室" : "冷蔵庫";
+}
+
+// ---- 単位プルダウン ----
+// 登録・買い物フォームの単位は自由入力ではなくプルダウンで選ぶ。
+// 一覧はカタログ／レシピ／既存データで実際に使われている表記に合わせる
+// （既存データの表記は "mL" なので "ml" にはしない）。分数対応の「玉」も含む。
+// 一覧にない単位は「その他（自由入力）」で保持でき、既存値を失わない。
+export const UNIT_OPTIONS = [
+  "個", "本", "玉", "袋", "パック", "缶", "箱", "セット",
+  "g", "kg", "mL", "L",
+  "切れ", "枚", "束", "房", "尾", "丁", "かけ", "粒", "杯", "株",
+];
+export const UNIT_OTHER_VALUE = "__other__";
+// 既存の単位文字列を、プルダウンの選択状態（select の値＋自由入力の値）に変換する。
+// 一覧にある値 → その値。一覧にない非空の値 → その他＋その値。空 → 既定の「個」。
+export function unitSelectValueFor(value) {
+  const v = String(value || "").trim();
+  if (UNIT_OPTIONS.includes(v)) return { selectValue: v, customValue: "" };
+  if (v) return { selectValue: UNIT_OTHER_VALUE, customValue: v };
+  return { selectValue: "個", customValue: "" };
+}
+// プルダウンの選択状態から、保存する単位文字列を取り出す。
+export function resolveUnitValue(selectValue, customValue) {
+  if (selectValue === UNIT_OTHER_VALUE) return String(customValue || "").trim();
+  return String(selectValue || "");
 }
 
 // 数量の表示文字列（単位は付けない）。玉のときは分数表記にする:

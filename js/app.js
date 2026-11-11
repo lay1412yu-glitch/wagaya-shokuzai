@@ -13,8 +13,9 @@
 // - 参加用リンク ?join=<code> を受けたら、コードを sessionStorage に退避し、
 //   ログイン完了後に自動で参加を試みる（URL の履歴からは即座に消す）。
 
-import { el, uid, todayISO, daysUntil, formatDate, expiryLabel, expiryGroup, formatCode, fmtQtyValue, qtyStepFor, roundQty, isFractionUnit, matchesSearch, topPurchased, recentRegistered } from "./util.js";
+import { el, uid, todayISO, daysUntil, formatDate, expiryLabel, expiryGroup, expiryChipClass, formatCode, fmtQtyValue, qtyStepFor, roundQty, isFractionUnit, matchesSearch, topPurchased, recentRegistered, STORAGE_ZONES, STORAGE_ZONE_ALL, countByStorage, filterByStorage, suggestStorage, UNIT_OPTIONS, UNIT_OTHER_VALUE, unitSelectValueFor, resolveUnitValue } from "./util.js";
 import { suggestRecipes, suggestMealSet, suggestEventMenu, EVENT_MENUS, suggestRegionalMenu, REGIONS } from "./recipes.js";
+import * as recipesNs from "./recipes.js";
 import { suggestCombos, repertoireSize } from "./combo.js";
 import { buildGameQuestions, scoreGame, CORRECT_PRAISE, GAME_QUESTION_COUNT, GAME_COUNT_OPTIONS, GAME_DIFFICULTIES, GAME_DIFFICULTY_DEFAULT } from "./game.js";
 import { createSuikaGame, VEG_STAGES } from "./suika.js";
@@ -28,7 +29,7 @@ import { legalDocs } from "./legal.js";
 import { buildReminders, notifyOnOpen, permissionState, subscribePush } from "./notify.js";
 
 const CATEGORIES = ["野菜", "肉", "魚", "卵・乳製品", "豆腐・大豆", "調味料", "乾物・缶詰", "冷凍食品", "飲み物", "果物", "その他"];
-const STORAGES = ["冷蔵庫", "冷凍庫", "野菜室", "常温"];
+// 保管場所の区分（冷蔵庫／冷凍庫／野菜室／常温）は util.js の STORAGE_ZONES が正。
 
 const appRoot = document.getElementById("app");
 const toastNode = document.getElementById("toast");
@@ -101,6 +102,8 @@ const state = {
   presetAdd: null, // 図鑑から在庫登録フォームへ渡す下書き { name, category, unit? }
   inviteCode: null, // 作成/再発行の直後に所有者へ見せるコード（平文）
   stockQuery: "", // 在庫の検索文字列
+  stockZone: STORAGE_ZONE_ALL, // 在庫の保管場所フィルタ（すべて／冷蔵庫／冷凍庫／野菜室／常温。保存しない）
+  recipeDetail: null, // レシピ詳細ページ表示中: { recipe, mode, size, servingsLabel, favId, scrollY, checked }（保存しない）
   showGuide: false, // はじめてガイド表示中
   legalView: null, // 法的ページ表示中: null | "privacy" | "terms"
   sessionTrash: [], // 本番モード用: この画面で削除した食材（セッション内のみ復元可）
@@ -356,6 +359,7 @@ async function openFridge(fridgeId) {
   if (!state.fridge) { renderFridgePicker(); return; }
   state.sessionTrash = [];
   state.suggestPage = 0; state.comboSeen = []; state.comboRound = 0;
+  state.stockZone = STORAGE_ZONE_ALL; state.recipeDetail = null;
   await refreshData();
   setupRealtime();
   // アプリを開いたタイミングのローカル通知（許可済み・1日1回・サーバー不要）
@@ -384,6 +388,7 @@ function renderMain() {
   if (state.knowledgeName) content.append(renderKnowledgePage());
   else if (state.gameView) content.append(renderGamePage());
   else if (state.suikaView) content.append(renderSuikaPage());
+  else if (state.recipeDetail) content.append(renderRecipeDetailPage());
   else if (state.tab === "stock") content.append(renderStockTab());
   else if (state.tab === "shopping") content.append(renderShoppingTab());
   else if (state.tab === "recipes") content.append(renderRecipesTab());
@@ -398,7 +403,7 @@ function renderMain() {
   document.getElementById("header-sub").textContent = state.fridge ? state.fridge.name : "";
 }
 function navBtn(tab, icon, label) {
-  return el("button", { class: state.tab === tab && !state.knowledgeName && !state.gameView && !state.suikaView ? "active" : "", onclick: () => { state.tab = tab; state.knowledgeName = null; state.gameView = false; state.game = null; state.suikaView = false; renderMain(); } },
+  return el("button", { class: state.tab === tab && !state.knowledgeName && !state.gameView && !state.suikaView && !state.recipeDetail ? "active" : "", onclick: () => { state.tab = tab; state.knowledgeName = null; state.gameView = false; state.game = null; state.suikaView = false; state.recipeDetail = null; renderMain(); } },
     el("span", { class: "nav-icon" }, icon), label);
 }
 
@@ -774,19 +779,37 @@ function renderStockTab() {
       },
     }, "クリア"),
   ));
+  // 保管場所の区分チップ（冷蔵庫／冷凍庫／野菜室／常温）: 件数つきで出し、
+  // 0件の区分は「すべて」以外出さない。区分内でも期限グループ表示はそのまま。
+  const zoneRow = el("div", { class: "tabs zone-tabs", role: "tablist", "aria-label": "保管場所で絞り込む" });
+  const renderZoneChips = () => {
+    const counts = countByStorage(state.items);
+    // 選択中の区分が0件になったら「すべて」に戻す（空の区分に取り残されないため）
+    if (state.stockZone !== STORAGE_ZONE_ALL && !counts[state.stockZone]) state.stockZone = STORAGE_ZONE_ALL;
+    const zones = [STORAGE_ZONE_ALL, ...STORAGE_ZONES.filter((z) => counts[z] > 0)];
+    zoneRow.replaceChildren(...zones.map((z) => el("button", {
+      type: "button", role: "tab",
+      class: state.stockZone === z ? "active" : "",
+      "aria-selected": state.stockZone === z ? "true" : "false",
+      onclick: () => { state.stockZone = z; renderZoneChips(); updateStockList(); },
+    }, z === STORAGE_ZONE_ALL ? `すべて ${state.items.length}` : `${z} ${counts[z]}`)));
+  };
+  renderZoneChips();
+  wrap.append(zoneRow);
   wrap.append(listBox);
   updateStockList();
   return wrap;
 }
 
-// 在庫リスト部分（期限グループ表示）。検索文字列とも組み合わせる。
+// 在庫リスト部分（期限グループ表示）。検索文字列・保管場所フィルタとも組み合わせる。
 function stockListNodes() {
   const nodes = [];
   const query = state.stockQuery || "";
+  const zone = state.stockZone || STORAGE_ZONE_ALL;
   const groups = [
     ["soon", "すぐ使いたい"], ["week", "今週中に"], ["later", "まだ余裕あり"],
   ];
-  const sorted = [...state.items]
+  const sorted = filterByStorage(state.items, zone)
     .filter((i) => matchesSearch(i.name, query))
     .sort((a, b) => {
       const da = daysUntil(a.expiryDate), db = daysUntil(b.expiryDate);
@@ -798,14 +821,19 @@ function stockListNodes() {
     return nodes;
   }
   if (sorted.length === 0) {
-    nodes.push(el("div", { class: "card" }, el("p", { class: "empty" }, `「${query}」に合う食材がありませんでした。\n別の名前で探してみてください。`)));
+    const zoneActive = zone !== STORAGE_ZONE_ALL;
+    nodes.push(el("div", { class: "card" }, el("p", { class: "empty" },
+      query && zoneActive ? `「${query}」に合う食材は${zone}にありませんでした。\n別の名前で探すか、区分を変えてみてください。`
+        : query ? `「${query}」に合う食材がありませんでした。\n別の名前で探してみてください。`
+          : `${zone}にはまだ食材がありません。\n上のフォームから登録するか、別の区分を選んでください。`)));
     return nodes;
   }
   if (query) nodes.push(el("p", { class: "hint" }, `「${query}」の検索結果：${sorted.length}件`));
+  else if (zone !== STORAGE_ZONE_ALL) nodes.push(el("p", { class: "hint" }, `${zone}の食材：${sorted.length}件`));
   for (const [key, label] of groups) {
     const rows = sorted.filter((i) => expiryGroup(i.expiryDate) === key);
     if (!rows.length) continue;
-    nodes.push(el("h3", { class: "group-title" }, el("span", { class: "dot " + key }), label));
+    nodes.push(el("h3", { class: "group-title" }, el("span", { class: "dot " + key }), label, el("span", { class: "group-count" }, `${rows.length}件`)));
     for (const item of rows) nodes.push(renderItemCard(item));
   }
   return nodes;
@@ -816,7 +844,7 @@ function renderItemCard(item) {
   const meta = [
     el("span", { class: "chip" }, item.category),
     el("span", { class: "chip" }, item.storage),
-    item.expiryDate ? el("span", { class: "chip" + (d !== null && d <= 2 ? " soon-chip" : "") }, `期限 ${formatDate(item.expiryDate)}・${expiryLabel(item.expiryDate)}`) : null,
+    item.expiryDate ? el("span", { class: "chip expiry-chip " + (expiryChipClass(d) || "") }, `期限 ${formatDate(item.expiryDate)}・${expiryLabel(item.expiryDate)}`) : null,
     isLow(item) ? el("span", { class: "chip warn" }, "残りわずか") : null,
   ];
   const iconTile = iconEl(item.name, item.category);
@@ -854,7 +882,7 @@ function renderItemCard(item) {
       },
     }, "🗑"),
   );
-  card.style.padding = "12px 14px";
+  card.style.padding = "14px 16px";
   return card;
 }
 
@@ -874,13 +902,38 @@ async function changeQty(item, delta) {
   });
 }
 
+// 単位プルダウン: 選択肢から選ぶ＋最後の「その他（自由入力）」で
+// 一覧にない単位もテキスト入力できる。既存データの単位が一覧にない場合は
+// 「その他＋その値」で初期化し、編集しても値を失わない。
+function createUnitPicker() {
+  const sel = el("select", {},
+    UNIT_OPTIONS.map((u) => el("option", { value: u }, u)),
+    el("option", { value: UNIT_OTHER_VALUE }, "その他（自由入力）"));
+  const custom = el("input", { type: "text", class: "unit-custom", placeholder: "単位を入力", style: "display:none" });
+  const syncCustom = () => { custom.style.display = sel.value === UNIT_OTHER_VALUE ? "" : "none"; };
+  const picker = {
+    nodes: [sel, custom],
+    onChange: null,
+    getValue: () => resolveUnitValue(sel.value, custom.value),
+    setValue: (v) => {
+      const s = unitSelectValueFor(v);
+      sel.value = s.selectValue;
+      custom.value = s.customValue;
+      syncCustom();
+      if (picker.onChange) picker.onChange();
+    },
+  };
+  sel.addEventListener("change", () => { syncCustom(); if (picker.onChange) picker.onChange(); });
+  custom.addEventListener("input", () => { if (picker.onChange) picker.onChange(); });
+  syncCustom();
+  return picker;
+}
+
 function renderAddItemForm() {
   const name = el("input", { type: "text", placeholder: "例）鶏もも肉" });
   const category = el("select", {}, CATEGORIES.map((c) => el("option", { value: c }, c)));
   const qty = el("input", { type: "number", value: "1", min: "0", step: "0.5" });
-  const unit = el("input", { type: "text", placeholder: "個 / 本 / 玉 / 袋 / g", list: "unit-suggestions" });
-  const unitList = el("datalist", { id: "unit-suggestions" },
-    ["個", "本", "玉", "袋", "パック", "g", "kg", "mL", "L", "丁", "枚", "かけ", "缶", "箱"].map((u) => el("option", { value: u })));
+  const unitPicker = createUnitPicker();
   // 「玉」単位のときだけ出す分数クイック選択（白菜・キャベツなどの頭野菜用）
   const FRACS = [[0.25, "1/4玉"], [0.5, "半玉（1/2）"], [0.75, "3/4玉"], [1, "1玉"], [1.5, "1玉半"], [2, "2玉"]];
   const fracRow = el("div", { class: "frac-row", style: "display:none" },
@@ -900,23 +953,29 @@ function renderAddItemForm() {
   if (state.presetAdd) { // 図鑑からの下書きを反映（1回だけ使う）
     name.value = state.presetAdd.name;
     if (CATEGORIES.includes(state.presetAdd.category)) category.value = state.presetAdd.category;
-    if (state.presetAdd.unit) unit.value = state.presetAdd.unit;
+    if (state.presetAdd.unit) unitPicker.setValue(state.presetAdd.unit);
     state.presetAdd = null;
     updateNamePreview();
   }
   const expiry = el("input", { type: "date", value: todayISO() });
-  const storageSel = el("select", {}, STORAGES.map((s) => el("option", { value: s }, s)));
+  const storageSel = el("select", {}, STORAGE_ZONES.map((s) => el("option", { value: s }, s)));
+  // カテゴリが「野菜」のときは保管場所を野菜室にプリセットする。
+  // ユーザーが保管場所を手で選んだら、それ以降は自動で上書きしない。
+  let storageTouched = false;
+  storageSel.addEventListener("change", () => { storageTouched = true; });
+  const syncStorageDefault = () => { if (!storageTouched) storageSel.value = suggestStorage(category.value); };
+  category.addEventListener("change", syncStorageDefault);
+  syncStorageDefault();
   const fav = el("input", { type: "checkbox" });
   const threshold = el("input", { type: "number", value: "1", min: "0", step: "0.5" });
   // 単位が「玉」のときは数量・しきい値を 1/4 刻みにし、分数クイック選択を出す
   const updateUnitUI = () => {
-    const tama = isFractionUnit(unit.value);
+    const tama = isFractionUnit(unitPicker.getValue());
     qty.step = tama ? "0.25" : "0.5";
     threshold.step = tama ? "0.25" : "0.5";
     fracRow.style.display = tama ? "" : "none";
   };
-  unit.addEventListener("input", updateUnitUI);
-  unit.addEventListener("change", updateUnitUI);
+  unitPicker.onChange = updateUnitUI;
   updateUnitUI();
   // ---- よく買うもの／最近登録したもの（ワンタップ再登録） ----
   // 図鑑の購入回数と直近の登録から候補を出し、タップで名前・カテゴリ・単位を
@@ -924,7 +983,8 @@ function renderAddItemForm() {
   const applyQuickPick = (n, c, u) => {
     name.value = n;
     if (c && CATEGORIES.includes(c)) category.value = c;
-    if (u) unit.value = u;
+    syncStorageDefault();
+    if (u) unitPicker.setValue(u);
     updateNamePreview(); updateUnitUI();
     try { name.focus(); } catch { /* noop */ }
     toast(`「${n}」をフォームに入れました。内容を確認して「登録する」を押してください`);
@@ -957,11 +1017,10 @@ function renderAddItemForm() {
       el("div", {}, el("label", {}, "カテゴリ"), category),
       el("div", {}, el("label", {}, "保管場所"), storageSel),
       el("div", {}, el("label", {}, "数量"), qty),
-      el("div", {}, el("label", {}, "単位"), unit),
+      el("div", {}, el("label", {}, "単位"), ...unitPicker.nodes),
       el("div", {}, el("label", {}, "賞味・消費期限"), expiry),
       el("div", {}, el("label", {}, "残りわずか判定"), threshold),
     ),
-    unitList,
     fracRow,
     el("p", { class: "hint" }, "白菜・キャベツなどの頭野菜は、単位を「玉」にすると半玉（1/2）・1/4玉・3/4玉のような分数で登録できます。"),
     el("label", { class: "check-line" }, fav, "お気に入りにする（少なくなったら買い物リストへ自動追加）"),
@@ -972,7 +1031,7 @@ function renderAddItemForm() {
           const beforeCounts = catalogCountsBefore();
           const item = await store.addItem(state.user.id, state.fridge.id, {
             name: name.value.trim(), category: category.value, quantity: roundQty(Number(qty.value) || 1),
-            unit: unit.value.trim(), expiryDate: expiry.value || null, storage: storageSel.value,
+            unit: unitPicker.getValue(), expiryDate: expiry.value || null, storage: storageSel.value,
             isFavorite: fav.checked, lowThreshold: roundQty(Number(threshold.value) || 0),
           });
           await refreshData(); renderMain();
@@ -1074,6 +1133,8 @@ const SOURCE_LABEL = { manual: "手入力", favorite: "お気に入り", recipe:
 function renderShoppingTab() {
   const wrap = el("div", {});
   const name = el("input", { type: "text", placeholder: "買うもの（例：牛乳）" });
+  // 単位も登録フォームと同じプルダウンで選べるようにする
+  const unitPicker = createUnitPicker();
   wrap.append(el("div", { class: "card" },
     el("h2", {}, "🛒 買い物リスト"),
     state.shopping.length === 0
@@ -1119,10 +1180,12 @@ function renderShoppingTab() {
         )),
     el("h3", {}, "買い物を追加"),
     name,
+    el("label", {}, "単位"),
+    ...unitPicker.nodes,
     el("button", {
       class: "btn secondary wide", onclick: async () => {
         if (!name.value.trim()) { toast("買うものを入力してください"); return; }
-        await store.addShopping(state.user.id, state.fridge.id, { name: name.value.trim(), quantity: 1, unit: "", source: "manual" });
+        await store.addShopping(state.user.id, state.fridge.id, { name: name.value.trim(), quantity: 1, unit: unitPicker.getValue(), source: "manual" });
         await refreshData(); renderMain();
       },
     }, "リストに追加"),
@@ -1183,8 +1246,8 @@ function fifoNote(ing) {
   if (f.lotCount > 1) parts.push(`在庫${f.lotCount}件中`);
   return parts.length ? `（${parts.join("・")}）` : "";
 }
-function renderRecipeCard(r, { servingsLabel, starBtn, savedNote = "" }) {
-  return el("div", { class: "card recipe-card" },
+function renderRecipeCard(r, { servingsLabel, starBtn, savedNote = "", onOpen = null }) {
+  const card = el("div", { class: "card recipe-card" + (onOpen ? " openable" : "") },
     el("div", { class: "recipe-head" },
       el("h2", { class: "grow" }, r.title),
       starBtn,
@@ -1208,9 +1271,138 @@ function renderRecipeCard(r, { servingsLabel, starBtn, savedNote = "" }) {
     r.tip ? el("p", { class: "hint" }, "💡 " + r.tip) : null,
     r.note ? el("p", { class: "hint region-note" }, "📍 " + (r.pref ? `【${r.pref}】` : "") + r.note) : null,
     r.missing.length ? el("button", {
-      class: "btn secondary small", onclick: () => addMissingToShopping(r.missing),
+      class: "btn secondary small", onclick: (e) => { e.stopPropagation(); addMissingToShopping(r.missing); },
     }, "足りない材料を買い物リストへ") : null,
+    onOpen ? el("p", { class: "hint detail-hint" }, "タップで詳しい作り方を見る") : null,
   );
+  if (onOpen) {
+    // カード本体のタップで詳細ページへ。☆・買い物リスト追加ボタンの
+    // クリックは詳細遷移へ伝播させない（ボタンの本来の動作だけが走る）。
+    if (starBtn) starBtn.addEventListener("click", (e) => e.stopPropagation());
+    card.addEventListener("click", onOpen);
+  }
+  return card;
+}
+
+// ---------- レシピ詳細ページ（全画面） ----------
+// 詳細手順: recipes.js が detailedSteps(recipe) → [{text, minutes}] を
+// export していればそれを使い、無ければ recipe.steps にフォールバックする。
+function detailedStepsFor(recipe) {
+  try {
+    if (typeof recipesNs.detailedSteps === "function") {
+      const ds = recipesNs.detailedSteps(recipe);
+      if (Array.isArray(ds) && ds.length) {
+        const mapped = ds.map((s) => (typeof s === "string"
+          ? { text: s, minutes: null }
+          : { text: s && s.text ? String(s.text) : "", minutes: s && s.minutes != null ? Number(s.minutes) : null }))
+          .filter((s) => s.text);
+        if (mapped.length) return mapped;
+      }
+    }
+  } catch { /* 詳細手順が使えない場合は通常の手順にフォールバック */ }
+  return (recipe.steps || []).map((s) => ({ text: String(s), minutes: null }));
+}
+
+function openRecipeDetail(recipe, { mode, size, servingsLabel = "", favId = null }) {
+  state.recipeDetail = {
+    recipe, mode, size, servingsLabel, favId,
+    scrollY: typeof window !== "undefined" ? window.scrollY || 0 : 0,
+    checked: new Set(), // 材料の準備チェック（この画面の間だけ保持・保存しない）
+  };
+  renderMain();
+  try { window.scrollTo(0, 0); } catch { /* 表示専用 */ }
+}
+
+function renderRecipeDetailPage() {
+  const d = state.recipeDetail;
+  const r = d.recipe;
+  const wrap = el("div", {});
+  const back = () => {
+    const y = d.scrollY || 0;
+    state.recipeDetail = null;
+    renderMain();
+    try { window.scrollTo(0, y); } catch { /* 表示専用 */ }
+  };
+  // ☆の動作: お気に入り一覧から開いた場合は、その保存を外して一覧へ戻る。
+  // それ以外は通常のトグル（詳細ページを開いたまま状態だけ更新する）。
+  const isFav = d.favId ? true : !!findFavorite(r, d.mode);
+  const onStar = async () => {
+    if (d.favId) {
+      try {
+        await store.removeFavoriteRecipe(state.user.id, state.fridge.id, d.favId);
+        state.favRecipes = state.favRecipes.filter((x) => x.id !== d.favId);
+        toast("レシピのお気に入りを外しました");
+      } catch (e) { toast(e.message); return; }
+      state.recipeDetail = null;
+      renderMain();
+      return;
+    }
+    const y = typeof window !== "undefined" ? window.scrollY || 0 : 0;
+    await toggleRecipeFavorite(r, d.mode, d.size);
+    try { window.scrollTo(0, y); } catch { /* 表示専用 */ }
+  };
+  // 材料行（準備チェックつき）: 在庫にある＝✓、足りない＝＋（買い足し）
+  const ingRow = (ing, kind) => {
+    const key = `${kind}:${ing.name}`;
+    const row = el("div", { class: "detail-ing" + (kind === "missing" ? " is-missing" : "") });
+    const cb = el("input", { type: "checkbox", class: "prep-check", "aria-label": `${ing.name}の準備チェック` });
+    if (d.checked.has(key)) { cb.checked = true; row.classList.add("prep-done"); }
+    cb.addEventListener("change", () => {
+      if (cb.checked) d.checked.add(key); else d.checked.delete(key);
+      row.classList.toggle("prep-done", cb.checked);
+    });
+    row.append(
+      cb,
+      el("span", { class: "detail-ing-mark" }, kind === "missing" ? "＋" : "✓"),
+      iconEl(ing.name),
+      el("span", { class: "grow" }, ing.name,
+        ing.fifo ? el("span", { class: "fifo-note" }, fifoNote(ing)) : null),
+      el("span", { class: "detail-ing-amt" }, `${fmtQtyValue(ing.amount, ing.unit)}${ing.unit}${kind === "missing" ? "（買い足し）" : ""}`),
+    );
+    return row;
+  };
+  const steps = detailedStepsFor(r);
+  wrap.append(
+    el("button", { class: "btn secondary small", onclick: back }, "← レシピにもどる"),
+    el("div", { class: "card recipe-detail" },
+      el("div", { class: "recipe-head" },
+        el("h2", { class: "grow" }, r.title),
+        favStarBtn(isFav, onStar),
+      ),
+      el("div", { class: "recipe-chips" },
+        r.minutes ? el("span", { class: "chip" }, `約${r.minutes}分`) : null,
+        d.servingsLabel ? el("span", { class: "chip" }, d.servingsLabel) : null,
+        r.course ? el("span", { class: "chip" }, r.course) : null,
+        r.genre ? el("span", { class: "chip" }, `${r.genre}・${r.method || ""}`) : null,
+        r.useUp ? el("span", { class: "chip" }, "使い切り") : null,
+        r.have.some((i) => i.fifo) ? el("span", { class: "chip fifo-chip" }, "期限の近いものから使います") : null,
+      ),
+      el("h3", {}, "材料"),
+      el("p", { class: "hint" }, "用意できたらチェックを入れていくと、準備が進みます。"),
+      el("div", { class: "detail-ings" },
+        r.have.map((i) => ingRow(i, "have")),
+        r.missing.map((i) => ingRow(i, "missing")),
+      ),
+      el("h3", {}, "作り方"),
+      el("div", { class: "detail-steps" },
+        steps.map((s, idx) => el("div", { class: "detail-step" },
+          el("span", { class: "step-num" }, String(idx + 1)),
+          el("span", { class: "grow" }, s.text),
+          s.minutes ? el("span", { class: "chip step-min" }, `約${s.minutes}分`) : null,
+        )),
+      ),
+      r.tip ? el("p", { class: "hint" }, "💡 コツ：" + r.tip) : null,
+      r.note ? el("p", { class: "hint region-note" }, "📍 " + (r.pref ? `【${r.pref}】` : "") + r.note) : null,
+      el("div", { class: "detail-actions" },
+        el("button", { class: "btn secondary", onclick: onStar },
+          isFav ? "★ お気に入り保存済み（外す）" : "☆ お気に入りに保存"),
+        r.missing.length ? el("button", {
+          class: "btn secondary", onclick: () => addMissingToShopping(r.missing),
+        }, "足りない材料を買い物リストへ") : null,
+      ),
+    ),
+  );
+  return wrap;
 }
 /**
  * イベント献立セクション: 行事を選ぶと、その行事の献立セット
@@ -1255,6 +1447,7 @@ function renderEventMenuSection(size) {
     wrap.append(renderRecipeCard(d, {
       servingsLabel: `${size}人分`,
       starBtn: favStarBtn(!!fav, () => toggleRecipeFavorite(d, state.recipeMode, size)),
+      onOpen: () => openRecipeDetail(d, { mode: state.recipeMode, size, servingsLabel: `${size}人分` }),
     }));
   }
   return wrap;
@@ -1301,6 +1494,7 @@ function renderRegionalMenuSection(size) {
     wrap.append(renderRecipeCard(d, {
       servingsLabel: `${size}人分`,
       starBtn: favStarBtn(!!fav, () => toggleRecipeFavorite(d, state.recipeMode, size)),
+      onOpen: () => openRecipeDetail(d, { mode: state.recipeMode, size, servingsLabel: `${size}人分` }),
     }));
   }
   return wrap;
@@ -1351,6 +1545,7 @@ function renderComboSection(size) {
       servingsLabel: `${size}人分`,
       savedNote: "組み合わせ提案",
       starBtn: favStarBtn(!!fav, () => toggleRecipeFavorite(r, state.recipeMode, size)),
+      onOpen: () => openRecipeDetail(r, { mode: state.recipeMode, size, servingsLabel: `${size}人分` }),
     }));
   }
   wrap.append(refreshBtn());
@@ -1397,6 +1592,10 @@ function renderRecipesTab() {
       wrap.append(renderRecipeCard(f, {
         servingsLabel: f.servings ? `保存時 ${f.servings}人分` : "",
         savedNote: f.mode === "shop" ? "買い出しで作る" : "あるもので作る",
+        onOpen: () => openRecipeDetail(f, {
+          mode: f.mode, size: f.servings || size,
+          servingsLabel: f.servings ? `保存時 ${f.servings}人分` : "", favId: f.id,
+        }),
         starBtn: favStarBtn(true, async () => {
           try {
             await store.removeFavoriteRecipe(state.user.id, state.fridge.id, f.id);
@@ -1449,6 +1648,7 @@ function renderRecipesTab() {
     wrap.append(renderRecipeCard(r, {
       servingsLabel: `${size}人分`,
       starBtn: favStarBtn(!!fav, () => toggleRecipeFavorite(r, state.recipeMode, size)),
+      onOpen: () => openRecipeDetail(r, { mode: state.recipeMode, size, servingsLabel: `${size}人分` }),
     }));
   }
   if (pageCount > 1) {
@@ -1681,8 +1881,38 @@ function renderSettingsTab() {
   return wrap;
 }
 
+// ---------- ホーム画面に追加の案内（iPhone Safari・未インストール時のみ） ----------
+// ホーム画面（スタンドアロン）で起動した場合は出さない。閉じたら端末に記録して再表示しない。
+const INSTALL_HINT_KEY = "wagaya.installHintDismissed";
+function shouldShowInstallHint() {
+  try {
+    const ua = navigator.userAgent || "";
+    if (!/iPhone/.test(ua)) return false;
+    const standalone = window.navigator.standalone === true
+      || (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches);
+    if (standalone) return false;
+    return localStorage.getItem(INSTALL_HINT_KEY) !== "1";
+  } catch { return false; }
+}
+function maybeShowInstallHint() {
+  if (!shouldShowInstallHint()) return;
+  const banner = el("div", { class: "install-banner" },
+    el("span", { class: "grow" }, "ホーム画面に追加すると、アプリのように使えます（共有ボタン →「ホーム画面に追加」）"),
+    el("button", {
+      class: "install-close", "aria-label": "案内を閉じる", onclick: () => {
+        try { localStorage.setItem(INSTALL_HINT_KEY, "1"); } catch { /* 保存できなくても閉じる */ }
+        banner.remove();
+      },
+    }, "✕"),
+  );
+  const anchor = document.getElementById("join-banner");
+  if (anchor) anchor.after(banner);
+  else document.body.prepend(banner);
+}
+
 // ================= 起動 =================
 captureJoinParam();
+maybeShowInstallHint();
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker.register("sw.js").catch(() => { /* file:// 等では無効でよい */ });
 }
