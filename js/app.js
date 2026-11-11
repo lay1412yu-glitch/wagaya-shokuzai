@@ -13,8 +13,8 @@
 // - 参加用リンク ?join=<code> を受けたら、コードを sessionStorage に退避し、
 //   ログイン完了後に自動で参加を試みる（URL の履歴からは即座に消す）。
 
-import { el, uid, todayISO, daysUntil, formatDate, expiryLabel, expiryGroup, expiryChipClass, formatCode, fmtQtyValue, qtyStepFor, roundQty, isFractionUnit, matchesSearch, topPurchased, recentRegistered, oneTapCandidates, inListQuantity, planOneTapAdd, RECIPE_QUICK_FILTERS, matchesRecipeFilter, filterRecipes, STORAGE_ZONES, STORAGE_ZONE_ALL, countByStorage, filterByStorage, suggestStorage, UNIT_OPTIONS, UNIT_OTHER_VALUE, unitSelectValueFor, resolveUnitValue } from "./util.js";
-import { suggestRecipes, suggestMealSet, suggestEventMenu, EVENT_MENUS, suggestRegionalMenu, REGIONS } from "./recipes.js";
+import { el, uid, todayISO, daysUntil, formatDate, expiryLabel, expiryGroup, expiryChipClass, formatCode, fmtQtyValue, qtyStepFor, roundQty, isFractionUnit, matchesSearch, topPurchased, recentRegistered, oneTapCandidates, inListQuantity, planOneTapAdd, RECIPE_QUICK_FILTERS, matchesRecipeFilter, filterRecipes, STORAGE_ZONES, STORAGE_ZONE_ALL, countByStorage, filterByStorage, suggestStorage, UNIT_OPTIONS, UNIT_OTHER_VALUE, unitSelectValueFor, resolveUnitValue, upsertTodayMenuEntry, removeTodayMenuEntry, groupTodayMenuEntries, mergeMissingIngredients } from "./util.js";
+import { suggestRecipes, suggestMealSet, suggestEventMenu, EVENT_MENUS, suggestRegionalMenu, REGIONS, evaluateRecipe } from "./recipes.js";
 import * as recipesNs from "./recipes.js";
 import { suggestCombos, repertoireSize } from "./combo.js";
 import { buildGameQuestions, scoreGame, CORRECT_PRAISE, GAME_QUESTION_COUNT, GAME_COUNT_OPTIONS, GAME_DIFFICULTIES, GAME_DIFFICULTY_DEFAULT } from "./game.js";
@@ -87,6 +87,8 @@ let store = null;
 const state = {
   user: null, fridges: [], fridge: null, members: [],
   items: [], shopping: [], favRecipes: [], catalog: [], settings: { familySize: 2 },
+  todayMenu: { date: "", entries: [] }, // 今日の献立ボード（ストアに保存・家族共有。日付が変わると空になる）
+  todayMenuThanks: false, // 「作った！」で片付けた直後の感謝表示フラグ（保存しない）
   tab: "stock", authTab: "login", recipeMode: "stock", recipeView: "suggest",
   recipeFilter: "all", // レシピのクイックフィルタ: all | microwave | otsumami | quick（保存しない・タブを離れると all に戻す）
   suggestPage: 0, // おすすめ候補プールのページ（「別の提案を見る」で送る）
@@ -472,6 +474,7 @@ async function openFridge(fridgeId) {
   state.sessionTrash = [];
   state.suggestPage = 0; state.comboSeen = []; state.comboRound = 0;
   state.stockZone = STORAGE_ZONE_ALL; state.recipeDetail = null; state.recipeFilter = "all";
+  state.todayMenuThanks = false;
   renderLoadingView(); // データ取得中は読み込み画面（キャラ＋豆知識）を出す
   try {
     await refreshData();
@@ -494,6 +497,7 @@ async function refreshData() {
     store.listItems(uidNow, fid), store.listShopping(uidNow, fid), store.getSettings(uidNow, fid), store.listMembers(uidNow, fid),
   ]);
   state.favRecipes = await store.listFavoriteRecipes(uidNow, fid).catch(() => []);
+  state.todayMenu = await store.getTodayMenu(uidNow, fid).catch(() => ({ date: todayISO(), entries: [] }));
   state.catalog = await store.listCatalog(uidNow, fid).catch(() => []);
   state.inviteCode = await store.getInviteCode(uidNow, fid).catch(() => null);
   state.trash = store.mode === "demo" && typeof store.listTrash === "function"
@@ -1410,6 +1414,118 @@ async function addMissingToShopping(missing) {
     await store.addShopping(state.user.id, state.fridge.id, { name: m.name, quantity: m.amount, unit: m.unit, source: "recipe" });
   await refreshData(); toast("足りない材料を買い物リストに追加しました");
 }
+
+// ---------- 今日の献立ボード ----------
+// 「今日作るもの」の一時保存。保存先は冷蔵庫の設定レコード
+// （fridge_settings の todayMenu フィールド）で、メンバー全員に共有される。
+// 日付が変わるとストア側の読み取りで自動的に空になる（翌日リセット）。
+// スナップショットはレシピお気に入りと同じ形 + course（グループ分け用）と
+// ingredients（買い物リスト追加時に今の在庫で再評価するため）。
+function boardSnapshotOf(recipe, mode, size) {
+  return {
+    recipeKey: recipe.recipeKey || recipeKeyOf(recipe, mode),
+    recipeId: recipe.recipeId || recipe.id || "", mode,
+    title: recipe.title, minutes: recipe.minutes ?? null, tip: recipe.tip || "",
+    steps: [...(recipe.steps || [])],
+    have: (recipe.have || []).map((i) => ({ ...i })),
+    missing: (recipe.missing || []).map((i) => ({ ...i })),
+    servings: size || recipe.servings || state.settings.familySize || 2,
+    course: recipe.course || "その他", genre: recipe.genre || "", method: recipe.method || "",
+    note: recipe.note || "", pref: recipe.pref || "",
+    ingredients: Array.isArray(recipe.ingredients)
+      ? recipe.ingredients.map((g) => ({
+          name: g.name, per: g.per, unit: g.unit || "",
+          // 在庫照合キーワード（evaluateRecipe の照合に必要。再評価のため保持する）
+          ...(Array.isArray(g.match) ? { match: [...g.match] } : {}),
+        })) : null,
+  };
+}
+async function pinToTodayMenu(recipe, mode, size) {
+  const entry = boardSnapshotOf(recipe, mode, size);
+  const { board, added } = upsertTodayMenuEntry(state.todayMenu, entry);
+  if (!added) { toast("すでに今日の献立に入っています"); return; }
+  try {
+    state.todayMenu = await store.setTodayMenu(state.user.id, state.fridge.id, board);
+    state.todayMenuThanks = false;
+    toast(`「${entry.title}」を今日の献立に入れました`);
+  } catch (e) { toast(e.message); }
+  renderMain();
+}
+async function removeFromTodayMenu(recipeKey) {
+  try {
+    state.todayMenu = await store.setTodayMenu(state.user.id, state.fridge.id,
+      removeTodayMenuEntry(state.todayMenu, recipeKey));
+  } catch (e) { toast(e.message); }
+  renderMain();
+}
+/** ボード全体の「足りない材料」を、今の在庫で再評価して名前＋単位で統合する */
+function boardMissingUnion() {
+  const size = state.settings.familySize || 2;
+  const lists = state.todayMenu.entries.map((e) => {
+    if (Array.isArray(e.ingredients) && e.ingredients.length) {
+      try {
+        return evaluateRecipe(
+          { id: e.recipeId, title: e.title, ingredients: e.ingredients, steps: e.steps || [] },
+          state.items, size).missing;
+      } catch { return e.missing || []; }
+    }
+    return e.missing || [];
+  });
+  return mergeMissingIngredients(lists);
+}
+async function addBoardMissingToShopping() {
+  const union = boardMissingUnion();
+  if (!union.length) { toast("足りない材料はありません"); return; }
+  await addMissingToShopping(union);
+  renderMain();
+}
+async function finishTodayMenu() {
+  try {
+    state.todayMenu = await store.setTodayMenu(state.user.id, state.fridge.id, { date: todayISO(), entries: [] });
+    state.todayMenuThanks = true;
+    toast("今日の献立を片付けました。おつかれさま！");
+  } catch (e) { toast(e.message); }
+  renderMain();
+}
+function renderTodayMenuBoard() {
+  const entries = state.todayMenu.entries;
+  if (state.todayMenuThanks && entries.length === 0) {
+    return el("div", { class: "card today-menu-card" },
+      el("h2", {}, "🍽 今日の献立"),
+      el("p", { class: "hint" }, "🎉 今日のごはん完成！おつかれさまでした。また明日、作るものをここに留めてください。"));
+  }
+  const card = el("div", { class: "card today-menu-card" }, el("h2", {}, "🍽 今日の献立"));
+  if (!entries.length) {
+    card.append(el("p", { class: "hint" },
+      "レシピカードの「📌 今日の献立に入れる」で、今夜作るものをここに留めておけます。家族みんなに見えて、翌日になると自動で空になります。"));
+    return card;
+  }
+  const size = state.settings.familySize || 2;
+  for (const g of groupTodayMenuEntries(entries)) {
+    card.append(el("h3", { class: "today-menu-group" }, g.group));
+    for (const e of g.entries) {
+      card.append(el("div", { class: "fridge-row today-menu-row" },
+        el("span", {
+          class: "grow k-link", title: "詳しい作り方を見る",
+          // 詳細ページは recipe.id で recipeKey を作るため、保存時の recipeId を id に戻して渡す
+          onclick: () => openRecipeDetail({ ...e, id: e.recipeId }, {
+            mode: e.mode, size: e.servings || size, servingsLabel: `${e.servings || size}人分`,
+          }),
+        }, e.title),
+        e.minutes ? el("span", { class: "chip" }, `約${e.minutes}分`) : null,
+        el("button", {
+          class: "icon-btn", "aria-label": `${e.title}を今日の献立から外す`,
+          onclick: () => removeFromTodayMenu(e.recipeKey),
+        }, "✕"),
+      ));
+    }
+  }
+  card.append(el("div", { class: "today-menu-actions" },
+    el("button", { class: "btn secondary", onclick: addBoardMissingToShopping }, "足りない材料を買い物リストへ"),
+    el("button", { class: "btn", onclick: finishTodayMenu }, "作った！"),
+  ));
+  return card;
+}
 /** 材料行の消費順メモ（どのロットから使うかを家族に伝える） */
 function fifoNote(ing) {
   const f = ing.fifo;
@@ -1420,7 +1536,7 @@ function fifoNote(ing) {
   if (f.lotCount > 1) parts.push(`在庫${f.lotCount}件中`);
   return parts.length ? `（${parts.join("・")}）` : "";
 }
-function renderRecipeCard(r, { servingsLabel, starBtn, savedNote = "", onOpen = null }) {
+function renderRecipeCard(r, { servingsLabel, starBtn, savedNote = "", onOpen = null, onPin = null }) {
   const card = el("div", { class: "card recipe-card" + (onOpen ? " openable" : "") },
     el("div", { class: "recipe-head" },
       el("h2", { class: "grow" }, r.title),
@@ -1447,6 +1563,9 @@ function renderRecipeCard(r, { servingsLabel, starBtn, savedNote = "", onOpen = 
     r.missing.length ? el("button", {
       class: "btn secondary small", onclick: (e) => { e.stopPropagation(); addMissingToShopping(r.missing); },
     }, "足りない材料を買い物リストへ") : null,
+    onPin ? el("button", {
+      class: "btn secondary small", onclick: (e) => { e.stopPropagation(); onPin(); },
+    }, "📌 今日の献立に入れる") : null,
     onOpen ? el("p", { class: "hint detail-hint" }, "タップで詳しい作り方を見る") : null,
   );
   if (onOpen) {
@@ -1570,6 +1689,8 @@ function renderRecipeDetailPage() {
       el("div", { class: "detail-actions" },
         el("button", { class: "btn secondary", onclick: onStar },
           isFav ? "★ お気に入り保存済み（外す）" : "☆ お気に入りに保存"),
+        el("button", { class: "btn secondary", onclick: () => pinToTodayMenu(r, d.mode, d.size) },
+          "📌 今日の献立に入れる"),
         r.missing.length ? el("button", {
           class: "btn secondary", onclick: () => addMissingToShopping(r.missing),
         }, "足りない材料を買い物リストへ") : null,
@@ -1622,6 +1743,7 @@ function renderEventMenuSection(size) {
       servingsLabel: `${size}人分`,
       starBtn: favStarBtn(!!fav, () => toggleRecipeFavorite(d, state.recipeMode, size)),
       onOpen: () => openRecipeDetail(d, { mode: state.recipeMode, size, servingsLabel: `${size}人分` }),
+      onPin: () => pinToTodayMenu(d, state.recipeMode, size),
     }));
   }
   return wrap;
@@ -1669,6 +1791,7 @@ function renderRegionalMenuSection(size) {
       servingsLabel: `${size}人分`,
       starBtn: favStarBtn(!!fav, () => toggleRecipeFavorite(d, state.recipeMode, size)),
       onOpen: () => openRecipeDetail(d, { mode: state.recipeMode, size, servingsLabel: `${size}人分` }),
+      onPin: () => pinToTodayMenu(d, state.recipeMode, size),
     }));
   }
   return wrap;
@@ -1730,6 +1853,7 @@ function renderComboSection(size) {
       savedNote: "組み合わせ提案",
       starBtn: favStarBtn(!!fav, () => toggleRecipeFavorite(r, state.recipeMode, size)),
       onOpen: () => openRecipeDetail(r, { mode: state.recipeMode, size, servingsLabel: `${size}人分` }),
+      onPin: () => pinToTodayMenu(r, state.recipeMode, size),
     });
     if (enterCombo) {
       card.classList.add("card-enter");
@@ -1779,6 +1903,9 @@ function renderRecipesTab() {
         ? "登録されている食材だけで作れるレシピです（買い足しなし）。食材は消費期限の近いもの→先に買ったものの順で使う前提で提案します。気に入ったレシピは☆で保存できます。"
         : "あと少し買い足せば作れるレシピです。足りない材料は買い物リストに追加できます。食材は消費期限の近いもの→先に買ったものの順で使う前提で提案します。気に入ったレシピは☆で保存できます。"),
   ));
+  // 今日の献立ボードは、どの表示（おすすめ／イベント／郷土／お気に入り）でも
+  // レシピタブの先頭に出す（今夜作るものをいつでも確認・編集できるように）
+  wrap.append(renderTodayMenuBoard());
   if (state.recipeView === "favorites") {
     if (state.favRecipes.length === 0) {
       wrap.append(el("div", { class: "card" }, el("p", { class: "empty" },
@@ -1788,6 +1915,7 @@ function renderRecipesTab() {
       wrap.append(renderRecipeCard(f, {
         servingsLabel: f.servings ? `保存時 ${f.servings}人分` : "",
         savedNote: f.mode === "shop" ? "買い出しで作る" : "あるもので作る",
+        onPin: () => pinToTodayMenu(f, f.mode, f.servings || size),
         onOpen: () => openRecipeDetail(f, {
           mode: f.mode, size: f.servings || size,
           servingsLabel: f.servings ? `保存時 ${f.servings}人分` : "", favId: f.id,
@@ -1863,6 +1991,7 @@ function renderRecipesTab() {
       servingsLabel: `${size}人分`,
       starBtn: favStarBtn(!!fav, () => toggleRecipeFavorite(r, state.recipeMode, size)),
       onOpen: () => openRecipeDetail(r, { mode: state.recipeMode, size, servingsLabel: `${size}人分` }),
+      onPin: () => pinToTodayMenu(r, state.recipeMode, size),
     });
     if (enterSuggest) {
       card.classList.add("card-enter");
@@ -2095,6 +2224,7 @@ function renderSettingsTab() {
           await store.deleteAccount(state.user.id);
           state.user = null; state.fridge = null; state.fridges = [];
           state.items = []; state.shopping = []; state.members = []; state.favRecipes = []; state.catalog = [];
+          state.todayMenu = { date: "", entries: [] }; state.todayMenuThanks = false;
           renderAuth(); toast("退会しました");
         } catch (e) { toast(e.message); }
       },

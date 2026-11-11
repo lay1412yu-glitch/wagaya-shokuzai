@@ -317,3 +317,56 @@ export function fmtQtyValue(quantity, unit) {
   }
   return fmtAmount(q);
 }
+
+// ---------- 今日の献立ボード ----------
+// 「今日作るもの」を一時保存するボード。保存先は冷蔵庫の設定レコード
+// （Demo: settings[fridgeId].todayMenu / 本番: fridge_settings ドキュメントの
+// todayMenu フィールド）で、形は { date: "YYYY-MM-DD", entries: [...] }。
+// entries はレシピお気に入りと同じ形のスナップショット + course。
+// 保存された date が今日でなければ読み取り時に空として扱う（翌日自動リセット）。
+export const TODAY_MENU_GROUPS = ["主菜", "副菜", "汁物", "その他"];
+export function todayMenuGroupOf(course) {
+  return course === "主菜" || course === "副菜" || course === "汁物" ? course : "その他";
+}
+export function emptyTodayMenu(today = todayISO()) {
+  return { date: today, entries: [] };
+}
+/** 保存値の正規化: 日付が今日でない・形が壊れている場合は空のボードを返す */
+export function normalizeTodayMenu(raw, today = todayISO()) {
+  if (!raw || raw.date !== today || !Array.isArray(raw.entries)) return emptyTodayMenu(today);
+  return {
+    date: today,
+    entries: raw.entries.filter((e) => e && e.recipeKey && e.title),
+  };
+}
+/** ボードへの追加（同じ recipeKey があれば追加しない）。{ board, added } を返す */
+export function upsertTodayMenuEntry(board, entry, today = todayISO()) {
+  const base = normalizeTodayMenu(board, today);
+  if (!entry || !entry.recipeKey) return { board: base, added: false };
+  if (base.entries.some((e) => e.recipeKey === entry.recipeKey)) return { board: base, added: false };
+  return { board: { date: today, entries: [...base.entries, entry] }, added: true };
+}
+export function removeTodayMenuEntry(board, recipeKey, today = todayISO()) {
+  const base = normalizeTodayMenu(board, today);
+  return { date: today, entries: base.entries.filter((e) => e.recipeKey !== recipeKey) };
+}
+/** コース順（主菜→副菜→汁物→その他）にグループ化する。空のグループは含めない */
+export function groupTodayMenuEntries(entries) {
+  return TODAY_MENU_GROUPS
+    .map((group) => ({ group, entries: (entries || []).filter((e) => todayMenuGroupOf(e.course) === group) }))
+    .filter((g) => g.entries.length > 0);
+}
+/** 複数レシピの「足りない材料」を名前＋単位で統合する（分量は合算） */
+export function mergeMissingIngredients(missingLists) {
+  const map = new Map();
+  for (const list of missingLists || []) {
+    for (const m of list || []) {
+      if (!m || !m.name) continue;
+      const key = `${m.name}${m.unit || ""}`;
+      const prev = map.get(key);
+      if (prev) prev.amount = roundQty(prev.amount + (Number(m.amount) || 0));
+      else map.set(key, { name: m.name, amount: Number(m.amount) || 0, unit: m.unit || "" });
+    }
+  }
+  return [...map.values()];
+}

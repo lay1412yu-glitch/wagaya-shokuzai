@@ -16,7 +16,7 @@
 // - コード参加は RPC 経由のみ。関数側で試行回数を記録し、上限を超えると拒否する。
 // - パスワードは Supabase Auth が管理し、このアプリは一切保持しない。
 
-import { generateInviteCode, normalizeCode } from "./util.js";
+import { generateInviteCode, normalizeCode, todayISO, normalizeTodayMenu } from "./util.js";
 
 const CDN = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
 const BUCKET = "item-photos";
@@ -266,6 +266,25 @@ export class SupabaseStore {
       .upsert({ fridge_id: fridgeId, family_size: patch.familySize }, { onConflict: "fridge_id" });
     if (error) throw new Error(error.message);
     return { familySize: patch.familySize };
+  }
+
+  // ---- 今日の献立ボード ----
+  // 「今日作るもの」の一時保存。fridge_settings の today_menu (jsonb) に
+  // { date, entries } で持つ。date が今日でなければ読み取り時に空になる。
+  async getTodayMenu(userId, fridgeId) {
+    const { data, error } = await this.client.from("fridge_settings").select("today_menu").eq("fridge_id", fridgeId).single();
+    if (error) return normalizeTodayMenu(null);
+    return normalizeTodayMenu(data ? data.today_menu : null);
+  }
+  async setTodayMenu(userId, fridgeId, board) {
+    const clean = {
+      date: board && board.date ? String(board.date) : todayISO(),
+      entries: board && Array.isArray(board.entries) ? board.entries : [],
+    };
+    const { error } = await this.client.from("fridge_settings")
+      .upsert({ fridge_id: fridgeId, today_menu: clean }, { onConflict: "fridge_id" });
+    if (error) throw new Error(error.message);
+    return normalizeTodayMenu(clean);
   }
 
   // ---- レシピお気に入り ----

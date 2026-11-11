@@ -413,6 +413,12 @@ input[type="date"] {
 .detail-step .step-min { flex: none; margin-top: 3px; }
 .detail-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
 .detail-actions .btn { flex: 1 1 150px; min-height: 44px; }
+
+/* ---------- 今日の献立ボード ---------- */
+.today-menu-group { margin: 14px 0 4px; font-size: 14px; color: var(--accent-deep); }
+.today-menu-row .k-link { cursor: pointer; }
+.today-menu-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+.today-menu-actions .btn { flex: 1 1 150px; min-height: 44px; }
 .stepper .num { font-size: 20px; font-weight: 800; min-width: 64px; text-align: center; letter-spacing: 0.03em; }
 
 /* ---------- 下部ナビ・トースト ---------- */

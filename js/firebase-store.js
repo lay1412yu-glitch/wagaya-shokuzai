@@ -16,7 +16,7 @@
 //   コード、再発行で旧コード即無効、fridgeId は推測不能なランダムID）。
 // - パスワードは Firebase Authentication が管理し、このアプリは保持しない。
 
-import { generateInviteCode, normalizeCode, todayISO } from "./util.js";
+import { generateInviteCode, normalizeCode, todayISO, normalizeTodayMenu } from "./util.js";
 import {
   inviteCodeHash, memberDocId, catalogDocId, favoriteDocId, pushTokenDocId,
   itemToDoc, itemFromDoc, itemPatchToDoc, shoppingToDoc, shoppingFromDoc,
@@ -374,6 +374,28 @@ export class FirebaseStore {
     return { familySize: patch.familySize };
   }
 
+  // ---- 今日の献立ボード ----
+  // 「今日作るもの」の一時保存。置き場所は fridge_settings/{fridgeId} の
+  // todayMenu フィールド。firestore.rules の fridge_settings は
+  // 「メンバー（または作成者）が get / create / update 可」なので、
+  // 既存ルールのままメンバー全員で読み書きできる（ルール変更不要）。
+  // date が今日でなければ読み取り時に空になる（翌日自動リセット）。
+  async getTodayMenu(userId, fridgeId) {
+    try {
+      const snap = await this._mods.getDoc(this._mods.doc(this.db, "fridge_settings", fridgeId));
+      return normalizeTodayMenu(snap.exists() ? snap.data().todayMenu : null);
+    } catch { return normalizeTodayMenu(null); }
+  }
+  async setTodayMenu(userId, fridgeId, board) {
+    const fs = this._mods;
+    const clean = {
+      date: board && board.date ? String(board.date) : todayISO(),
+      entries: board && Array.isArray(board.entries) ? board.entries : [],
+    };
+    await fs.setDoc(fs.doc(this.db, "fridge_settings", fridgeId), { todayMenu: clean }, { merge: true });
+    return normalizeTodayMenu(clean);
+  }
+
   // ---- レシピお気に入り（ユーザー × 冷蔵庫・本人のみ） ----
   async listFavoriteRecipes(userId, fridgeId) {
     const fs = this._mods;
@@ -434,6 +456,11 @@ export class FirebaseStore {
         const q = fs.query(fs.collection(this.db, col), fs.where("fridgeId", "==", fridgeId));
         offs.push(fs.onSnapshot(q, () => { try { onChange(col); } catch { /* 描画側の失敗で購読を止めない */ } }, () => {}));
       }
+      // 今日の献立ボード（fridge_settings の todayMenu）も家族の変更を反映する
+      try {
+        offs.push(fs.onSnapshot(fs.doc(this.db, "fridge_settings", fridgeId),
+          () => { try { onChange("fridge_settings"); } catch { /* 描画側の失敗で購読を止めない */ } }, () => {}));
+      } catch { /* 設定ドキュメントの購読に失敗しても他の購読は続ける */ }
       return () => { for (const off of offs) { try { off(); } catch { /* noop */ } } };
     } catch { return null; }
   }

@@ -16,7 +16,7 @@
 //   別領域に分け、owner 以外の getInviteCode は null を返す（本番 RLS と同等仕様）。
 // - コード参加の試行回数制限（10分で10回まで）を実装し、総当たりを防ぐ。
 
-import { uid, sha256Hex, generateInviteCode, normalizeCode, todayISO } from "./util.js";
+import { uid, sha256Hex, generateInviteCode, normalizeCode, todayISO, normalizeTodayMenu } from "./util.js";
 
 const DB_KEY = "wagaya_demo_db_v1";
 const SESSION_KEY = "wagaya_demo_session_v1";
@@ -366,6 +366,27 @@ export class DemoStore {
     db.settings[fridgeId] = { ...(db.settings[fridgeId] || { familySize: 2 }), ...patch };
     this._save(db);
     return { ...db.settings[fridgeId] };
+  }
+
+  // ---- 今日の献立ボード ----
+  // 「今日作るもの」の一時保存。設定レコード（settings[fridgeId]）の
+  // todayMenu に { date, entries } で持つ（家族全員で共有される）。
+  // date が今日でなければ読み取り時に空になる（翌日自動リセット）。
+  async getTodayMenu(userId, fridgeId) {
+    const db = this._load();
+    this._assertMember(db, userId, fridgeId);
+    return normalizeTodayMenu((db.settings[fridgeId] || {}).todayMenu);
+  }
+  async setTodayMenu(userId, fridgeId, board) {
+    const db = this._load();
+    this._assertMember(db, userId, fridgeId);
+    const clean = {
+      date: board && board.date ? String(board.date) : todayISO(),
+      entries: board && Array.isArray(board.entries) ? board.entries : [],
+    };
+    db.settings[fridgeId] = { ...(db.settings[fridgeId] || { familySize: 2 }), todayMenu: clean };
+    this._save(db);
+    return normalizeTodayMenu(clean);
   }
 
   // ---- プッシュ通知の購読（デモでは保存先が無いので何もしない） ----
