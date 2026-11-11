@@ -265,7 +265,7 @@ export const CHAR_KEYWORDS = [
 /** カテゴリ汎用キャラのキー（専用キャラではないので採用しない） */
 export const GENERIC_CHAR_KEYS = new Set(["leafy", "fish", "meat", "box", "can", "bottle", "jar", "snow", "cup"]);
 
-/** 図鑑カタログ食材名 → ミュゼ版キャラファイル（175/214品・残りは専用SVG） */
+/** 図鑑カタログ食材名 → キャラファイル（214/214品。うち39品はミュゼ版に無い/共有だったため、ミュゼ風に新規作成した専用キャラ） */
 export const CHAR_BY_NAME = {
   "松茸": "matsutake.webp",
   "トリュフ": "truffle.webp",
@@ -442,6 +442,47 @@ export const CHAR_BY_NAME = {
   "ビール": "beer.webp",
   "ジュース": "juice.webp",
   "アイスクリーム": "icecream.webp",
+  // ---- 新規作成39品（ミュゼ版で他食材と共有されていた18品＋アートが無かった21品。
+  // 使い回し禁止のため各品専用ファイル。太陽のタマゴは卵ではなく宮崎マンゴーの銘柄）
+  "本まぐろ": "honmaguro.webp",
+  "夕張メロン": "yubarimelon.webp",
+  "太陽のタマゴ": "taiyotamago.webp",
+  "白いちご": "shiroichigo.webp",
+  "デンスケすいか": "densuke.webp",
+  "甘えび": "amaebi.webp",
+  "生ハム": "namahamu.webp",
+  "手羽元": "tebamoto.webp",
+  "鶏ガラスープ": "chickensoup.webp",
+  "豚こま肉": "butakoma.webp",
+  "豚ロース": "porkloin.webp",
+  "厚揚げ": "atsuage.webp",
+  "ロールパン": "rollpan.webp",
+  "フランスパン": "baguette.webp",
+  "そば": "soba.webp",
+  "パスタ": "pasta.webp",
+  "ラーメン": "ramen.webp",
+  "そうめん": "somen.webp",
+  "毛ガニ": "kegani.webp",
+  "和牛": "wagyu.webp",
+  "のどぐろ": "nodoguro.webp",
+  "花山椒": "hanasansho.webp",
+  "こしあぶら": "koshiabura.webp",
+  "たらの芽": "taranome.webp",
+  "ふきのとう": "fukinoto.webp",
+  "じゅんさい": "junsai.webp",
+  "ルビーロマン": "rubyroman.webp",
+  "あん肝": "ankimo.webp",
+  "ズワイガニ": "zuwaigani.webp",
+  "うなぎ": "unagi.webp",
+  "ドラゴンフルーツ": "dragonfruit.webp",
+  "かれい": "karei.webp",
+  "アボカド": "avocado.webp",
+  "おにぎり": "onigiri.webp",
+  "胡椒": "peppershaker.webp",
+  "わさび": "wasabi.webp",
+  "チョコレート": "chocolate.webp",
+  "冷凍ポテト": "frozenfries.webp",
+  "ミックスベジタブル": "mixedveg.webp",
 };
 
 /** CHAR_BY_NAME が使用中のファイル（別食材への再利用を禁止するため） */
