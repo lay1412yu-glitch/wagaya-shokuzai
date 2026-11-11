@@ -584,3 +584,48 @@ button, a, input, select, textarea, label, [role="button"], [role="tab"] { touch
   display: flex; align-items: center; justify-content: center;
 }
 .install-close:active { background: rgba(66, 80, 31, 0.12); }
+
+/* ---------- 読み込み画面（食材キャラ＋豆知識） ---------- */
+/* ベージュ背景の全画面ビュー。キャラが波のように跳ね（transform のみ）、
+   メッセージと豆知識が切り替わる。タップしたキャラは大きく跳ねる（.hop）。 */
+.loading-view { text-align: center; padding: 9vh 8px 24px; }
+.loading-chars {
+  display: flex; justify-content: center; align-items: flex-end;
+  gap: 4px; min-height: 66px;
+}
+.loading-char {
+  width: 54px; height: 54px; margin-right: 0; cursor: pointer;
+  animation: char-bounce 1.15s ease-in-out infinite;
+  will-change: transform;
+}
+.loading-char.hop { animation: char-hop 0.55s ease; }
+@keyframes char-bounce {
+  0%, 100% { transform: translateY(0) scale(1, 1); }
+  30% { transform: translateY(-13px) scale(0.97, 1.03); }
+  55% { transform: translateY(0) scale(1.05, 0.94); }
+  70% { transform: translateY(-4px) scale(1, 1); }
+}
+@keyframes char-hop {
+  0% { transform: translateY(0) scale(1, 1); }
+  35% { transform: translateY(-30px) scale(0.94, 1.08) rotate(-4deg); }
+  65% { transform: translateY(0) scale(1.12, 0.85); }
+  100% { transform: translateY(0) scale(1, 1); }
+}
+.loading-msg {
+  color: var(--ink-soft); font-size: 15px; font-weight: 700;
+  letter-spacing: 0.04em; margin: 18px 0 22px; min-height: 1.6em;
+}
+.loading-fact {
+  display: flex; gap: 12px; align-items: flex-start; text-align: left;
+  max-width: 430px; margin: 0 auto;
+  background: var(--card); border: 1px solid var(--line-soft);
+  border-radius: var(--radius); box-shadow: var(--shadow);
+  padding: 14px 16px;
+}
+.loading-fact-thumb { flex: none; }
+.loading-fact-thumb .food-icon { width: 46px; height: 46px; margin-right: 0; }
+.loading-fact-name { font-weight: 800; font-size: 13.5px; color: var(--accent-deep); margin-bottom: 2px; }
+.loading-fact-text { margin: 0; font-size: 14px; line-height: 1.65; }
+@media (prefers-reduced-motion: reduce) {
+  .loading-char, .loading-char.hop { animation: none; }
+}

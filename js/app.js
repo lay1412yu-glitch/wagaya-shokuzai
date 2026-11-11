@@ -27,6 +27,7 @@ import { DemoStore, DEMO_DB_KEY } from "./demo-store.js";
 import { GUIDE_STEPS, guideSeen, markGuideSeen } from "./guide.js";
 import { legalDocs } from "./legal.js";
 import { buildReminders, notifyOnOpen, permissionState, subscribePush } from "./notify.js";
+import { LOADING_MESSAGES, LOADING_CHAR_NAMES, loadingFactPool, pickLoadingFact } from "./loading.js";
 
 const CATEGORIES = ["野菜", "肉", "魚", "卵・乳製品", "豆腐・大豆", "調味料", "乾物・缶詰", "冷凍食品", "飲み物", "果物", "その他"];
 // 保管場所の区分（冷蔵庫／冷凍庫／野菜室／常温）は util.js の STORAGE_ZONES が正。
@@ -171,6 +172,69 @@ window.addEventListener("storage", (e) => {
   scheduleRealtimeRefresh();
 });
 
+// ---------- 読み込み画面（食材キャラ＋豆知識） ----------
+// 起動時・冷蔵庫を開く/切り替える時に出す全画面の待ち画面。
+// 食材キャラが波のように跳ね、ステータスメッセージと食育の豆知識が切り替わる。
+// 最小表示時間は設けない（準備ができたらすぐ本画面に替わる）。
+// タイマーは loadingTimers に集め、どの画面に遷移しても stopLoadingView() で
+// 必ず止める（renderMain / renderAuth / renderFridgePicker / renderLegalPage の
+// 先頭で呼ぶ）。万一止め忘れても、ノードが DOM から外れたら自ら止まる。
+const LOADING_FACT_POOL = loadingFactPool();
+let loadingTimers = [];
+function stopLoadingView() {
+  for (const t of loadingTimers) clearInterval(t);
+  loadingTimers = [];
+}
+function renderLoadingView() {
+  stopLoadingView();
+  appRoot.replaceChildren();
+  const msgNode = el("p", { class: "loading-msg", role: "status" }, LOADING_MESSAGES[0]);
+  const charsRow = el("div", { class: "loading-chars" }, LOADING_CHAR_NAMES.map((name, i) => {
+    const c = iconEl(name);
+    c.classList.add("loading-char");
+    c.style.animationDelay = `${(i * 0.13).toFixed(2)}s`;
+    // タップすると大きく跳ねる（状態を持たない、見た目だけのお楽しみ）
+    c.addEventListener("click", () => {
+      c.classList.remove("hop");
+      void c.offsetWidth; // アニメーションを最初から再生し直す
+      c.classList.add("hop");
+    });
+    c.addEventListener("animationend", (e) => {
+      if (e.animationName === "char-hop") c.classList.remove("hop");
+    });
+    return c;
+  }));
+  const factThumb = el("span", { class: "loading-fact-thumb" });
+  const factName = el("div", { class: "loading-fact-name" }, "");
+  const factText = el("p", { class: "loading-fact-text" }, "");
+  const factCard = el("div", { class: "loading-fact" },
+    factThumb,
+    el("div", { class: "grow" }, factName, factText));
+  factCard.hidden = LOADING_FACT_POOL.length === 0;
+  let lastFactName = null;
+  const showFact = () => {
+    const f = pickLoadingFact(LOADING_FACT_POOL, Math.random, lastFactName);
+    if (!f) return;
+    lastFactName = f.name;
+    factThumb.replaceChildren(iconEl(f.name));
+    factName.textContent = `${f.name}のまめちしき`;
+    factText.textContent = f.trivia;
+  };
+  showFact();
+  appRoot.append(el("div", { class: "loading-view" }, charsRow, msgNode, factCard));
+  let msgIdx = 0;
+  const msgTimer = setInterval(() => {
+    if (!msgNode.isConnected) { stopLoadingView(); return; }
+    msgIdx = (msgIdx + 1) % LOADING_MESSAGES.length;
+    msgNode.textContent = LOADING_MESSAGES[msgIdx];
+  }, 1600);
+  const factTimer = setInterval(() => {
+    if (!factText.isConnected) { stopLoadingView(); return; }
+    showFact();
+  }, 3500);
+  loadingTimers = [msgTimer, factTimer];
+}
+
 // ---------- はじめてガイド ----------
 function renderGuideCard() {
   return el("div", { class: "card guide-card" },
@@ -190,6 +254,7 @@ function renderGuideCard() {
 
 // ---------- 法的ページ（プライバシーポリシー／利用規約） ----------
 function renderLegalPage() {
+  stopLoadingView();
   appRoot.replaceChildren();
   const doc = legalDocs().find((d) => d.id === state.legalView) || legalDocs()[0];
   const wrap = el("div", { class: "card legal-page" },
@@ -247,6 +312,7 @@ async function maybeSubscribePush() {
 // ================= 認証画面 =================
 function renderAuth(errorMsg = "") {
   if (state.legalView) { renderLegalPage(); return; }
+  stopLoadingView();
   appRoot.replaceChildren();
   const email = el("input", { type: "email", autocomplete: "email", placeholder: "メールアドレス" });
   const pass = el("input", { type: "password", autocomplete: state.authTab === "login" ? "current-password" : "new-password", placeholder: "パスワード（6文字以上）" });
@@ -281,6 +347,7 @@ function renderAuth(errorMsg = "") {
 }
 
 async function afterLogin() {
+  renderLoadingView(); // 冷蔵庫一覧〜冷蔵庫を開くまでの待ち時間も読み込み画面にする
   state.tab = "stock";
   // 初回だけ、はじめてガイドを出す（設定からいつでも見直せる）
   if (state.user && !guideSeen(localStorage, state.user.id)) state.showGuide = true;
@@ -305,6 +372,7 @@ async function afterLogin() {
 
 // ================= 冷蔵庫の選択 =================
 function renderFridgePicker(errorMsg = "") {
+  stopLoadingView();
   appRoot.replaceChildren();
   if (state.showGuide) appRoot.append(renderGuideCard());
   const nameInput = el("input", { type: "text", placeholder: "例）わが家の冷蔵庫" });
@@ -361,7 +429,17 @@ async function openFridge(fridgeId) {
   state.sessionTrash = [];
   state.suggestPage = 0; state.comboSeen = []; state.comboRound = 0;
   state.stockZone = STORAGE_ZONE_ALL; state.recipeDetail = null; state.recipeFilter = "all";
-  await refreshData();
+  renderLoadingView(); // データ取得中は読み込み画面（キャラ＋豆知識）を出す
+  try {
+    await refreshData();
+  } catch (e) {
+    // 読み込み画面に閉じ込めない: 選択画面に戻してやり直せるようにする
+    stopLoadingView();
+    state.fridge = null;
+    toast("読み込みに失敗しました: " + e.message);
+    renderFridgePicker();
+    return;
+  }
   setupRealtime();
   // アプリを開いたタイミングのローカル通知（許可済み・1日1回・サーバー不要）
   notifyOnOpen(state.items).catch(() => {});
@@ -382,6 +460,7 @@ async function refreshData() {
 // ================= メイン画面 =================
 function renderMain() {
   if (state.legalView) { renderLegalPage(); return; }
+  stopLoadingView();
   if (!state.suikaView && suikaCtrl) suikaCtrl.detach(); // ゲーム画面を離れたら物理ループを止める
   appRoot.replaceChildren();
   const content = el("div", {});
@@ -1994,6 +2073,7 @@ maybeShowInstallHint();
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker.register("sw.js").catch(() => { /* file:// 等では無効でよい */ });
 }
+renderLoadingView();
 initStore()
   .then(async () => {
     state.user = await store.currentUser();
@@ -2001,5 +2081,6 @@ initStore()
     else renderAuth();
   })
   .catch((e) => {
+    stopLoadingView();
     appRoot.replaceChildren(el("div", { class: "card" }, el("div", { class: "error" }, "読み込みに失敗しました: " + e.message)));
   });

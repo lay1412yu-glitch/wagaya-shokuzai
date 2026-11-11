@@ -2,7 +2,7 @@
 // 方針: アプリの殻（HTML/CSS/JS）はキャッシュして高速・オフライン表示に対応。
 // Firebase への通信は常にネットワーク（キャッシュしない）ことで、
 // 在庫データが古いまま固定される事故を防ぐ。
-const CACHE = "wagaya-shokuzai-v28";
+const CACHE = "wagaya-shokuzai-v29";
 // ミュゼ版キャラ画像（img/chars/*.webp・200枚超）は SHELL に入れず、
 // 初回表示時にここへ貯めるランタイムキャッシュにする（cache-first）。
 // アプリ本体の版数が上がってもキャラキャッシュは消さない。
@@ -11,7 +11,7 @@ const SHELL = [
   "./", "./index.html", "./styles.css", "./config.js", "./manifest.webmanifest", "./icon.svg",
   "./icon-192.png", "./icon-512.png", "./apple-touch-icon.png", "./favicon-32.png", "./favicon.ico",
   "./js/app.js", "./js/util.js", "./js/recipes.js", "./js/levels.js", "./js/knowledge.js", "./js/demo-store.js", "./js/supabase-store.js", "./js/firebase-store.js", "./js/firebase-model.js", "./js/qrcode.js", "./js/icons.js", "./js/chars.js",
-  "./js/guide.js", "./js/legal.js", "./js/notify.js", "./js/game.js", "./js/suika.js", "./js/combo.js",
+  "./js/guide.js", "./js/legal.js", "./js/notify.js", "./js/game.js", "./js/suika.js", "./js/combo.js", "./js/loading.js",
 ];
 self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
