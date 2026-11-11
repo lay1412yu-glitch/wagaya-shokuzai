@@ -18,7 +18,7 @@
 // VAPID）のロールバック用に残してある。
 // 手順は README「プッシュ通知（サーバー発）について」を参照。
 
-import { daysUntil, expiryLabel, todayISO} from "./util.js";
+import { daysUntil, expiryLabel, todayISO, isLowStock } from "./util.js";
 
 export const NOTIFY_STAMP_KEY = "wagaya_notify_last_v1";
 
@@ -35,7 +35,7 @@ message: d < 0
 : `「${item.name}」は${expiryLabel(item.expiryDate)}です`,
 });
 }
-if (item.isFavorite && Number(item.quantity) <= Number(item.lowThreshold?? 1)) {
+if (isLowStock(item)) {
 reminders.push({ kind: "low", name: item.name, message: `お気に入り「${item.name}」が残りわずかです`});
 }
 }

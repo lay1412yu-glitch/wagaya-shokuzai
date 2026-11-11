@@ -13,7 +13,7 @@
 // - 参加用リンク ?join=<code> を受けたら、コードを sessionStorage に退避し、
 //   ログイン完了後に自動で参加を試みる（URL の履歴からは即座に消す）。
 
-import { el, uid, todayISO, daysUntil, formatDate, expiryLabel, expiryGroup, expiryChipClass, formatCode, fmtQtyValue, qtyStepFor, roundQty, isFractionUnit, matchesSearch, topPurchased, recentRegistered, oneTapCandidates, inListQuantity, planOneTapAdd, RECIPE_QUICK_FILTERS, matchesRecipeFilter, filterRecipes, STORAGE_ZONES, STORAGE_ZONE_ALL, countByStorage, filterByStorage, suggestStorage, UNIT_OPTIONS, UNIT_OTHER_VALUE, unitSelectValueFor, resolveUnitValue, upsertTodayMenuEntry, removeTodayMenuEntry, groupTodayMenuEntries, mergeMissingIngredients } from "./util.js";
+import { el, uid, todayISO, daysUntil, formatDate, expiryLabel, expiryGroup, expiryChipClass, formatCode, fmtQtyValue, qtyStepFor, roundQty, isFractionUnit, isLowStock, matchesSearch, topPurchased, recentRegistered, oneTapCandidates, inListQuantity, planOneTapAdd, RECIPE_QUICK_FILTERS, matchesRecipeFilter, filterRecipes, STORAGE_ZONES, STORAGE_ZONE_ALL, countByStorage, filterByStorage, suggestStorage, UNIT_OPTIONS, UNIT_OTHER_VALUE, unitSelectValueFor, resolveUnitValue, upsertTodayMenuEntry, removeTodayMenuEntry, groupTodayMenuEntries, mergeMissingIngredients } from "./util.js";
 import { suggestRecipes, suggestMealSet, suggestEventMenu, EVENT_MENUS, suggestRegionalMenu, REGIONS, evaluateRecipe } from "./recipes.js";
 import * as recipesNs from "./recipes.js";
 import { suggestCombos, repertoireSize } from "./combo.js";
@@ -863,7 +863,7 @@ function renderSuikaPage() {
 }
 
 // ---------- 在庫タブ ----------
-function isLow(item) { return item.isFavorite && Number(item.quantity) <= Number(item.lowThreshold ?? 1); }
+function isLow(item) { return isLowStock(item); }
 
 async function maybeAutoAddShopping(item) {
   if (!isLow(item)) return;

@@ -113,6 +113,22 @@ export function qtyStepFor(unit) { return isFractionUnit(unit) ? 0.25 : 1; }
 export function roundQty(n) { return Math.round(Number(n) * 100) / 100; }
 
 const QUARTER_FRACTIONS = [[0.25, "1/4"], [0.5, "1/2"], [0.75, "3/4"]];
+
+// ---- 残りわずか判定（共通） ----
+// お気に入りで、数量がしきい値以下なら「残りわずか」。しきい値未設定の既定は 1。
+// 玉（分数）単位の頭野菜（キャベツ・白菜など）は、残り 1/4 まで切ったら
+// 残りわずか扱いにする: 明示しきい値がある場合も、実効しきい値は
+// max(しきい値, 1/4)。数量 0 の扱いは従来通り（既存判定のまま）。
+export const FRACTION_LOW_QTY = 0.25;
+export function effectiveLowThreshold(item) {
+  const raw = item?.lowThreshold;
+  const base = raw === null || raw === undefined ? 1 : Number(raw);
+  return isFractionUnit(item?.unit) ? Math.max(base, FRACTION_LOW_QTY) : base;
+}
+export function isLowStock(item) {
+  if (!item || !item.isFavorite) return false;
+  return Number(item.quantity) <= effectiveLowThreshold(item);
+}
 // ---- 在庫検索（カナの揺れを吸収する正規化） ----
 // カタカナ→ひらがな化＋小文字化＋空白除去をしてから、名前同士を部分一致で比べる。
 // 例: 検索「きゃべつ」は登録名「キャベツ」に一致する（表記ゆれを吸収）。
