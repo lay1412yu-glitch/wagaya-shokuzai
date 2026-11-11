@@ -90,6 +90,8 @@ input, select {
 input:focus, select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(176, 134, 84, 0.16); }
 input[type="checkbox"] { width: 20px; height: 20px; accent-color: var(--accent); }
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
+.form-grid > div { min-width: 0; }
+.form-grid input[type="date"] { min-width: 0; max-width: 100%; }
 .check-line { display: flex; align-items: center; gap: 8px; font-size: 14px; margin-top: 14px; color: var(--ink); letter-spacing: 0; }
 .check-line input { width: 20px; }
 

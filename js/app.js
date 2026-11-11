@@ -824,7 +824,7 @@ function renderAddItemForm() {
       el("div", {}, el("label", {}, "数量"), qty),
       el("div", {}, el("label", {}, "単位"), unit),
       el("div", {}, el("label", {}, "賞味・消費期限"), expiry),
-      el("div", {}, el("label", {}, "残りわずか判定（お気に入り用）"), threshold),
+      el("div", {}, el("label", {}, "残りわずか判定"), threshold),
     ),
     unitList,
     fracRow,
