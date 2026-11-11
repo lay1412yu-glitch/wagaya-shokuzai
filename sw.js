@@ -2,7 +2,7 @@
 // 方針: アプリの殻（HTML/CSS/JS）はキャッシュして高速・オフライン表示に対応。
 // Firebase への通信は常にネットワーク（キャッシュしない）ことで、
 // 在庫データが古いまま固定される事故を防ぐ。
-const CACHE = "wagaya-shokuzai-v22";
+const CACHE = "wagaya-shokuzai-v23";
 const SHELL = [
   "./", "./index.html", "./styles.css", "./config.js", "./manifest.webmanifest", "./icon.svg",
   "./icon-192.png", "./icon-512.png", "./apple-touch-icon.png", "./favicon-32.png", "./favicon.ico",
