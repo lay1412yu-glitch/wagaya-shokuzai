@@ -14,11 +14,11 @@
 // 問題の種類（type）: 全18種類
 // - "knowledge":  知識ページの3択クイズそのもの
 // - "season":     「いちばんおいしい季節（旬）はいつ？」を選ぶ
-// - "name":       まめちしきをヒントに、食材の名前を当てる（キャラはシルエット表示）
+// - "name":       まめちしきをヒントに、食材の名前を当てる（回答前はキャラを出さない）
 // - "nutrition":  「この食材に多く入っている栄養は？」（body=からだにいいこと から出題）
 // - "choose":     「おいしい○○の見分け方は？」（choose=見分け方 が正解、
 //                   他の食材の見分け方が選択肢になる）
-// - "seasonfood": 「○○（季節）に旬の食べ物はどれ？」（名前の3択。シルエット表示）
+// - "seasonfood": 「○○（季節）に旬の食べ物はどれ？」（名前の3択。回答前はキャラを出さない）
 // - "regional":   郷土料理クイズ「○○はどこの地域の名物？」（recipes.js の
 //                   地域データから出題。料理名と由来メモを使う）
 // - "category":   仲間分けクイズ「なかまはずれはどれ？」（2つは同じカテゴリ、
@@ -38,6 +38,20 @@
 // - "recipeout":  レシピクイズ「『○○』に入らない食材はどれ？」
 // - "eventdish":  イベント料理クイズ「『○○』はどの行事のごちそう？」／
 //                   「○○（行事）の料理はどれ？」（EVENT_MENUS から出題）
+//
+// 答え漏れ防止（2026-11-12 ユーザー報告で全面監査）:
+// 「答えを当てる」タイプ（GAME_GUESS_TYPES）は、正解のキャラ画像が
+// 見えると見た目で答えが分かってしまうため、問題データに hideChar を
+// 付け、画面側は回答前はプレースホルダ（？）表示にする。回答後
+// （正解発表）にはキャラを出す（むしろ学習になる）。
+// 食材名が問題の前提のタイプ（knowledge/season/nutrition/choose/
+// trivia/bodywork）と、答えが地域・都道府県で食材の画像からは推測
+// できないタイプ（regional/prefecture）はキャラを表示してよい。
+// ヒント文（name/bodyhint/chooserev）は生成時に答えの食材名を伏せ字に
+// しており、栄養当て（nutrientrev）の問題文は栄養名だけなので漏れない
+// （テストで全品スキャンして検証）。
+// 選択肢は全タイプ Fisher-Yates でシャッフルし、正解位置は偏らない
+// （テストで位置分布を検証）。
 //
 // どの問題にも fact（答えた後に見せる短い解説・豆知識）が付く。fact は
 // 食育データやレシピの由来メモ・行事メモから生成し、explain の末尾にも
@@ -63,6 +77,16 @@ export const GAME_TYPES = [
   "knowledge", "season", "name", "nutrition", "choose", "seasonfood", "regional",
   "category", "trivia", "bodyhint", "bodywork", "nutrientrev", "chooserev",
   "prefecture", "prefdish", "recipein", "recipeout", "eventdish",
+];
+/** 回答前に正解のキャラを見せてはいけない「当てる系」タイプ。
+ * name/seasonfood/bodyhint/chooserev/nutrientrev は正解が食材名そのもので
+ * q.name が正解、category は q.name が仲間はずれ（正解そのもの）、
+ * recipein は q.name が正解の食材。recipeout は q.name が「入っている」
+ * 食材で、見えると選択肢が1つ消去できてしまう。prefdish/eventdish は
+ * 正解の料理の主材料が見えると料理名が推測できてしまうため伏せる。 */
+export const GAME_GUESS_TYPES = [
+  "name", "seasonfood", "bodyhint", "chooserev", "nutrientrev",
+  "category", "recipein", "recipeout", "prefdish", "eventdish",
 ];
 /** 難易度ごとの出題タイプ。family は全タイプ、kids はやさしいものだけ、
  *  adult は栄養・見分け方・由来・都道府県など歯ごたえのあるもの中心。 */
@@ -634,7 +658,7 @@ function eventDishQuestion(rng) {
  * difficulty: "kids" | "family" | "adult"（出題タイプの顔ぶれが変わる）
  * types: 出題タイプを直接指定したいとき（difficulty より優先）
  * 同じラウンド内では、同じ問題（タイプ＋問題文＋選択肢）は二度出ない。
- * 戻り値: [{ name, category, type, q, choices[3], answer, explain, fact }]
+ * 戻り値: [{ name, category, type, q, choices[3], answer, explain, fact, hideChar }]
  */
 export function buildGameQuestions(pool, { count = GAME_QUESTION_COUNT, seed = 1, difficulty = GAME_DIFFICULTY_DEFAULT, types = null } = {}) {
   const rng = mulberry32(seed);
@@ -743,6 +767,8 @@ export function buildGameQuestions(pool, { count = GAME_QUESTION_COUNT, seed = 1
     }
     used.add(keyOf(best));
     usedNames.add(best.name);
+    // 当てる系は回答前に正解キャラを見せない（画面側が hideChar を見る）
+    best.hideChar = GAME_GUESS_TYPES.includes(best.type);
     questions.push(best);
   }
   return questions;

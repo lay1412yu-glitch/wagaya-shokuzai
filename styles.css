@@ -678,7 +678,9 @@ select.inline-select { width: auto; display: inline-block; padding: 6px 8px; fon
 .game-hero .food-icon { width: 96px; height: 96px; }
 .game-hero .food-icon svg { width: 74px; height: 74px; }
 .game-hero .food-icon img.char-img { width: 88px; height: 88px; }
-.game-hero .food-icon.game-mystery { filter: brightness(0.45) saturate(0.25) contrast(0.9); }
+/* 当てる系クイズの回答前表示: キャラ画像は出さず「？」プレースホルダにする
+   （旧仕様の暗くするだけのシルエットでは姿で答えがバレたため） */
+.game-hero .food-icon.game-mystery { background: #f7ecd4; border: 2px dashed #d9c491; border-radius: 24px; }
 .game-score { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
 .game-q { font-size: 17.5px; font-weight: 800; line-height: 1.75; letter-spacing: 0.02em; margin: 6px 0 4px; }
 .game-choice { text-align: left; font-size: 15.5px; }

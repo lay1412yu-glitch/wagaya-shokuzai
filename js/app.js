@@ -849,8 +849,13 @@ function renderGamePage() {
   // 出題画面
   const q = g.questions[g.index];
   const scoreNow = g.flags.filter(Boolean).length;
-  const heroIcon = iconEl(q.name, q.category);
-  if ((q.type === "name" || q.type === "seasonfood" || q.type === "bodyhint") && g.phase === "ask") heroIcon.classList.add("game-mystery"); // 名前当て・旬の食べ物当て・からだヒント当ては答えがバレないようシルエット
+  // 「当てる系」（hideChar: name/seasonfood/bodyhint/chooserev/nutrientrev/
+  // category/recipein/recipeout/prefdish/eventdish）は、回答前に正解の
+  // キャラを見せると答えがバレるので「？」プレースホルダにする。
+  // 回答後（feedback）は正解発表としてキャラを出す。
+  const heroIcon = (q.hideChar && g.phase === "ask")
+    ? el("span", { class: "food-icon game-mystery" }, charPlaceholderEl())
+    : iconEl(q.name, q.category);
   const typeLabel = {
     knowledge: "3択クイズ", season: "旬クイズ", name: "なまえ当てクイズ",
     nutrition: "栄養クイズ", choose: "見分け方クイズ", seasonfood: "旬の食べ物クイズ", regional: "郷土料理クイズ",
