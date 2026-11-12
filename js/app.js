@@ -18,7 +18,7 @@ import { suggestRecipes, suggestFilteredCatalogue, suggestMealSet, suggestEventM
 import * as recipesNs from "./recipes.js";
 import { suggestCombos, repertoireSize } from "./combo.js";
 import { buildGameQuestions, scoreGame, CORRECT_PRAISE, GAME_QUESTION_COUNT, GAME_COUNT_OPTIONS, GAME_DIFFICULTIES, GAME_DIFFICULTY_DEFAULT } from "./game.js";
-import { createSuikaGame, VEG_STAGES, SUIKA_W, SUIKA_H } from "./suika.js";
+import { createSuikaGame, VEG_STAGES, SUIKA_W, SUIKA_H, computeSuikaBoardLayout } from "./suika.js";
 import { qrToCanvas } from "./qrcode.js";
 import { iconEl, charPlaceholderEl, CATALOG, rarityOf, rarityCategory, categoryOf, catalogCategories } from "./icons.js";
 import { levelForCount, titleFor, remainingToNextLevel } from "./levels.js";
@@ -565,7 +565,7 @@ function renderMain() {
   if (state.showGuide) content.append(renderGuideCard());
   if (state.knowledgeName) content.append(renderKnowledgePage());
   else if (state.gameView) content.append(renderGamePage());
-  else if (state.suikaView) content.append(renderSuikaPage());
+  else if (state.suikaView) { /* やさいあわせは全画面シェル（body 直下のオーバーレイ）で開く */ }
   else if (state.recipeDetail) content.append(renderRecipeDetailPage());
   else if (state.tab === "stock") content.append(renderStockTab());
   else if (state.tab === "shopping") content.append(renderShoppingTab());
@@ -578,6 +578,7 @@ function renderMain() {
     navBtn("recipes", "🍳", "レシピ"), navBtn("zukan", "📖", "図鑑"), navBtn("settings", "🔗", "共有・設定"),
   );
   appRoot.append(nav);
+  syncSuikaShell();
   releaseLeavingLoadingView();
   document.getElementById("header-sub").textContent = state.fridge ? state.fridge.name : "";
 }
@@ -812,23 +813,51 @@ function renderGamePage() {
   return wrap;
 }
 
-// ---------- やさいあわせゲーム（合体パズル） ----------
-// 図鑑タブから入る。js/suika.js が物理・合体・描画を担い、進行状態は
-// コントローラ側に保持する（画面の再描画で盤面が消えない）。
-// ベストスコアだけ端末の localStorage（専用キー）に保存し、
-// 在庫データには一切触れない。
+// ---------- やさいあわせ（ミニアプリ） ----------
+// 図鑑タブから開く、わが家の食材手帳の中の小さなアプリ。
+// 全画面シェル（.suika-app、100dvh）を body 直下に重ねて開き、中に
+// スタート画面とゲーム画面を持つ。閉じるとメイン側は元のタブ・
+// スクロール位置にそのまま戻る。js/suika.js が物理・合体・描画を担い、
+// 進行状態はコントローラ側に保持する。ベストスコアだけ端末の
+// localStorage（専用キー）に保存し、在庫データには一切触れない。
 let suikaCtrl = null; // createSuikaGame のコントローラ（1つだけ使い回す）
 let suikaFitFn = null; // 表示中のゲーム画面のボード幅フィット関数（リサイズ時に再計算）
+let suikaShellEl = null; // 表示中の全画面シェル（閉じたら取り除く）
+let suikaReturnY = 0; // シェルを開く前のスクロール位置（閉じたら復元する）
 if (typeof window !== "undefined") {
   window.addEventListener("resize", () => { if (suikaFitFn) suikaFitFn(); });
 }
-let suikaUi = null; // 現在表示中のページの DOM 更新フック { update(state) }
-function renderSuikaPage() {
-  const wrap = el("div", {});
-  wrap.append(el("button", {
-    class: "btn secondary small", onclick: () => { state.suikaView = false; renderMain(); },
-  }, "← 図鑑にもどる"));
+let suikaUi = null; // 現在表示中のゲーム画面の DOM 更新フック { update(state) }
 
+function closeSuikaApp() {
+  state.suikaView = false;
+  renderMain();
+}
+
+// 全画面シェルの出し入れ（renderMain から毎回呼ばれる）。
+// 開いている間は作り直さず、表示中の画面をそのまま保つ。
+function syncSuikaShell() {
+  if (state.suikaView) {
+    if (!suikaShellEl) {
+      try { suikaReturnY = window.scrollY || 0; } catch { suikaReturnY = 0; }
+      suikaShellEl = renderSuikaPage();
+      document.body.append(suikaShellEl);
+      document.body.classList.add("suika-open");
+    }
+  } else if (suikaShellEl) {
+    suikaShellEl.remove();
+    suikaShellEl = null;
+    document.body.classList.remove("suika-open");
+    try { window.scrollTo(0, suikaReturnY); } catch { /* 表示専用 */ }
+  }
+}
+
+function renderSuikaPage() {
+  if (!suikaCtrl) {
+    suikaCtrl = createSuikaGame({ onUpdate: (s) => { if (suikaUi) suikaUi.update(s); } });
+  }
+
+  // ----- ゲーム画面の部品 -----
   const scoreVal = el("span", { class: "suika-stat-num" }, "0");
   const bestVal = el("span", { class: "suika-stat-num accent" }, "0");
   const curIcon = el("span", { class: "suika-piece cur" });
@@ -842,6 +871,7 @@ function renderSuikaPage() {
 
   const canvas = el("canvas", { class: "suika-canvas", "aria-hidden": "true" });
   const overScore = el("span", { class: "suika-over-score" }, "0");
+  const overBest = el("span", { class: "suika-over-best-num" }, "0");
   const overRecord = el("p", { class: "suika-over-record" }, "ベストスコア更新！");
   overRecord.style.display = "none";
   const overlay = el("div", { class: "suika-overlay" },
@@ -849,8 +879,12 @@ function renderSuikaPage() {
       el("p", { class: "suika-over-title" }, "あふれちゃった！"),
       el("p", { class: "hint" }, "ゲームオーバー"),
       el("p", { class: "suika-over-line" }, "スコア ", overScore),
+      el("p", { class: "suika-over-best" }, "ベスト ", overBest),
       overRecord,
-      el("button", { class: "btn wide", type: "button", onclick: () => suikaCtrl?.restart() }, "もう一度あそぶ"),
+      el("div", { class: "suika-over-btns" },
+        el("button", { class: "btn wide", type: "button", onclick: () => suikaCtrl?.restart() }, "もういちど"),
+        el("button", { class: "btn secondary wide", type: "button", onclick: () => quitToHome() }, "もどる"),
+      ),
     ),
   );
   overlay.style.display = "none";
@@ -858,20 +892,26 @@ function renderSuikaPage() {
     class: "suika-wrap", role: "application",
     "aria-label": "やさいあわせゲームのプレイ画面。左右に動かして、はなすと野菜が落ちます",
   }, canvas, overlay);
+  // 初期サイズ（fitBoard が実測で上書きする。論理サイズが目安）
+  playWrap.style.width = `${SUIKA_W}px`;
+  playWrap.style.height = `${SUIKA_H}px`;
+  const boardArea = el("div", { class: "suika-board-area" }, playWrap);
 
   const dropBtn = el("button", {
     class: "btn suika-drop", type: "button", "aria-label": "野菜を落とす",
     onclick: () => suikaCtrl?.drop(),
   }, "おとす！");
-
   const controlsEl = el("div", { class: "suika-controls" },
       el("button", { class: "btn secondary suika-arrow", type: "button", "aria-label": "左へ動かす", onclick: () => suikaCtrl?.nudge(-1) }, "←"),
       dropBtn,
       el("button", { class: "btn secondary suika-arrow", type: "button", "aria-label": "右へ動かす", onclick: () => suikaCtrl?.nudge(1) }, "→"),
     );
-  wrap.append(el("div", { class: "card" },
-    el("div", { class: "k-name" }, "🧺 やさいあわせゲーム"),
-    el("p", { class: "k-text suika-desc" }, "同じ野菜同士がくっつくと、大きな野菜に進化！ プチトマトから育てて、最後は やさいバスケットを目指そう。点線を超えたままになると、あふれてゲームオーバーだよ。"),
+
+  const gameScreen = el("div", { class: "suika-screen suika-game" },
+    el("div", { class: "suika-topbar" },
+      el("span", { class: "suika-topbar-title" }, "🧺 やさいあわせ"),
+      el("button", { class: "btn secondary small", type: "button", onclick: () => quitToHome() }, "やめる"),
+    ),
     el("div", { class: "suika-stats" },
       el("div", { class: "suika-stat" }, el("span", { class: "suika-stat-label" }, "スコア"), scoreVal),
       el("div", { class: "suika-stat" }, el("span", { class: "suika-stat-label" }, "ベスト"), bestVal),
@@ -882,12 +922,14 @@ function renderSuikaPage() {
       ),
     ),
     melonBanner, overBanner,
-    playWrap,
+    boardArea,
     controlsEl,
-    el("p", { class: "hint" }, "野菜を左右に動かして、はなすか「おとす！」で落とすよ。"),
-    el("button", { class: "btn secondary wide", type: "button", onclick: () => suikaCtrl?.restart() }, "↺ はじめから（リスタート）"),
-  ));
+    el("p", { class: "hint suika-game-hint" }, "野菜を左右に動かして、はなすか「おとす！」で落とすよ。"),
+  );
+  gameScreen.style.display = "none";
 
+  // ----- スタート画面 -----
+  const bestHomeVal = el("span", { class: "suika-home-best-num" }, String(suikaCtrl.getState().best));
   // 進化の順番
   const evoKids = [];
   VEG_STAGES.forEach((s, i) => {
@@ -900,11 +942,45 @@ function renderSuikaPage() {
       el("span", { class: "suika-evo-score" }, `${s.score}点`)));
     if (i < VEG_STAGES.length - 1) evoKids.push(el("span", { class: "suika-evo-arrow", "aria-hidden": "true" }, "→"));
   });
-  wrap.append(el("div", { class: "card" },
-    el("h3", {}, "進化の順番（小さい野菜 → 大きい野菜）"),
-    el("div", { class: "suika-evo" }, ...evoKids),
-    el("p", { class: "hint" }, "落とせるのは プチトマト〜玉ねぎ の小さい野菜だけ。くっつけて合体させると、だんだん大きな野菜になります。"),
-  ));
+  const homeScreen = el("div", { class: "suika-screen suika-home" },
+    el("div", { class: "suika-topbar" },
+      el("span", { class: "suika-topbar-title" }, "わが家の食材手帳"),
+      el("button", { class: "btn secondary small", type: "button", onclick: () => closeSuikaApp() }, "✕ とじる"),
+    ),
+    el("div", { class: "suika-home-body" },
+      el("div", { class: "suika-hero" }, iconEl("やさいバスケット", "野菜")),
+      el("h2", { class: "suika-title" }, "やさいあわせ"),
+      el("p", { class: "suika-tagline" }, "同じ野菜をくっつけて、大きく育てよう！"),
+      el("div", { class: "suika-home-best" },
+        el("span", { class: "suika-stat-label" }, "ベストスコア"), bestHomeVal),
+      el("button", { class: "btn suika-play", type: "button", onclick: () => startGame() }, "▶ あそぶ"),
+      el("div", { class: "card suika-howto" },
+        el("h3", {}, "あそびかた"),
+        el("p", { class: "k-text suika-desc" }, "同じ野菜同士がくっつくと、大きな野菜に進化！ プチトマトから育てて、最後は やさいバスケットを目指そう。点線を超えたままになると、あふれてゲームオーバーだよ。"),
+        el("div", { class: "suika-evo" }, ...evoKids),
+        el("p", { class: "hint" }, "落とせるのは プチトマト〜玉ねぎ の小さい野菜だけ。くっつけて合体させると、だんだん大きな野菜になります。"),
+      ),
+    ),
+  );
+
+  const shell = el("div", { class: "suika-app", role: "dialog", "aria-modal": "true", "aria-label": "やさいあわせ" },
+    homeScreen, gameScreen);
+
+  // ----- 画面遷移 -----
+  function startGame() {
+    suikaCtrl.restart();
+    homeScreen.style.display = "none";
+    gameScreen.style.display = "";
+    suikaCtrl.attach(canvas, playWrap);
+    requestAnimationFrame(fitBoard);
+  }
+  function quitToHome() {
+    suikaCtrl.detach();
+    suikaCtrl.restart(); // 進行中のゲームは破棄する（ベストは保存済みの分だけ残る）
+    gameScreen.style.display = "none";
+    homeScreen.style.display = "";
+    bestHomeVal.textContent = String(suikaCtrl.getState().best);
+  }
 
   suikaUi = {
     update(s) {
@@ -920,41 +996,38 @@ function renderSuikaPage() {
       overlay.style.display = s.gameOver ? "" : "none";
       if (s.gameOver) {
         overScore.textContent = String(s.score);
+        overBest.textContent = String(s.best);
         overRecord.style.display = s.isRecord ? "" : "none";
       }
       dropBtn.disabled = !!s.gameOver;
+      // バナーの出入りでボード領域の高さが変わるので、サイズを合わせ直す
+      if (suikaFitFn) suikaFitFn();
     },
   };
-  if (!suikaCtrl) {
-    suikaCtrl = createSuikaGame({ onUpdate: (s) => { if (suikaUi) suikaUi.update(s); } });
-  }
-  suikaCtrl.attach(canvas, playWrap);
-  // 画面内に収める: ボード（canvas）の表示幅を、実測した「ボード上端から
-  // コントロール下端までの高さ」と端末のビューポート高さから逆算する。
-  // 固定サイズ 360×520 のままだと iPhone ではページがはみ出してスクロール
-  // してしまい、プレイ中にコントロールが見えなくなるための対策。
-  // 物理・描画は論理座標 (SUIKA_W×SUIKA_H) のままなので、表示幅だけを
-  // 変えても当たり判定には影響しない（canvas は CSS で 100% 幅追随）。
-  const fitBoard = () => {
+
+  // 画面内に収めつつ、できるだけ大きく: シェルが全画面を占有するので、
+  // ボード領域（フレックスの残り）の実測から「幅いっぱい」を基本に決める。
+  // v40 のフィットはメイン画面側の占有高を差し引いて測っていたため、
+  // 実機ではボードが半分ほどに縮んでしまった。ここでは幅を縮める代わりに
+  // 盤面の論理高さを computeSuikaBoardLayout の範囲内で調整して収める。
+  // 物理・描画は論理座標で動くので、論理高さの変更は床の位置だけに効く。
+  function fitBoard() {
     if (!playWrap.isConnected) return;
     try {
+      const areaRect = boardArea.getBoundingClientRect();
       const vh = window.innerHeight || 0;
-      if (!vh) return;
-      const boardRect = playWrap.getBoundingClientRect();
-      const ctrlRect = controlsEl.getBoundingClientRect();
-      if (!boardRect.height || !ctrlRect.bottom) return;
-      // ボード以外の占有高（統計＋バナー＋コントロール等、ボード上端→操作系下端）
-      const nonBoard = (ctrlRect.bottom - boardRect.top) - boardRect.height;
-      // 下部ナビ（固定・約64px＋余白）に隠れないよう 96px を確保
-      const availH = Math.max(200, vh - 96 - boardRect.top - nonBoard);
-      const parentW = playWrap.parentElement ? playWrap.parentElement.clientWidth - 36 : 400;
-      const w = Math.max(180, Math.min(400, parentW, Math.floor(availH * (SUIKA_W / SUIKA_H))));
-      playWrap.style.width = `${w}px`;
+      const availW = areaRect.width;
+      const availH = vh > 0 ? Math.min(areaRect.height, vh) : areaRect.height;
+      if (availW < 40 || availH < 40) return; // 非表示時などは初期サイズのまま
+      const layout = computeSuikaBoardLayout(availW, availH);
+      if (layout.width <= 0) return;
+      suikaCtrl?.setBoardHeight(layout.logicalH);
+      playWrap.style.width = `${layout.width}px`;
+      playWrap.style.height = `${layout.height}px`;
     } catch { /* 計測できない環境では CSS のフォールバックに任せる */ }
-  };
+  }
   suikaFitFn = fitBoard;
-  requestAnimationFrame(fitBoard);
-  return wrap;
+  return shell;
 }
 
 // ---------- 在庫タブ ----------

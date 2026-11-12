@@ -32,7 +32,32 @@ export const VEG_STAGES = [
 
 export const SUIKA_W = 360;
 export const SUIKA_H = 520;
+export const SUIKA_H_MIN = 430; // 論理高さの調整範囲（幅優先レイアウト用）
+export const SUIKA_H_MAX = 560;
 export const SUIKA_DEADLINE_Y = 118;
+
+/**
+ * 幅優先のボードレイアウト計算（純粋関数）。
+ * 表示幅は「使える幅いっぱい」を基本とし、縦が足りないときは幅を
+ * 縮める代わりに盤面の論理高さを SUIKA_H_MIN〜SUIKA_H_MAX の範囲で
+ * 調整して収める。論理高さを下限まで縮めても溢れる場合だけ、
+ * 最終手段として幅を絞る（その場合も高さは availH に一致させる）。
+ * availW / availH はボード表示領域の px。返り値 { logicalH, width, height }。
+ */
+export function computeSuikaBoardLayout(availW, availH) {
+  const aw = Math.floor(Number(availW) || 0);
+  const ah = Math.floor(Number(availH) || 0);
+  if (aw <= 0 || ah <= 0) return { logicalH: SUIKA_H, width: 0, height: 0 };
+  let logicalH = Math.round((ah / aw) * SUIKA_W);
+  logicalH = Math.min(SUIKA_H_MAX, Math.max(SUIKA_H_MIN, logicalH));
+  let width = aw;
+  let height = Math.floor((width * logicalH) / SUIKA_W);
+  if (height > ah) {
+    height = ah;
+    width = Math.floor((height * SUIKA_W) / logicalH);
+  }
+  return { logicalH, width, height };
+}
 export const SUIKA_BEST_KEY = "wagaya.suika.best";
 
 const DROP_Y = 56;
@@ -416,6 +441,7 @@ export function createSuikaGame(hooks = {}) {
   let madeWatermelon = false;
   let score = 0;
   let best = loadBest();
+  let boardH = SUIKA_H; // 盤面の論理高さ（setBoardHeight で SUIKA_H_MIN〜MAX の範囲で可変）
 
   const images = new Map();
   for (let s = 0; s < VEG_STAGES.length; s++) {
@@ -523,8 +549,8 @@ export function createSuikaGame(hooks = {}) {
         const sh = stageShapes[b.stage];
         if (b.x - sh.extL < 4) { b.x = 4 + sh.extL; b.vx = Math.abs(b.vx) * 0.35; }
         if (b.x + sh.extR > SUIKA_W - 4) { b.x = SUIKA_W - 4 - sh.extR; b.vx = -Math.abs(b.vx) * 0.35; }
-        if (b.y + sh.extB > SUIKA_H - 4) {
-          b.y = SUIKA_H - 4 - sh.extB;
+        if (b.y + sh.extB > boardH - 4) {
+          b.y = boardH - 4 - sh.extB;
           b.vy = -Math.abs(b.vy) * 0.18;
           if (Math.abs(b.vy) < 28) b.vy = 0;
           b.vx *= 0.82;
@@ -559,7 +585,7 @@ export function createSuikaGame(hooks = {}) {
           const nst = stageOf(ns);
           const nsh = stageShapes[ns];
           const nx = (a.x + b.x) / 2;
-          const ny = Math.min(SUIKA_H - 4 - nsh.extB, (a.y + b.y) / 2);
+          const ny = Math.min(boardH - 4 - nsh.extB, (a.y + b.y) / 2);
           const nvx = (a.vx + b.vx) / 2;
           const nvy = Math.min(a.vy, b.vy) - 40;
           bodies.splice(j, 1);
@@ -603,15 +629,15 @@ export function createSuikaGame(hooks = {}) {
     if (!ctx || !canvas) return;
     const dpr = Math.min(2, globalThis.devicePixelRatio || 1);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.clearRect(0, 0, SUIKA_W, SUIKA_H);
+    ctx.clearRect(0, 0, SUIKA_W, boardH);
     ctx.fillStyle = "#fffdf8";
-    rrect(ctx, 2, 2, SUIKA_W - 4, SUIKA_H - 4, 22);
+    rrect(ctx, 2, 2, SUIKA_W - 4, boardH - 4, 22);
     ctx.fill();
     ctx.save();
-    rrect(ctx, 2, 2, SUIKA_W - 4, SUIKA_H - 4, 22);
+    rrect(ctx, 2, 2, SUIKA_W - 4, boardH - 4, 22);
     ctx.clip();
     ctx.fillStyle = "#faf3e3";
-    for (let y = 170; y < SUIKA_H; y += 88) ctx.fillRect(0, y, SUIKA_W, 2);
+    for (let y = 170; y < boardH; y += 88) ctx.fillRect(0, y, SUIKA_W, 2);
     ctx.restore();
     // deadline
     const danger = overflowSince != null;
@@ -630,7 +656,7 @@ export function createSuikaGame(hooks = {}) {
       const ready = now >= cooldownUntil;
       ctx.strokeStyle = "rgba(140,106,63,0.35)";
       ctx.lineWidth = 2; ctx.setLineDash([4, 6]);
-      ctx.beginPath(); ctx.moveTo(dropX, DROP_Y + cur.radius); ctx.lineTo(dropX, SUIKA_H - 6); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(dropX, DROP_Y + cur.radius); ctx.lineTo(dropX, boardH - 6); ctx.stroke();
       ctx.setLineDash([]);
       ctx.globalAlpha = ready ? 1 : 0.35;
       const img = images.get(current);
@@ -711,7 +737,7 @@ export function createSuikaGame(hooks = {}) {
     ctx.globalAlpha = 1;
     // walls
     ctx.strokeStyle = "#e6dbc4"; ctx.lineWidth = 4;
-    rrect(ctx, 2, 2, SUIKA_W - 4, SUIKA_H - 4, 22);
+    rrect(ctx, 2, 2, SUIKA_W - 4, boardH - 4, 22);
     ctx.stroke();
   }
 
@@ -736,6 +762,29 @@ export function createSuikaGame(hooks = {}) {
     moveTo(e.clientX); drop();
   };
 
+  /**
+   * 盤面の論理高さの変更（全画面レイアウトに収めるための調整）。
+   * ピースの大きさ・物理はそのままに、床の位置だけが変わる。
+   * 盤面にあるピースは新しい床より下にはみ出さないよう引き上げる。
+   * ゲーム開始時（およびリサイズ時）に呼ばれる想定。
+   */
+  function setBoardHeight(h) {
+    const nh = Math.min(SUIKA_H_MAX, Math.max(SUIKA_H_MIN, Math.round(Number(h)) || SUIKA_H));
+    if (nh === boardH) return boardH;
+    boardH = nh;
+    if (canvas) {
+      const dpr = Math.min(2, globalThis.devicePixelRatio || 1);
+      canvas.width = SUIKA_W * dpr;
+      canvas.height = boardH * dpr;
+    }
+    for (const b of bodies) {
+      const sh = stageShapes[b.stage];
+      if (b.y + sh.extB > boardH - 4) b.y = boardH - 4 - sh.extB;
+      if (b.y - sh.extT < 2) b.y = 2 + sh.extT;
+    }
+    return boardH;
+  }
+
   function attach(canvasEl, wrapEl) {
     detach();
     canvas = canvasEl;
@@ -743,7 +792,7 @@ export function createSuikaGame(hooks = {}) {
     ctx = canvas.getContext("2d");
     const dpr = Math.min(2, globalThis.devicePixelRatio || 1);
     canvas.width = SUIKA_W * dpr;
-    canvas.height = SUIKA_H * dpr;
+    canvas.height = boardH * dpr;
     wrap.addEventListener("pointermove", onPointerMove);
     wrap.addEventListener("pointerdown", onPointerDown);
     wrap.addEventListener("pointerup", onPointerUp);
@@ -770,6 +819,8 @@ export function createSuikaGame(hooks = {}) {
 
   return {
     attach, detach, drop, restart, nudge, moveTo,
+    setBoardHeight,
+    getBoardHeight: () => boardH,
     getState: snapshot,
     destroy() { detach(); },
   };
