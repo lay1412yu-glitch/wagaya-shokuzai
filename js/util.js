@@ -370,6 +370,53 @@ export function groupTodayMenuEntries(entries) {
     .map((group) => ({ group, entries: (entries || []).filter((e) => todayMenuGroupOf(e.course) === group) }))
     .filter((g) => g.entries.length > 0);
 }
+// ---------- エラーメッセージの日本語化 ----------
+// Firestore / Firebase の生エラー（英語の "Missing or insufficient
+// permissions." など）をそのまま画面に出さないための一元変換。
+// 呼び出し側は toast(userErrorMessage(e)) の形で使う。
+// アプリ自身が投げる日本語の案内文（例: 「コードが見つかりませんでした」）は
+// そのまま通し、生の情報は console にだけ残す（原因調査用）。
+export function userErrorMessage(e) {
+  // コードは "firestore/permission-denied" や "auth/network-request-failed"
+  // のように名前空間つきで来るので、末尾の要素名で引く
+  const code = e && typeof e.code === "string" ? e.code : "";
+  const short = code.split("/").pop();
+  const raw = e && e.message ? String(e.message) : "";
+  try { console.warn("[error]", code || "(no code)", raw); } catch { /* ログ失敗は無視 */ }
+  // 再認証が必要な場合（退会など）は、ログインし直す案内を出す
+  if (short === "requires-recent-login" || /requires-recent-login/.test(raw)) {
+    return "安全のため、もう一度ログインしてからお試しください";
+  }
+  switch (short) {
+    case "permission-denied":
+      return "権限がありませんでした。ログインし直してからもう一度お試しください";
+    case "not-found":
+      return "データが見つかりませんでした。画面を更新してもう一度お試しください";
+    case "unavailable":
+    case "network-request-failed":
+      return "通信できませんでした。電波の良いところでもう一度お試しください";
+    case "deadline-exceeded":
+      return "通信に時間がかかりすぎました。もう一度お試しください";
+    case "unauthenticated":
+    case "user-token-expired":
+      return "ログインの有効期限が切れました。ログインし直してください";
+    case "already-exists":
+      return "すでに登録されています";
+    case "resource-exhausted":
+      return "アクセスが集中しています。少し待ってもう一度お試しください";
+  }
+  // コードが無い/未知でも、英語の生メッセージは出さない
+  if (/Missing or insufficient permissions/i.test(raw)) {
+    return "権限がありませんでした。ログインし直してからもう一度お試しください";
+  }
+  if (/network|offline|failed to fetch|ERR_/i.test(raw)) {
+    return "通信できませんでした。電波の良いところでもう一度お試しください";
+  }
+  // アプリ自身の日本語の案内文はそのまま表示する
+  if (/[ぁ-んァ-ヶ一-龠]/.test(raw)) return raw;
+  return "うまくいきませんでした。もう一度お試しください";
+}
+
 /** 複数レシピの「足りない材料」を名前＋単位で統合する（分量は合算） */
 export function mergeMissingIngredients(missingLists) {
   const map = new Map();

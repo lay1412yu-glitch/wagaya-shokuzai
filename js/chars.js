@@ -629,6 +629,7 @@ export const CHAR_BY_NAME = {
  "柚子こしょう": "yuzukosho.webp",
  "おろししょうが": "oroshishoga.webp",
  "おろしにんにく": "oroshininniku.webp",
+ "チューブわさび": "tubewasabi.webp",
  "もみじおろし": "momijioroshi.webp",
  "ナツメグ": "nutmeg.webp",
  "シナモン": "cinnamon.webp",

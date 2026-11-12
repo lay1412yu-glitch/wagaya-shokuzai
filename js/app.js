@@ -13,7 +13,7 @@
 // - 参加用リンク ?join=<code> を受けたら、コードを sessionStorage に退避し、
 //   ログイン完了後に自動で参加を試みる（URL の履歴からは即座に消す）。
 
-import { el, uid, todayISO, daysUntil, formatDate, expiryLabel, expiryGroup, expiryChipClass, formatCode, fmtQtyValue, qtyStepFor, roundQty, isFractionUnit, matchesSearch, topPurchased, recentRegistered, oneTapCandidates, inListQuantity, planOneTapAdd, RECIPE_QUICK_FILTERS, matchesRecipeFilter, filterRecipes, STORAGE_ZONES, STORAGE_ZONE_ALL, countByStorage, filterByStorage, suggestStorage, UNIT_OPTIONS, UNIT_OTHER_VALUE, unitSelectValueFor, resolveUnitValue, upsertTodayMenuEntry, removeTodayMenuEntry, groupTodayMenuEntries, mergeMissingIngredients, isAppShellCacheName } from "./util.js";
+import { el, uid, todayISO, daysUntil, formatDate, expiryLabel, expiryGroup, expiryChipClass, formatCode, fmtQtyValue, qtyStepFor, roundQty, isFractionUnit, matchesSearch, topPurchased, recentRegistered, oneTapCandidates, inListQuantity, planOneTapAdd, RECIPE_QUICK_FILTERS, matchesRecipeFilter, filterRecipes, STORAGE_ZONES, STORAGE_ZONE_ALL, countByStorage, filterByStorage, suggestStorage, UNIT_OPTIONS, UNIT_OTHER_VALUE, unitSelectValueFor, resolveUnitValue, upsertTodayMenuEntry, removeTodayMenuEntry, groupTodayMenuEntries, mergeMissingIngredients, isAppShellCacheName, userErrorMessage } from "./util.js";
 import { suggestRecipes, suggestFilteredCatalogue, suggestMealSet, suggestEventMenu, EVENT_MENUS, suggestRegionalMenu, REGIONS, evaluateRecipe, ALL_RECIPES, rankRecipesByIngredients } from "./recipes.js";
 import * as recipesNs from "./recipes.js";
 import { suggestCombos, repertoireSize } from "./combo.js";
@@ -47,7 +47,7 @@ function toastWithAction(msg, actionLabel, onAction, ms = 7000) {
   btn.addEventListener("click", async () => {
     clearTimeout(toastTimer);
     toastNode.hidden = true;
-    try { await onAction(); } catch (e) { toast(e.message); }
+    try { await onAction(); } catch (e) { toast(userErrorMessage(e)); }
   });
   toastNode.replaceChildren(document.createTextNode(msg), btn);
   toastNode.hidden = false;
@@ -375,6 +375,88 @@ function legalLinks() {
     el("button", { class: "link-btn", type: "button", onclick: () => { state.legalView = "terms"; renderLegalPage(); } }, "利用規約"));
 }
 
+// ---------- サイドバーメニュー（ドロワー） ----------
+// ヘッダーの ☰ から左にスライドインするメニュー（SIP & SEEK の作りが参考）。
+// プロフィールカード＋グループ別のカード型メニューで、タブ移動・ゲーム・
+// 設定まわりへ一足飛びに行ける。下部ナビはそのまま残し、これは追加の入り口。
+// 開いている間は背面のスクロールを止める（body.drawer-open）。
+const menuBtn = document.getElementById("menu-btn");
+let drawerRoot = null;
+let drawerCloseTimer = null;
+function syncMenuButton() {
+  // メインアプリ内（ログイン済み＋冷蔵庫を開いている）でのみ出す。
+  // 認証画面・冷蔵庫選択では出さない（やさいあわせの全画面シェルの下でも
+  // シェルに覆われて押せない）。
+  if (menuBtn) menuBtn.hidden = !(state.user && state.fridge);
+}
+if (menuBtn) menuBtn.addEventListener("click", () => openDrawer());
+function goTab(tab) {
+  state.tab = tab; state.knowledgeName = null; state.gameView = false; state.game = null;
+  state.suikaView = false; state.recipeDetail = null; state.recipeFilter = "all";
+  renderMain();
+}
+function drawerItem(icon, label, sub, onClick) {
+  return el("button", { class: "drawer-item", type: "button", onclick: () => { closeDrawer(); onClick(); } },
+    el("span", { class: "drawer-item-icon", "aria-hidden": "true" }, icon),
+    el("span", { class: "grow" }, label, sub ? el("span", { class: "drawer-item-sub" }, sub) : null));
+}
+function drawerSection(label, items) {
+  return el("div", { class: "drawer-section" },
+    el("div", { class: "drawer-section-label" }, label),
+    el("div", { class: "drawer-card" }, items));
+}
+function openDrawer() {
+  if (drawerRoot || !state.user || !state.fridge) return;
+  clearTimeout(drawerCloseTimer);
+  const name = state.user.displayName || "なまえ未設定";
+  const memberNote = state.members.length ? `・メンバー ${state.members.length}人` : "";
+  const root = el("div", { class: "drawer-root" },
+    el("div", { class: "drawer-backdrop", onclick: () => closeDrawer() }),
+    el("aside", { class: "drawer-panel", role: "dialog", "aria-modal": "true", "aria-label": "メニュー" },
+      el("div", { class: "drawer-head" },
+        el("span", { class: "drawer-menu-label" }, "MENU"),
+        el("button", { class: "drawer-close", type: "button", "aria-label": "メニューを閉じる", onclick: () => closeDrawer() }, "✕")),
+      el("div", { class: "drawer-profile" },
+        el("span", { class: "drawer-avatar", "aria-hidden": "true" }, "🧊"),
+        el("div", { class: "grow" },
+          el("div", { class: "drawer-fridge" }, state.fridge.name),
+          el("div", { class: "hint" }, `${name} さん${memberNote}`))),
+      drawerSection("メイン", [
+        drawerItem("🧊", "在庫", null, () => goTab("stock")),
+        drawerItem("🛒", "買い物", null, () => goTab("shopping")),
+        drawerItem("🍳", "レシピ", null, () => goTab("recipes")),
+        drawerItem("📖", "図鑑", null, () => goTab("zukan")),
+      ]),
+      drawerSection("あそぶ・まなぶ", [
+        drawerItem("🧺", "やさいあわせ", "野菜をくっつけて進化させるパズル", () => { state.gameView = false; state.game = null; state.suikaView = true; renderMain(); }),
+        drawerItem("🎮", "食材クイズ", "旬やまめちしきの3択クイズ", () => { state.game = null; state.gameView = true; state.suikaView = false; renderMain(); }),
+      ]),
+      drawerSection("共有・設定", [
+        drawerItem("🔗", "共有・設定", null, () => goTab("settings")),
+        drawerItem("🔄", "アプリを最新に更新", null, () => forceAppUpdate(null)),
+        drawerItem("👋", "使い方ガイド", null, () => { state.showGuide = true; renderMain(); try { window.scrollTo(0, 0); } catch { /* noop */ } }),
+        drawerItem("🛡", "プライバシーポリシー", null, () => { state.legalView = "privacy"; renderMain(); }),
+        drawerItem("📜", "利用規約", null, () => { state.legalView = "terms"; renderMain(); }),
+      ]),
+    ));
+  drawerRoot = root;
+  document.body.append(root);
+  document.body.classList.add("drawer-open");
+  void root.offsetWidth; // 初期位置（画面外）からスライドさせるため描画を確定させる
+  root.classList.add("open");
+}
+function closeDrawer() {
+  if (!drawerRoot) return;
+  const root = drawerRoot;
+  drawerRoot = null;
+  document.body.classList.remove("drawer-open");
+  root.classList.remove("open");
+  const reduce = typeof window !== "undefined" && typeof window.matchMedia === "function"
+    && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (reduce) { root.remove(); return; }
+  drawerCloseTimer = setTimeout(() => root.remove(), 280);
+}
+
 // ---------- サーバー発プッシュの購読（設定時のみ・本番モードのみ） ----------
 // Firebase モード: FCM トークンを登録する（送信側は Cloud Functions 等が別途必要。
 // トークン登録だけでは通知は届かない。README「プッシュ通知（サーバー発）」参照）。
@@ -424,7 +506,7 @@ function renderAuth(errorMsg = "") {
           else state.user = await store.signUp(email.value, pass.value, name.value.trim());
           toast(state.authTab === "login" ? "ログインしました" : "アカウントを作りました");
           await afterLogin();
-        } catch (e) { renderAuth(e.message); }
+        } catch (e) { renderAuth(userErrorMessage(e)); }
       },
     }, state.authTab === "login" ? "ログインする" : "登録する"),
     el("p", { class: "hint" }, store.mode === "demo"
@@ -433,6 +515,7 @@ function renderAuth(errorMsg = "") {
     legalLinks(),
   );
   appRoot.append(card);
+  syncMenuButton();
   releaseLeavingLoadingView();
 }
 
@@ -453,7 +536,7 @@ async function afterLogin() {
       await openFridge(fridge.id);
       return;
     } catch (e) {
-      toast(e.message);
+      toast(userErrorMessage(e));
     }
   }
   if (state.fridges.length === 1) await openFridge(state.fridges[0].id);
@@ -488,7 +571,7 @@ function renderFridgePicker(errorMsg = "") {
           state.fridges = await store.listMyFridges(state.user.id);
           await openFridge(fridge.id);
           toast("冷蔵庫を作りました。共有タブでフレンドコードを家族に伝えてください");
-        } catch (e) { renderFridgePicker(e.message); }
+        } catch (e) { renderFridgePicker(userErrorMessage(e)); }
       },
     }, "この名前で作る"),
     el("h3", {}, "フレンドコードで参加する"),
@@ -503,7 +586,7 @@ function renderFridgePicker(errorMsg = "") {
           toast(`「${fridge.name}」に参加しました`);
           state.fridges = await store.listMyFridges(state.user.id);
           await openFridge(fridge.id);
-        } catch (e) { renderFridgePicker(e.message); }
+        } catch (e) { renderFridgePicker(userErrorMessage(e)); }
       },
     }, "参加する"),
     el("button", {
@@ -511,6 +594,7 @@ function renderFridgePicker(errorMsg = "") {
     }, "ログアウト"),
   );
   appRoot.append(card);
+  syncMenuButton();
   releaseLeavingLoadingView();
 }
 
@@ -530,7 +614,7 @@ async function openFridge(fridgeId) {
     // 読み込み画面に閉じ込めない: 選択画面に戻してやり直せるようにする
     stopLoadingView();
     state.fridge = null;
-    toast("読み込みに失敗しました: " + e.message);
+    toast("読み込みに失敗しました: " + userErrorMessage(e));
     renderFridgePicker();
     return;
   }
@@ -581,6 +665,7 @@ function renderMain() {
   syncSuikaShell();
   releaseLeavingLoadingView();
   document.getElementById("header-sub").textContent = state.fridge ? state.fridge.name : "";
+  syncMenuButton();
 }
 function navBtn(tab, icon, label) {
   return el("button", { class: state.tab === tab && !state.knowledgeName && !state.gameView && !state.suikaView && !state.recipeDetail ? "active" : "", onclick: () => { state.tab = tab; state.knowledgeName = null; state.gameView = false; state.game = null; state.suikaView = false; state.recipeDetail = null; state.recipeFilter = "all"; renderMain(); } },
@@ -1078,20 +1163,21 @@ function renderStockTab() {
       },
     }, "クリア"),
   ));
-  // 保管場所の区分チップ（冷蔵庫／冷凍庫／野菜室／常温）: 件数つきで出し、
-  // 0件の区分は「すべて」以外出さない。区分内でも期限グループ表示はそのまま。
-  const zoneRow = el("div", { class: "tabs zone-tabs", role: "tablist", "aria-label": "保管場所で絞り込む" });
+  // 保管場所の区分チップ（冷蔵庫／冷凍庫／野菜室／常温）: 図鑑のカテゴリ
+  // チップと同じ見た目の、横スクロールする1行のチップバー。全区分を件数
+  // つきで常時出す（0件の区分も隠さない）ので、件数によって並びや幅が
+  // 変わらない。0件の区分を選んだときは、下のリスト側が「まだ食材が
+  // ありません」の案内を出す。区分内でも期限グループ表示はそのまま。
+  const zoneRow = el("div", { class: "zone-chip-row", role: "tablist", "aria-label": "保管場所で絞り込む" });
   const renderZoneChips = () => {
     const counts = countByStorage(state.items);
-    // 選択中の区分が0件になったら「すべて」に戻す（空の区分に取り残されないため）
-    if (state.stockZone !== STORAGE_ZONE_ALL && !counts[state.stockZone]) state.stockZone = STORAGE_ZONE_ALL;
-    const zones = [STORAGE_ZONE_ALL, ...STORAGE_ZONES.filter((z) => counts[z] > 0)];
+    const zones = [STORAGE_ZONE_ALL, ...STORAGE_ZONES];
     zoneRow.replaceChildren(...zones.map((z) => el("button", {
       type: "button", role: "tab",
       class: state.stockZone === z ? "active" : "",
       "aria-selected": state.stockZone === z ? "true" : "false",
       onclick: () => { state.stockZone = z; renderZoneChips(); updateStockList(); },
-    }, z === STORAGE_ZONE_ALL ? `すべて ${state.items.length}` : `${z} ${counts[z]}`)));
+    }, z, el("span", { class: "cat-count" }, String(z === STORAGE_ZONE_ALL ? state.items.length : counts[z] || 0)))));
   };
   renderZoneChips();
   wrap.append(zoneRow);
@@ -1333,7 +1419,7 @@ function renderAddItemForm() {
           });
           await refreshData(); renderMain();
           if (!celebratePurchase(item.name, beforeCounts)) toast(`「${item.name}」を登録しました`);
-        } catch (e) { toast(e.message); }
+        } catch (e) { toast(userErrorMessage(e)); }
       },
     }, "登録する"),
   );
@@ -1473,7 +1559,7 @@ async function oneTapAddToShopping(entry) {
       toast(`「${entry.name}」を買い物リストに追加しました`);
     }
     await refreshData(); renderMain();
-  } catch (e) { toast(e.message); }
+  } catch (e) { toast(userErrorMessage(e)); }
 }
 function renderShoppingTab() {
   const wrap = el("div", {});
@@ -1549,7 +1635,7 @@ function renderShoppingTab() {
                 await store.deleteShopping(state.user.id, s.id);
                 await refreshData(); renderMain();
                 if (!celebratePurchase(s.name, beforeCounts)) toast(`「${s.name}」を在庫に戻しました`);
-              } catch (e) { toast(e.message); }
+              } catch (e) { toast(userErrorMessage(e)); }
             },
           }, "買った！"),
           el("button", {
@@ -1601,7 +1687,7 @@ async function toggleRecipeFavorite(recipe, mode, size) {
       state.favRecipes = [...state.favRecipes.filter((f) => f.recipeKey !== saved.recipeKey), saved];
       toast("レシピをお気に入りに保存しました");
     }
-  } catch (e) { toast(e.message); }
+  } catch (e) { toast(userErrorMessage(e)); }
   renderMain();
 }
 function favStarBtn(active, onclick) {
@@ -1651,14 +1737,14 @@ async function pinToTodayMenu(recipe, mode, size) {
     state.todayMenu = await store.setTodayMenu(state.user.id, state.fridge.id, board);
     state.todayMenuThanks = false;
     toast(`「${entry.title}」を今日の献立に入れました`);
-  } catch (e) { toast(e.message); }
+  } catch (e) { toast(userErrorMessage(e)); }
   renderMain();
 }
 async function removeFromTodayMenu(recipeKey) {
   try {
     state.todayMenu = await store.setTodayMenu(state.user.id, state.fridge.id,
       removeTodayMenuEntry(state.todayMenu, recipeKey));
-  } catch (e) { toast(e.message); }
+  } catch (e) { toast(userErrorMessage(e)); }
   renderMain();
 }
 /** ボード全体の「足りない材料」を、今の在庫で再評価して名前＋単位で統合する */
@@ -1687,7 +1773,7 @@ async function finishTodayMenu() {
     state.todayMenu = await store.setTodayMenu(state.user.id, state.fridge.id, { date: todayISO(), entries: [] });
     state.todayMenuThanks = true;
     toast("今日の献立を片付けました。おつかれさま！");
-  } catch (e) { toast(e.message); }
+  } catch (e) { toast(userErrorMessage(e)); }
   renderMain();
 }
 function renderTodayMenuBoard() {
@@ -1828,7 +1914,7 @@ function renderRecipeDetailPage() {
         await store.removeFavoriteRecipe(state.user.id, state.fridge.id, d.favId);
         state.favRecipes = state.favRecipes.filter((x) => x.id !== d.favId);
         toast("レシピのお気に入りを外しました");
-      } catch (e) { toast(e.message); return; }
+      } catch (e) { toast(userErrorMessage(e)); return; }
       state.recipeDetail = null;
       renderMain();
       return;
@@ -2257,7 +2343,7 @@ function renderRecipesTab() {
             await store.removeFavoriteRecipe(state.user.id, state.fridge.id, f.id);
             state.favRecipes = state.favRecipes.filter((x) => x.id !== f.id);
             toast("レシピのお気に入りを外しました");
-          } catch (e) { toast(e.message); }
+          } catch (e) { toast(userErrorMessage(e)); }
           renderMain();
         }),
       }));
@@ -2427,7 +2513,7 @@ function renderSettingsTab() {
               // サーバー側の平文コード表示を最新化するため再取得
               state.inviteCode = (await store.getInviteCode(state.user.id, fridge.id).catch(() => null)) || formatCode(newCode);
               renderMain(); toast("新しいコードを発行しました");
-            } catch (e) { toast(e.message); }
+            } catch (e) { toast(userErrorMessage(e)); }
           },
         }, "コードを再発行"),
       ),
@@ -2444,7 +2530,7 @@ function renderSettingsTab() {
             const newCode = await store.regenerateCode(state.user.id, fridge.id);
             state.inviteCode = (await store.getInviteCode(state.user.id, fridge.id).catch(() => null)) || formatCode(newCode);
             renderMain(); toast("コードを発行しました");
-          } catch (e) { toast(e.message); }
+          } catch (e) { toast(userErrorMessage(e)); }
         },
       }, "コードを発行する"));
     }
@@ -2463,7 +2549,7 @@ function renderSettingsTab() {
             class: "btn danger small", onclick: async () => {
               if (!confirm(`${m.displayName}さんをメンバーから外しますか？`)) return;
               try { await store.removeMember(state.user.id, fridge.id, m.userId); await refreshData(); renderMain(); toast("メンバーを外しました"); }
-              catch (e) { toast(e.message); }
+              catch (e) { toast(userErrorMessage(e)); }
             },
           }, "外す")
         : null,
@@ -2549,7 +2635,7 @@ function renderSettingsTab() {
             await store.restoreDeletedItem(state.user.id, fridge.id, t);
             state.sessionTrash = state.sessionTrash.filter((x) => x.id !== t.id);
             await refreshData(); renderMain(); toast(`「${t.name}」を元に戻しました`);
-          } catch (e) { toast(e.message); }
+          } catch (e) { toast(userErrorMessage(e)); }
         },
       }, "元に戻す"),
     ));
@@ -2580,7 +2666,7 @@ function renderSettingsTab() {
       class: "btn danger wide", onclick: async () => {
         if (!confirm("この冷蔵庫から退出しますか？")) return;
         try { await store.leaveFridge(state.user.id, fridge.id); stopRealtime(); state.fridges = await store.listMyFridges(state.user.id); state.fridge = null; renderFridgePicker(); }
-        catch (e) { toast(e.message); }
+        catch (e) { toast(userErrorMessage(e)); }
       },
     }, "この冷蔵庫から退出する") : null,
     el("button", {
@@ -2600,7 +2686,7 @@ function renderSettingsTab() {
           state.items = []; state.shopping = []; state.members = []; state.favRecipes = []; state.catalog = [];
           state.todayMenu = { date: "", entries: [] }; state.todayMenuThanks = false;
           renderAuth(); toast("退会しました");
-        } catch (e) { toast(e.message); }
+        } catch (e) { toast(userErrorMessage(e)); }
       },
     }, "退会する（アカウントを削除）"),
     el("p", { class: "hint" }, store.mode === "demo"
@@ -2655,6 +2741,6 @@ initStore()
   .catch((e) => {
     captureLeavingLoadingView();
     stopLoadingView();
-    appRoot.replaceChildren(el("div", { class: "card" }, el("div", { class: "error" }, "読み込みに失敗しました: " + e.message)));
+    appRoot.replaceChildren(el("div", { class: "card" }, el("div", { class: "error" }, "読み込みに失敗しました: " + userErrorMessage(e))));
     releaseLeavingLoadingView();
   });

@@ -16,7 +16,7 @@
 //   コード、再発行で旧コード即無効、fridgeId は推測不能なランダムID）。
 // - パスワードは Firebase Authentication が管理し、このアプリは保持しない。
 
-import { generateInviteCode, normalizeCode, todayISO, normalizeTodayMenu } from "./util.js";
+import { generateInviteCode, normalizeCode, todayISO, normalizeTodayMenu, userErrorMessage } from "./util.js";
 import {
   inviteCodeHash, memberDocId, catalogDocId, favoriteDocId, pushTokenDocId,
   itemToDoc, itemFromDoc, itemPatchToDoc, shoppingToDoc, shoppingFromDoc,
@@ -106,7 +106,7 @@ export class FirebaseStore {
       case "auth/email-already-in-use": return "このメールアドレスは既に登録されています";
       case "auth/invalid-email": return "メールアドレスの形式が正しくありません";
       case "auth/weak-password": return "パスワードは6文字以上にしてください";
-      default: return e?.message || "登録に失敗しました";
+      default: return /[ぁ-んァ-ヶ一-龠]/.test(e?.message || "") ? e.message : "登録に失敗しました";
     }
   }
 
@@ -121,18 +121,36 @@ export class FirebaseStore {
     const myFridges = await this.listMyFridges(userId);
     for (const f of myFridges) {
       if (f.ownerId !== userId) continue;
-      const members = await this.listMembers(userId, f.id).catch(() => []);
+      // メンバー一覧の取得に失敗したら退会を中止する。失敗を「メンバーなし」
+      // と誤認すると、メンバーがいるのに冷蔵庫ごと削除してしまうため、
+      // ここでは .catch で握りつぶさず、呼び出し側にエラーを伝える。
+      const members = await this.listMembers(userId, f.id);
       const others = members.filter((m) => m.userId !== userId)
         .sort((a, b) => String(a.joinedAt).localeCompare(String(b.joinedAt)));
       if (others.length === 0) {
         await this._deleteFridgeData(f.id);
       } else {
         const nextOwner = others[0].userId;
-        await fs.updateDoc(fs.doc(this.db, "fridges", f.id), { ownerId: nextOwner });
+        // 引き継ぎの順序が重要（ルールはすべて「現在の作成者」基準で評価される）:
+        // 1) 次の作成者のメンバー役職を owner にする（自分がまだ作成者なので可）
         await fs.updateDoc(fs.doc(this.db, "fridge_members", memberDocId(f.id, nextOwner)), { role: "owner" });
+        // 2) フレンドコード類は削除する。平文コードの所有者は update では
+        //    移せない（ルール: 書き込み後の ownerId が自分自身である必要がある）
+        //    ため、旧コードは無効化して消し、新しい作成者が regenerateCode で
+        //    作り直せるようにする。平文が読める間にハッシュ側も一緒に消す。
         const invRef = fs.doc(this.db, "fridge_invite_codes", f.id);
-        const inv = await fs.getDoc(invRef);
-        if (inv.exists()) await fs.updateDoc(invRef, { ownerId: nextOwner });
+        let codePlain = null;
+        try {
+          const inv = await fs.getDoc(invRef);
+          if (inv.exists()) codePlain = inv.data().codePlain || null;
+        } catch { /* 平文が無い/読めない場合はハッシュ側を消せないが、平文ドキュメント自体は下で消す */ }
+        await fs.deleteDoc(invRef).catch(() => {});
+        if (codePlain) {
+          await fs.deleteDoc(fs.doc(this.db, "fridge_codes", await inviteCodeHash(codePlain))).catch(() => {});
+        }
+        // 3) 冷蔵庫本体の ownerId は最後に切り替える（先に切り替えると、
+        //    以後の操作が「作成者ではない」としてルールに拒否されるため）
+        await fs.updateDoc(fs.doc(this.db, "fridges", f.id), { ownerId: nextOwner });
       }
     }
     // 自分のメンバーシップ・お気に入り・プッシュトークンを消す
@@ -153,14 +171,18 @@ export class FirebaseStore {
         if (e?.code === "auth/requires-recent-login") {
           throw new Error("安全のため、もう一度ログインしてから退会手続きを行ってください（データの整理は完了しています）");
         }
-        throw new Error(e?.message || "アカウントの削除に失敗しました");
+        throw new Error(userErrorMessage(e) || "アカウントの削除に失敗しました");
       }
     }
     this._userCache = null;
   }
   async _deleteFridgeData(fridgeId) {
     const fs = this._mods;
-    for (const col of ["items", "shopping_items", "fridge_catalog", "favorite_recipes", "fridge_members"]) {
+    // favorite_recipes はここでは消さない。その一覧ルールは「本人の分だけ」
+    // （userId == uid）で、fridgeId だけの検索は必ず拒否されるため。
+    // 退会する本人のお気に入りは deleteAccount 側の userId 検索で削除済みで、
+    // 他のメンバーのお気に入りは本人の退会で消すべきではない。
+    for (const col of ["items", "shopping_items", "fridge_catalog", "fridge_members"]) {
       const snap = await fs.getDocs(fs.query(fs.collection(this.db, col), fs.where("fridgeId", "==", fridgeId)));
       for (const d of snap.docs) {
         await fs.deleteDoc(d.ref).catch(() => {});
@@ -221,9 +243,24 @@ export class FirebaseStore {
   async regenerateCode(userId, fridgeId) {
     const fs = this._mods;
     const invRef = fs.doc(this.db, "fridge_invite_codes", fridgeId);
-    const inv = await fs.getDoc(invRef);
-    if (!inv.exists() || inv.data().ownerId !== userId) throw new Error("コードを再発行できるのは冷蔵庫を作った人だけです");
-    const oldHash = inv.data().codePlain ? await inviteCodeHash(inv.data().codePlain) : null;
+    // 招待コードの平文ドキュメントが無い場合（退会時の引き継ぎで削除された等）
+    // でも、冷蔵庫の作成者であれば作り直せるようにする。なお、存在しない
+    // ドキュメントへの get はルール評価の都合で permission-denied になる
+    // ことがあるため、例外は「無いもの」として扱う。
+    let inv = null;
+    try { inv = await fs.getDoc(invRef); } catch { inv = null; }
+    let oldPlain = null;
+    if (inv && inv.exists() && inv.data().ownerId === userId) {
+      oldPlain = inv.data().codePlain || null;
+    } else {
+      const fSnap = await fs.getDoc(fs.doc(this.db, "fridges", fridgeId));
+      if (!fSnap.exists() || fSnap.data().ownerId !== userId) {
+        throw new Error("コードを再発行できるのは冷蔵庫を作った人だけです");
+      }
+      // 平文が読めない場合は旧コードのハッシュを消せない（旧コードが残る）が、
+      // 新しいコードの発行自体は作成者の正当な操作として進める
+    }
+    const oldHash = oldPlain ? await inviteCodeHash(oldPlain) : null;
     const code = generateInviteCode();
     const newHash = await inviteCodeHash(code);
     const batch = fs.writeBatch(this.db);
