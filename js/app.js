@@ -192,6 +192,29 @@ function stopLoadingView() {
   loadingTimers = [];
   if (loadingMotion) { loadingMotion.stop(); loadingMotion = null; }
 }
+// ---- 読み込み画面からの受け渡しのクロスフェード ----
+// 各画面は replaceChildren で丸ごと差し替えるため、そのままだと読み込み画面が
+// 「ぱっ」と消えて硬く見える。差し替え前に現在の .loading-view を控えておき、
+// 描画後に絶対配置のオーバーレイとして戻してフェードアウトさせると、新画面の
+// view-in（フェード＋スライドイン）と重なってクロスフェードになる。
+// 動かすのは opacity / transform だけ。reduced-motion では行わない。
+let leavingLoadingView = null;
+function captureLeavingLoadingView() {
+  leavingLoadingView = appRoot.querySelector(":scope > .loading-view");
+}
+function releaseLeavingLoadingView() {
+  const lv = leavingLoadingView;
+  leavingLoadingView = null;
+  if (!lv) return;
+  const reduce = typeof window !== "undefined" && typeof window.matchMedia === "function"
+    && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (reduce) return; // 控えた要素は replaceChildren で既に外れているので何もしない
+  lv.classList.add("view-overlay");
+  appRoot.append(lv);
+  void lv.offsetWidth; // 遷移を初期状態（不透明）から始めさせる
+  lv.classList.add("view-leaving");
+  setTimeout(() => lv.remove(), 280);
+}
 function renderLoadingView() {
   stopLoadingView();
   appRoot.replaceChildren();
@@ -315,6 +338,7 @@ function renderGuideCard() {
 
 // ---------- 法的ページ（プライバシーポリシー／利用規約） ----------
 function renderLegalPage() {
+  captureLeavingLoadingView();
   stopLoadingView();
   appRoot.replaceChildren();
   const doc = legalDocs().find((d) => d.id === state.legalView) || legalDocs()[0];
@@ -339,6 +363,7 @@ function renderLegalPage() {
     for (const line of sec.lines || []) wrap.append(el("p", { class: "k-text" }, line));
   }
   appRoot.append(wrap);
+  releaseLeavingLoadingView();
   try { window.scrollTo(0, 0); } catch { /* 表示専用 */ }
 }
 function legalLinks() {
@@ -373,6 +398,7 @@ async function maybeSubscribePush() {
 // ================= 認証画面 =================
 function renderAuth(errorMsg = "") {
   if (state.legalView) { renderLegalPage(); return; }
+  captureLeavingLoadingView();
   stopLoadingView();
   appRoot.replaceChildren();
   const email = el("input", { type: "email", autocomplete: "email", placeholder: "メールアドレス" });
@@ -405,6 +431,7 @@ function renderAuth(errorMsg = "") {
     legalLinks(),
   );
   appRoot.append(card);
+  releaseLeavingLoadingView();
 }
 
 async function afterLogin() {
@@ -433,6 +460,7 @@ async function afterLogin() {
 
 // ================= 冷蔵庫の選択 =================
 function renderFridgePicker(errorMsg = "") {
+  captureLeavingLoadingView();
   stopLoadingView();
   appRoot.replaceChildren();
   if (state.showGuide) appRoot.append(renderGuideCard());
@@ -481,6 +509,7 @@ function renderFridgePicker(errorMsg = "") {
     }, "ログアウト"),
   );
   appRoot.append(card);
+  releaseLeavingLoadingView();
 }
 
 // ================= 冷蔵庫を開く =================
@@ -524,6 +553,7 @@ async function refreshData() {
 // ================= メイン画面 =================
 function renderMain() {
   if (state.legalView) { renderLegalPage(); return; }
+  captureLeavingLoadingView();
   stopLoadingView();
   if (state.tab !== "recipes") refreshEnterSection = null; // 別タブの描画に出現アニメーションを持ち越さない
   if (!state.suikaView && suikaCtrl) suikaCtrl.detach(); // ゲーム画面を離れたら物理ループを止める
@@ -545,6 +575,7 @@ function renderMain() {
     navBtn("recipes", "🍳", "レシピ"), navBtn("zukan", "📖", "図鑑"), navBtn("settings", "🔗", "共有・設定"),
   );
   appRoot.append(nav);
+  releaseLeavingLoadingView();
   document.getElementById("header-sub").textContent = state.fridge ? state.fridge.name : "";
 }
 function navBtn(tab, icon, label) {
@@ -997,32 +1028,37 @@ function renderItemCard(item) {
   iconTile.title = "食材の知識を見る";
   iconTile.style.cursor = "pointer";
   iconTile.addEventListener("click", () => openKnowledge(item.name, item.category));
+  // 構造: グリッドの左列=アイコン、右列=名前+チップ、その下の独立行=数量と削除。
+  // 1行フレックスに全部並べると固定幅の操作部に名前列が潰され、名前が
+  // 1文字ずつ縦に折れる（実機で再発）。操作部は .item-ctrls の行に分離する。
   const card = el("div", { class: "card item-card" },
     iconTile,
     el("div", { class: "item-main" },
       el("div", { class: "item-name" }, item.isFavorite ? el("span", { class: "star" }, "★ ") : null, item.name),
       el("div", { class: "item-meta" }, meta),
     ),
-    el("div", { class: "qty-ctrl" },
-      el("button", { class: "qty-btn", onclick: () => changeQty(item, -1) }, "−"),
-      el("span", { class: "qty-num" }, `${fmtQtyValue(item.quantity, item.unit)}${item.unit || ""}`),
-      el("button", { class: "qty-btn", onclick: () => changeQty(item, 1) }, "+"),
+    el("div", { class: "item-ctrls" },
+      el("div", { class: "qty-ctrl" },
+        el("button", { class: "qty-btn", onclick: () => changeQty(item, -1) }, "−"),
+        el("span", { class: "qty-num" }, `${fmtQtyValue(item.quantity, item.unit)}${item.unit || ""}`),
+        el("button", { class: "qty-btn", onclick: () => changeQty(item, 1) }, "+"),
+      ),
+      el("button", {
+        class: "icon-btn", title: "削除", onclick: async () => {
+          if (!confirm(`「${item.name}」を削除しますか？`)) return;
+          const snapshot = { ...item };
+          await store.deleteItem(state.user.id, item.id);
+          // 本番モードはゴミ箱が端末内に無いので、この画面の間だけ復元用に保持する
+          if (store.mode !== "demo") state.sessionTrash = [snapshot, ...state.sessionTrash].slice(0, 30);
+          await refreshData(); renderMain();
+          toastWithAction(`「${item.name}」を削除しました`, "元に戻す", async () => {
+            await store.restoreDeletedItem(state.user.id, state.fridge.id, snapshot);
+            state.sessionTrash = state.sessionTrash.filter((t) => t.id !== snapshot.id);
+            await refreshData(); renderMain(); toast("元に戻しました");
+          });
+        },
+      }, "🗑"),
     ),
-    el("button", {
-      class: "icon-btn", title: "削除", onclick: async () => {
-        if (!confirm(`「${item.name}」を削除しますか？`)) return;
-        const snapshot = { ...item };
-        await store.deleteItem(state.user.id, item.id);
-        // 本番モードはゴミ箱が端末内に無いので、この画面の間だけ復元用に保持する
-        if (store.mode !== "demo") state.sessionTrash = [snapshot, ...state.sessionTrash].slice(0, 30);
-        await refreshData(); renderMain();
-        toastWithAction(`「${item.name}」を削除しました`, "元に戻す", async () => {
-          await store.restoreDeletedItem(state.user.id, state.fridge.id, snapshot);
-          state.sessionTrash = state.sessionTrash.filter((t) => t.id !== snapshot.id);
-          await refreshData(); renderMain(); toast("元に戻しました");
-        });
-      },
-    }, "🗑"),
   );
   card.style.padding = "12px 14px";
   return card;
@@ -1213,7 +1249,7 @@ function renderZukanTab() {
       el("span", {}, "種類をコレクション中"),
       extras.length ? el("span", { class: "chip" }, `カタログ外 ${extras.length} 種`) : null,
     ),
-    el("div", { class: "zukan-bar" }, el("div", { class: "zukan-bar-fill", style: `width:${totalInCatalog ? Math.round((gotInCatalog / totalInCatalog) * 100) : 0}%` })),
+    el("div", { class: "zukan-bar" }, el("div", { class: "zukan-bar-fill", style: `transform:scaleX(${totalInCatalog ? (gotInCatalog / totalInCatalog).toFixed(3) : 0})` })),
     el("div", { class: "zukan-rare-progress" },
       el("span", { class: "rare-chip ultra" }, `激レア ${ultraGot}/${ultraNames.length} ゲット`),
       el("span", { class: "rare-chip rare" }, `レア ${rareGot}/${rareNames.length} ゲット`),
@@ -2467,6 +2503,8 @@ initStore()
     else renderAuth();
   })
   .catch((e) => {
+    captureLeavingLoadingView();
     stopLoadingView();
     appRoot.replaceChildren(el("div", { class: "card" }, el("div", { class: "error" }, "読み込みに失敗しました: " + e.message)));
+    releaseLeavingLoadingView();
   });

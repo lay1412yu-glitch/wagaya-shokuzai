@@ -25,6 +25,22 @@
 <link rel="apple-touch-startup-image" href="splash-828x1792.png" media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)">
 <link rel="apple-touch-startup-image" href="splash-750x1334.png" media="(device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)">
 <link rel="stylesheet" href="styles.css">
+<style>
+/* 起動時のクリティカルスタイル: styles.css が届く前（初回表示・回線が遅い時）
+   からベージュ背景で描き、白フラッシュや無地の素のHTMLが一瞬見えるのを防ぐ。
+   ここは「最初の1フレーム」のためだけの最小限で、見た目は styles.css と揃える。 */
+html, body { background: #faf6ef; }
+body {
+  margin: 0; color: #4a3b2c;
+  font-family: "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Yu Gothic UI", "Noto Sans JP", sans-serif;
+}
+.app-header { background: #faf6ef; padding: calc(12px + env(safe-area-inset-top, 0px)) 18px 8px; }
+.brand { display: flex; gap: 12px; align-items: center; max-width: 640px; margin: 0 auto; }
+.brand h1 { margin: 0; font-size: 20px; }
+.brand p { margin: 3px 0 0; font-size: 12px; color: #8a7663; }
+.app-main { max-width: 640px; margin: 0 auto; padding: 12px 14px 122px; }
+.loading { text-align: center; color: #8a7663; padding: 40px 0; }
+</style>
 </head>
 <body>
 <header class="app-header">
