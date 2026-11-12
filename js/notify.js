@@ -3,9 +3,11 @@
 // できること・できないこと（正直な切り分け）:
 //
 // - 通知許可の取得（設定画面のボタン）
-// - アプリを開いたタイミングでのローカル通知：期限が近い／お気に入りが
-// 残りわずかの食材があれば、Notification API でこの端末に通知する
+// - アプリを開いたタイミングでのローカル通知：期限が近い食材があれば、
+// Notification API でこの端末に通知する
 // （1日に1回まで。サーバー不要）
+// ※ お気に入りの「残りわずか」通知は廃止した（ユーザー指示 2026-11-12）。
+//    通知対象は期限のみ。
 // - Service Worker 側の push / notificationclick ハンドラ（sw.js）。
 // サーバーから push が届けば表示できる状態にしてある。
 //
@@ -18,7 +20,7 @@
 // VAPID）のロールバック用に残してある。
 // 手順は README「プッシュ通知（サーバー発）について」を参照。
 
-import { daysUntil, expiryLabel, todayISO, isLowStock } from "./util.js";
+import { daysUntil, expiryLabel, todayISO } from "./util.js";
 
 export const NOTIFY_STAMP_KEY = "wagaya_notify_last_v1";
 
@@ -34,9 +36,6 @@ message: d < 0
 ? `「${item.name}」の期限が過ぎています`
 : `「${item.name}」は${expiryLabel(item.expiryDate)}です`,
 });
-}
-if (isLowStock(item)) {
-reminders.push({ kind: "low", name: item.name, message: `お気に入り「${item.name}」が残りわずかです`});
 }
 }
 return reminders;

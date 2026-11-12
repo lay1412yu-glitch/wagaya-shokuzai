@@ -114,21 +114,11 @@ export function roundQty(n) { return Math.round(Number(n) * 100) / 100; }
 
 const QUARTER_FRACTIONS = [[0.25, "1/4"], [0.5, "1/2"], [0.75, "3/4"]];
 
-// ---- 残りわずか判定（共通） ----
-// お気に入りで、数量がしきい値以下なら「残りわずか」。しきい値未設定の既定は 1。
-// 玉（分数）単位の頭野菜（キャベツ・白菜など）は、残り 1/4 まで切ったら
-// 残りわずか扱いにする: 明示しきい値がある場合も、実効しきい値は
-// max(しきい値, 1/4)。数量 0 の扱いは従来通り（既存判定のまま）。
-export const FRACTION_LOW_QTY = 0.25;
-export function effectiveLowThreshold(item) {
-  const raw = item?.lowThreshold;
-  const base = raw === null || raw === undefined ? 1 : Number(raw);
-  return isFractionUnit(item?.unit) ? Math.max(base, FRACTION_LOW_QTY) : base;
-}
-export function isLowStock(item) {
-  if (!item || !item.isFavorite) return false;
-  return Number(item.quantity) <= effectiveLowThreshold(item);
-}
+// ---- 残りわずか判定は廃止（ユーザー指示 2026-11-12） ----
+// 以前あった isLowStock / effectiveLowThreshold / FRACTION_LOW_QTY（しきい値・
+// 玉の 1/4 ルール）は削除した。お気に入りの買い物リスト自動追加は
+// 「在庫ゼロ（数量 0）」だけをトリガーに app.js 側で判定する。
+// 保存済みの lowThreshold 値は単に無視される（読み書きしない）。
 
 // ---- アプリ更新（Service Worker のキャッシュ判定） ----
 // アプリの殻キャッシュは "wagaya-shokuzai-vXX"。食材キャラ画像の

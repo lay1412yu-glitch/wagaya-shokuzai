@@ -13,14 +13,14 @@
 // - 参加用リンク ?join=<code> を受けたら、コードを sessionStorage に退避し、
 //   ログイン完了後に自動で参加を試みる（URL の履歴からは即座に消す）。
 
-import { el, uid, todayISO, daysUntil, formatDate, expiryLabel, expiryGroup, expiryChipClass, formatCode, fmtQtyValue, qtyStepFor, roundQty, isFractionUnit, isLowStock, matchesSearch, topPurchased, recentRegistered, oneTapCandidates, inListQuantity, planOneTapAdd, RECIPE_QUICK_FILTERS, matchesRecipeFilter, filterRecipes, STORAGE_ZONES, STORAGE_ZONE_ALL, countByStorage, filterByStorage, suggestStorage, UNIT_OPTIONS, UNIT_OTHER_VALUE, unitSelectValueFor, resolveUnitValue, upsertTodayMenuEntry, removeTodayMenuEntry, groupTodayMenuEntries, mergeMissingIngredients, isAppShellCacheName } from "./util.js";
+import { el, uid, todayISO, daysUntil, formatDate, expiryLabel, expiryGroup, expiryChipClass, formatCode, fmtQtyValue, qtyStepFor, roundQty, isFractionUnit, matchesSearch, topPurchased, recentRegistered, oneTapCandidates, inListQuantity, planOneTapAdd, RECIPE_QUICK_FILTERS, matchesRecipeFilter, filterRecipes, STORAGE_ZONES, STORAGE_ZONE_ALL, countByStorage, filterByStorage, suggestStorage, UNIT_OPTIONS, UNIT_OTHER_VALUE, unitSelectValueFor, resolveUnitValue, upsertTodayMenuEntry, removeTodayMenuEntry, groupTodayMenuEntries, mergeMissingIngredients, isAppShellCacheName } from "./util.js";
 import { suggestRecipes, suggestFilteredCatalogue, suggestMealSet, suggestEventMenu, EVENT_MENUS, suggestRegionalMenu, REGIONS, evaluateRecipe, ALL_RECIPES, rankRecipesByIngredients } from "./recipes.js";
 import * as recipesNs from "./recipes.js";
 import { suggestCombos, repertoireSize } from "./combo.js";
 import { buildGameQuestions, scoreGame, CORRECT_PRAISE, GAME_QUESTION_COUNT, GAME_COUNT_OPTIONS, GAME_DIFFICULTIES, GAME_DIFFICULTY_DEFAULT } from "./game.js";
-import { createSuikaGame, VEG_STAGES } from "./suika.js";
+import { createSuikaGame, VEG_STAGES, SUIKA_W, SUIKA_H } from "./suika.js";
 import { qrToCanvas } from "./qrcode.js";
-import { iconEl, charPlaceholderEl, CATALOG, rarityOf, rarityCategory } from "./icons.js";
+import { iconEl, charPlaceholderEl, CATALOG, rarityOf, rarityCategory, categoryOf, catalogCategories } from "./icons.js";
 import { levelForCount, titleFor, remainingToNextLevel } from "./levels.js";
 import { knowledgeFor } from "./knowledge.js";
 import { DemoStore, DEMO_DB_KEY } from "./demo-store.js";
@@ -104,7 +104,9 @@ const state = {
   gameDifficulty: GAME_DIFFICULTY_DEFAULT, // ゲームの難易度（こども / かぞく / 大人チャレンジ。保存しない）
   suikaView: false, // やさいあわせゲーム表示中
   zukanFilter: "all", // 図鑑のレアリティ絞り込み: all | ultra | rare
+  zukanCategory: "all", // 図鑑のカテゴリ絞り込み: all | カテゴリ名（レアリティ絞り込みと併用可）
   knowledgeName: null, knowledgeCategory: null, // 食材の知識ページ表示中（食育）
+  knowledgeReturnY: 0, // 知識ページを開く前のスクロール位置（もどる時に復元する）
   presetAdd: null, // 図鑑から在庫登録フォームへ渡す下書き { name, category, unit? }
   inviteCode: null, // 作成/再発行の直後に所有者へ見せるコード（平文）
   stockQuery: "", // 在庫の検索文字列
@@ -557,6 +559,7 @@ function renderMain() {
   stopLoadingView();
   if (state.tab !== "recipes") refreshEnterSection = null; // 別タブの描画に出現アニメーションを持ち越さない
   if (!state.suikaView && suikaCtrl) suikaCtrl.detach(); // ゲーム画面を離れたら物理ループを止める
+  if (!state.suikaView) suikaFitFn = null; // 離れたらリサイズ時のフィット対象も外す
   appRoot.replaceChildren();
   const content = el("div", {});
   if (state.showGuide) content.append(renderGuideCard());
@@ -587,10 +590,23 @@ function navBtn(tab, icon, label) {
 // 図鑑・在庫カード・買い物リストから開ける。キャラを大きく見せ、
 // 「からだにいいこと／旬／見分け方／まめちしき／3択クイズ」をカードで表示する。
 function openKnowledge(name, category) {
+  // 詳細（知識ページ）へ進む前に、戻ってきたときのスクロール位置を覚える。
+  // 図鑑で食材を選んで戻ると一覧が一番上に戻ってしまう問題への対策で、
+  // フィルタ状態（state.zukanFilter）は元々保持されているので、足りないのは
+  // スクロール位置だけだった。知識ページは短く、表示中にブラウザが
+  // スクロールをクランプしてしまうため、開く前に保存しておく。
+  try { state.knowledgeReturnY = window.scrollY || 0; } catch { state.knowledgeReturnY = 0; }
   state.knowledgeName = name;
   state.knowledgeCategory = category || null;
   renderMain();
   try { window.scrollTo(0, 0); } catch { /* 表示専用 */ }
+}
+function closeKnowledge() {
+  state.knowledgeName = null;
+  renderMain();
+  // 一覧を再描画した直後に、開く前のスクロール位置へ戻す
+  const y = state.knowledgeReturnY || 0;
+  try { window.scrollTo(0, y); } catch { /* 表示専用 */ }
 }
 function renderKnowledgePage() {
   const name = state.knowledgeName;
@@ -626,7 +642,7 @@ function renderKnowledgePage() {
     },
   }, `${idx + 1}. ${choice}`));
   wrap.append(
-    el("button", { class: "btn secondary small", onclick: () => { state.knowledgeName = null; renderMain(); } }, "← もどる"),
+    el("button", { class: "btn secondary small", onclick: () => closeKnowledge() }, "← もどる"),
     el("div", { class: "card knowledge-hero" },
       heroIcon,
       el("div", { class: "k-name" }, name),
@@ -710,7 +726,7 @@ function renderGamePage() {
     const hero = el("div", { class: "card knowledge-hero game-hero" },
       iconEl("トマト", "野菜"), iconEl("にんじん", "野菜"), iconEl("卵", "卵・乳製品"),
       el("div", { class: "k-name" }, "🎮 食材クイズゲーム"),
-      el("p", { class: "k-text" }, "3択クイズ・旬クイズ・なまえ当てのほかに、栄養クイズ、見分け方クイズ、レア度クイズ、都道府県クイズ、レシピクイズ、行事のごちそうクイズも出るよ。もんだいのかずと むずかしさを選んでね。集めた食材から問題が出るから、図鑑を集めるほど楽しくなるよ！"),
+      el("p", { class: "k-text" }, "3択クイズ・旬クイズ・なまえ当てのほかに、栄養クイズ、見分け方クイズ、からだの働きクイズ、都道府県クイズ、レシピクイズ、行事のごちそうクイズも出るよ。もんだいのかずと むずかしさを選んでね。集めた食材から問題が出るから、図鑑を集めるほど楽しくなるよ！"),
       el("div", { class: "tabs game-count-tabs", role: "tablist", "aria-label": "もんだいのかずを選ぶ" },
         GAME_COUNT_OPTIONS.map((n) => el("button", {
           class: (state.gameCount || GAME_QUESTION_COUNT) === n ? "active" : "",
@@ -752,7 +768,8 @@ function renderGamePage() {
   const typeLabel = {
     knowledge: "3択クイズ", season: "旬クイズ", name: "なまえ当てクイズ",
     nutrition: "栄養クイズ", choose: "見分け方クイズ", seasonfood: "旬の食べ物クイズ", regional: "郷土料理クイズ",
-    rarity: "レア度クイズ", category: "なかま分けクイズ", trivia: "まめちしきクイズ", bodyhint: "からだヒント当て",
+    category: "なかま分けクイズ", trivia: "まめちしきクイズ", bodyhint: "からだヒント当て",
+    bodywork: "からだの働きクイズ", nutrientrev: "栄養から当てクイズ", chooserev: "見分け方から当てクイズ",
     prefecture: "都道府県クイズ", prefdish: "都道府県クイズ", recipein: "レシピクイズ", recipeout: "レシピクイズ",
     eventdish: "行事のごちそうクイズ",
   }[q.type] || "3択クイズ";
@@ -801,6 +818,10 @@ function renderGamePage() {
 // ベストスコアだけ端末の localStorage（専用キー）に保存し、
 // 在庫データには一切触れない。
 let suikaCtrl = null; // createSuikaGame のコントローラ（1つだけ使い回す）
+let suikaFitFn = null; // 表示中のゲーム画面のボード幅フィット関数（リサイズ時に再計算）
+if (typeof window !== "undefined") {
+  window.addEventListener("resize", () => { if (suikaFitFn) suikaFitFn(); });
+}
 let suikaUi = null; // 現在表示中のページの DOM 更新フック { update(state) }
 function renderSuikaPage() {
   const wrap = el("div", {});
@@ -843,9 +864,14 @@ function renderSuikaPage() {
     onclick: () => suikaCtrl?.drop(),
   }, "おとす！");
 
+  const controlsEl = el("div", { class: "suika-controls" },
+      el("button", { class: "btn secondary suika-arrow", type: "button", "aria-label": "左へ動かす", onclick: () => suikaCtrl?.nudge(-1) }, "←"),
+      dropBtn,
+      el("button", { class: "btn secondary suika-arrow", type: "button", "aria-label": "右へ動かす", onclick: () => suikaCtrl?.nudge(1) }, "→"),
+    );
   wrap.append(el("div", { class: "card" },
     el("div", { class: "k-name" }, "🧺 やさいあわせゲーム"),
-    el("p", { class: "k-text" }, "同じ野菜同士がくっつくと、大きな野菜に進化！ プチトマトから育てて、最後は やさいバスケットを目指そう。点線を超えたままになると、あふれてゲームオーバーだよ。"),
+    el("p", { class: "k-text suika-desc" }, "同じ野菜同士がくっつくと、大きな野菜に進化！ プチトマトから育てて、最後は やさいバスケットを目指そう。点線を超えたままになると、あふれてゲームオーバーだよ。"),
     el("div", { class: "suika-stats" },
       el("div", { class: "suika-stat" }, el("span", { class: "suika-stat-label" }, "スコア"), scoreVal),
       el("div", { class: "suika-stat" }, el("span", { class: "suika-stat-label" }, "ベスト"), bestVal),
@@ -857,11 +883,7 @@ function renderSuikaPage() {
     ),
     melonBanner, overBanner,
     playWrap,
-    el("div", { class: "suika-controls" },
-      el("button", { class: "btn secondary suika-arrow", type: "button", "aria-label": "左へ動かす", onclick: () => suikaCtrl?.nudge(-1) }, "←"),
-      dropBtn,
-      el("button", { class: "btn secondary suika-arrow", type: "button", "aria-label": "右へ動かす", onclick: () => suikaCtrl?.nudge(1) }, "→"),
-    ),
+    controlsEl,
     el("p", { class: "hint" }, "野菜を左右に動かして、はなすか「おとす！」で落とすよ。"),
     el("button", { class: "btn secondary wide", type: "button", onclick: () => suikaCtrl?.restart() }, "↺ はじめから（リスタート）"),
   ));
@@ -907,14 +929,43 @@ function renderSuikaPage() {
     suikaCtrl = createSuikaGame({ onUpdate: (s) => { if (suikaUi) suikaUi.update(s); } });
   }
   suikaCtrl.attach(canvas, playWrap);
+  // 画面内に収める: ボード（canvas）の表示幅を、実測した「ボード上端から
+  // コントロール下端までの高さ」と端末のビューポート高さから逆算する。
+  // 固定サイズ 360×520 のままだと iPhone ではページがはみ出してスクロール
+  // してしまい、プレイ中にコントロールが見えなくなるための対策。
+  // 物理・描画は論理座標 (SUIKA_W×SUIKA_H) のままなので、表示幅だけを
+  // 変えても当たり判定には影響しない（canvas は CSS で 100% 幅追随）。
+  const fitBoard = () => {
+    if (!playWrap.isConnected) return;
+    try {
+      const vh = window.innerHeight || 0;
+      if (!vh) return;
+      const boardRect = playWrap.getBoundingClientRect();
+      const ctrlRect = controlsEl.getBoundingClientRect();
+      if (!boardRect.height || !ctrlRect.bottom) return;
+      // ボード以外の占有高（統計＋バナー＋コントロール等、ボード上端→操作系下端）
+      const nonBoard = (ctrlRect.bottom - boardRect.top) - boardRect.height;
+      // 下部ナビ（固定・約64px＋余白）に隠れないよう 96px を確保
+      const availH = Math.max(200, vh - 96 - boardRect.top - nonBoard);
+      const parentW = playWrap.parentElement ? playWrap.parentElement.clientWidth - 36 : 400;
+      const w = Math.max(180, Math.min(400, parentW, Math.floor(availH * (SUIKA_W / SUIKA_H))));
+      playWrap.style.width = `${w}px`;
+    } catch { /* 計測できない環境では CSS のフォールバックに任せる */ }
+  };
+  suikaFitFn = fitBoard;
+  requestAnimationFrame(fitBoard);
   return wrap;
 }
 
 // ---------- 在庫タブ ----------
-function isLow(item) { return isLowStock(item); }
+// お気に入りの在庫がゼロになったら買い物リストへ自動追加する。
+// （残りわずか判定は廃止したので、トリガーは数量 0 のみ）
+function isOutOfStockFavorite(item) {
+  return !!item && !!item.isFavorite && Number(item.quantity) === 0;
+}
 
 async function maybeAutoAddShopping(item) {
-  if (!isLow(item)) return;
+  if (!isOutOfStockFavorite(item)) return;
   const exists = state.shopping.some((s) => s.linkedItemId === item.id && !s.isChecked);
   if (exists) return;
   const row = await store.addShopping(state.user.id, state.fridge.id, {
@@ -931,7 +982,6 @@ function renderStockTab() {
   for (const item of state.items) {
     const d = daysUntil(item.expiryDate);
     if (d !== null && d <= 3) alerts.push(`⏰ 「${item.name}」は${expiryLabel(item.expiryDate)}（${formatDate(item.expiryDate)}）`);
-    if (isLow(item)) alerts.push(`⭐ お気に入り「${item.name}」が残りわずかです`);
   }
   if (alerts.length) {
     wrap.append(el("div", { class: "card" }, el("h2", {}, "🔔 お知らせ"),
@@ -1021,7 +1071,6 @@ function renderItemCard(item) {
     el("span", { class: "chip" }, item.category),
     el("span", { class: "chip" }, item.storage),
     item.expiryDate ? el("span", { class: "chip expiry-chip " + (expiryChipClass(d) || "") }, `期限 ${formatDate(item.expiryDate)}・${expiryLabel(item.expiryDate)}`) : null,
-    isLow(item) ? el("span", { class: "chip warn" }, "残りわずか") : null,
   ];
   const iconTile = iconEl(item.name, item.category);
   iconTile.classList.add("tile");
@@ -1145,12 +1194,10 @@ function renderAddItemForm() {
   category.addEventListener("change", syncStorageDefault);
   syncStorageDefault();
   const fav = el("input", { type: "checkbox" });
-  const threshold = el("input", { type: "number", value: "1", min: "0", step: "0.5" });
-  // 単位が「玉」のときは数量・しきい値を 1/4 刻みにし、分数クイック選択を出す
+  // 単位が「玉」のときは数量を 1/4 刻みにし、分数クイック選択を出す
   const updateUnitUI = () => {
     const tama = isFractionUnit(unitPicker.getValue());
     qty.step = tama ? "0.25" : "0.5";
-    threshold.step = tama ? "0.25" : "0.5";
     fracRow.style.display = tama ? "" : "none";
   };
   unitPicker.onChange = updateUnitUI;
@@ -1197,11 +1244,10 @@ function renderAddItemForm() {
       el("div", {}, el("label", {}, "数量"), qty),
       el("div", {}, el("label", {}, "単位"), ...unitPicker.nodes),
       el("div", {}, el("label", {}, "賞味・消費期限"), expiry),
-      el("div", {}, el("label", {}, "残りわずか判定"), threshold),
     ),
     fracRow,
     el("p", { class: "hint" }, "白菜・キャベツなどの頭野菜は、単位を「玉」にすると半玉（1/2）・1/4玉・3/4玉のような分数で登録できます。"),
-    el("label", { class: "check-line" }, fav, "お気に入りにする（少なくなったら買い物リストへ自動追加）"),
+    el("label", { class: "check-line" }, fav, "お気に入りにする（在庫がなくなったら買い物リストへ自動追加）"),
     el("button", {
       class: "btn wide", onclick: async () => {
         if (!name.value.trim()) { toast("食材名を入力してください"); return; }
@@ -1210,7 +1256,7 @@ function renderAddItemForm() {
           const item = await store.addItem(state.user.id, state.fridge.id, {
             name: name.value.trim(), category: category.value, quantity: roundQty(Number(qty.value) || 1),
             unit: unitPicker.getValue(), expiryDate: expiry.value || null, storage: storageSel.value,
-            isFavorite: fav.checked, lowThreshold: roundQty(Number(threshold.value) || 0),
+            isFavorite: fav.checked,
           });
           await refreshData(); renderMain();
           if (!celebratePurchase(item.name, beforeCounts)) toast(`「${item.name}」を登録しました`);
@@ -1226,7 +1272,7 @@ function renderAddItemForm() {
 // 定番カタログはカラー/薄いの対比で「集める楽しさ」を出し、
 // セルをタップすると、その食材を在庫登録フォームに下書きして在庫タブへ進む。
 function renderZukanTab() {
-  const wrap = el("div", {});
+  const wrap = el("div", { class: "zukan-wrap" });
   const collected = new Map(state.catalog.map((c) => [c.name, c]));
   const catalogNames = new Set(CATALOG.flatMap(([, , names]) => names));
   const totalInCatalog = catalogNames.size;
@@ -1268,6 +1314,20 @@ function renderZukanTab() {
     }, "🧺 やさいあわせゲームであそぶ"),
     el("p", { class: "hint" }, "同じ野菜をくっつけて合体・進化させるパズルだよ。プチトマトから育てて、やさいバスケットを目指そう！"),
   ));
+  // カテゴリ別の収集状況（チップに got/total を出す）
+  const catStats = new Map();
+  for (const [, , names] of CATALOG) for (const n of names) {
+    const c = categoryOf(n);
+    if (!c) continue;
+    const s = catStats.get(c) || { total: 0, got: 0 };
+    s.total++; if (collected.has(n)) s.got++;
+    catStats.set(c, s);
+  }
+  const catChip = (key, label, got, total) => el("button", {
+    type: "button",
+    class: state.zukanCategory === key ? "active" : "",
+    onclick: () => { state.zukanCategory = key; renderMain(); },
+  }, label, total != null ? el("span", { class: "cat-count" }, `${got}/${total}`) : null);
   const cellFor = (name, category) => {
     const rec = collected.get(name);
     const tier = rarityOf(name);
@@ -1293,15 +1353,32 @@ function renderZukanTab() {
       onclick: () => openKnowledge(name, rarityCategory(name) || category),
     }, ...kids);
   };
+  // カテゴリチップ（スティッキー）: レアリティ絞り込みと併用（AND）できる
+  const catRow = el("div", { class: "zukan-cat-row", role: "tablist", "aria-label": "カテゴリで絞り込む" },
+    catChip("all", "すべて", gotInCatalog, totalInCatalog));
+  for (const c of catalogCategories()) {
+    const s = catStats.get(c);
+    if (s) catRow.append(catChip(c, c, s.got, s.total));
+  }
+  wrap.append(catRow);
+  let shownAny = false;
   for (const [group, category, names] of CATALOG) {
-    const shown = state.zukanFilter === "all" ? names : names.filter((n) => rarityOf(n) === state.zukanFilter);
+    const shown = names.filter((n) =>
+      (state.zukanFilter === "all" || rarityOf(n) === state.zukanFilter)
+      && (state.zukanCategory === "all" || categoryOf(n) === state.zukanCategory));
     if (!shown.length) continue;
+    shownAny = true;
     wrap.append(el("h3", { class: "group-title" }, el("span", { class: "dot week" }), group));
     wrap.append(el("div", { class: "zukan-grid" }, shown.map((n) => cellFor(n, category))));
   }
-  if (extras.length && state.zukanFilter === "all") {
+  const shownExtras = extras.filter((c) => state.zukanCategory === "all" || c.category === state.zukanCategory);
+  if (shownExtras.length && state.zukanFilter === "all") {
+    shownAny = true;
     wrap.append(el("h3", { class: "group-title" }, el("span", { class: "dot later" }), "自分で追加した食材"));
-    wrap.append(el("div", { class: "zukan-grid" }, extras.map((c) => cellFor(c.name, c.category))));
+    wrap.append(el("div", { class: "zukan-grid" }, shownExtras.map((c) => cellFor(c.name, c.category))));
+  }
+  if (!shownAny) {
+    wrap.append(el("p", { class: "hint" }, "この絞り込みに合う食材は、まだ図鑑にありません。カテゴリやレアリティの絞り込みを変えてみてね。"));
   }
   return wrap;
 }
@@ -1369,7 +1446,7 @@ function renderShoppingTab() {
   wrap.append(el("div", { class: "card" },
     el("h2", {}, "🛒 買い物リスト"),
     state.shopping.length === 0
-      ? el("p", { class: "empty" }, "リストは空です。\nお気に入りが少なくなると自動で追加されます。")
+      ? el("p", { class: "empty" }, "リストは空です。\nお気に入りの在庫がなくなると自動で追加されます。")
       : state.shopping.map((s) => el("div", { class: "shop-row" },
           // おつかいの子が見分けやすいよう、キャラ＋名前を大きく目立たせる
           // キャラ／名前タップで食材の知識ページ（食育）にも行ける
@@ -1393,7 +1470,7 @@ function renderShoppingTab() {
                 } else {
                   await store.addItem(state.user.id, state.fridge.id, {
                     name: s.name, category: rarityCategory(s.name) || "その他", quantity: Number(s.quantity) || 1, unit: s.unit || "",
-                    expiryDate: null, storage: "冷蔵庫", isFavorite: false, lowThreshold: 1,
+                    expiryDate: null, storage: "冷蔵庫", isFavorite: false,
                   });
                 }
                 await store.deleteShopping(state.user.id, s.id);
@@ -2330,7 +2407,7 @@ function renderSettingsTab() {
     : perm === "denied" ? "ブロックされています（ブラウザの設定で許可してください）"
     : "まだOFFです";
   notifyCard.append(
-    el("p", { class: "hint" }, "アプリを開いたときに、期限が近い食材や残りわずかのお気に入りがあれば、この端末に通知します（1日1回まで・サーバー不要）。アプリを開いていないときの通知（サーバー発プッシュ）は、公開後の追加設定が済むと有効になります。"),
+    el("p", { class: "hint" }, "アプリを開いたときに、期限が近い食材があれば、この端末に通知します（1日1回まで・サーバー不要）。アプリを開いていないときの通知（サーバー発プッシュ）は、公開後の追加設定が済むと有効になります。"),
     el("p", {}, "現在の状態：", el("strong", {}, permLabel)),
   );
   if (perm === "default") {
@@ -2354,7 +2431,7 @@ function renderSettingsTab() {
     notifyCard.append(el("button", {
       class: "btn secondary wide", onclick: async () => {
         if (!buildReminders(state.items).length) {
-          toast("今は通知する内容がありません（期限3日以内・残りわずかの食材なし）");
+          toast("今は通知する内容がありません（期限3日以内の食材なし）");
           return;
         }
         // テスト送信: その日の「送信済み」記録を無視して1回だけ送る

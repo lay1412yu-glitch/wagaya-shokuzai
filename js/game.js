@@ -3,13 +3,15 @@
 // 食育コンテンツ（js/knowledge.js）の「旬・見分け方・からだにいいこと
 // （栄養）・まめちしき・3択クイズ」、レシピデータ（js/recipes.js の
 // RECIPES / EVENT_RECIPES / EVENT_MENUS / REGIONS / REGIONAL_RECIPES /
-// REGIONAL_PREF）、図鑑のレア度（js/icons.js の RARITY）から、そのまま
-// 遊べるクイズを組み立てる純粋ロジック。状態は持たず、在庫・買い物
-// リストなどのデータには一切触れない（ゲームの結果はどこにも保存しない）。
+// REGIONAL_PREF）から、そのまま遊べるクイズを組み立てる純粋ロジック。
+// 状態は持たず、在庫・買い物リストなどのデータには一切触れない
+// （ゲームの結果はどこにも保存しない）。
+// ※ 図鑑のレア度（icons.js の RARITY）は図鑑の仕組みとして残るが、
+//    クイズでレア度を問う問題は出さない（ユーザー指示 2026-11-12）。
 // すべての問題はデータから自動生成するので、食材やレシピが増えれば
 // 問題のプールも自動で増える（手書きの固定問題リストは持たない）。
 //
-// 問題の種類（type）: 全16種類
+// 問題の種類（type）: 全18種類
 // - "knowledge":  知識ページの3択クイズそのもの
 // - "season":     「いちばんおいしい季節（旬）はいつ？」を選ぶ
 // - "name":       まめちしきをヒントに、食材の名前を当てる（キャラはシルエット表示）
@@ -19,12 +21,16 @@
 // - "seasonfood": 「○○（季節）に旬の食べ物はどれ？」（名前の3択。シルエット表示）
 // - "regional":   郷土料理クイズ「○○はどこの地域の名物？」（recipes.js の
 //                   地域データから出題。料理名と由来メモを使う）
-// - "rarity":     レア度クイズ「図鑑で○○はどのくらいめずらしい？」／
-//                   「激レア（レア）の食材はどれ？」（icons.js の RARITY から出題）
 // - "category":   仲間分けクイズ「なかまはずれはどれ？」（2つは同じカテゴリ、
 //                   1つだけ違うカテゴリ）
 // - "trivia":     まめちしきクイズ「○○について正しいのはどれ？」
 // - "bodyhint":   からだヒント当て（からだにいいこと の文をヒントに名前を当てる。
+//                   個別記事のある食材だけから出題する）
+// - "bodywork":   からだの働きクイズ「○○を食べると、体にうれしいことはどれ？」
+//                   （body の一文目が正解。カテゴリ共通の知識でも出題できる）
+// - "nutrientrev": 栄養から当てるクイズ「○○（栄養）が多く入っている食べ物はどれ？」
+//                   （その栄養を含む食材が正解、含まない食材が間違い役）
+// - "chooserev":  見分け方から当てるクイズ（見分け方の文をヒントに名前を当てる。
 //                   個別記事のある食材だけから出題する）
 // - "prefecture": 都道府県クイズ（料理名 → 都道府県）
 // - "prefdish":   都道府県クイズ（都道府県 → 料理名）
@@ -49,13 +55,13 @@ import {
   REGIONS, REGIONAL_RECIPES, REGIONAL_RECIPES_MORE, REGIONAL_PREF,
   ALL_RECIPES, EVENT_RECIPES, EVENT_MENUS,
 } from "./recipes.js";
-import { CATALOG, rarityOf, rarityCategory } from "./icons.js";
+import { CATALOG, rarityCategory } from "./icons.js";
 
 export const GAME_QUESTION_COUNT = 5;
 export const GAME_COUNT_OPTIONS = [5, 10, 15, 20, 30];
 export const GAME_TYPES = [
   "knowledge", "season", "name", "nutrition", "choose", "seasonfood", "regional",
-  "rarity", "category", "trivia", "bodyhint",
+  "category", "trivia", "bodyhint", "bodywork", "nutrientrev", "chooserev",
   "prefecture", "prefdish", "recipein", "recipeout", "eventdish",
 ];
 /** 難易度ごとの出題タイプ。family は全タイプ、kids はやさしいものだけ、
@@ -63,13 +69,14 @@ export const GAME_TYPES = [
 export const GAME_DIFFICULTIES = [
   {
     id: "kids", label: "こども（やさしい）",
-    types: ["knowledge", "season", "name", "seasonfood", "category", "rarity", "recipein"],
+    types: ["knowledge", "season", "name", "seasonfood", "category", "recipein"],
   },
   { id: "family", label: "かぞく（ふつう）", types: [...GAME_TYPES] },
   {
     id: "adult", label: "大人チャレンジ（むずかしい）",
-    types: ["knowledge", "nutrition", "choose", "trivia", "bodyhint", "regional",
-      "prefecture", "prefdish", "recipeout", "eventdish", "rarity"],
+    types: ["knowledge", "nutrition", "choose", "trivia", "bodyhint", "bodywork",
+      "nutrientrev", "chooserev", "regional",
+      "prefecture", "prefdish", "recipeout", "eventdish"],
   },
 ];
 export const GAME_DIFFICULTY_DEFAULT = "family";
@@ -293,43 +300,79 @@ function bodyHintQuestion(target, info, pool, rng) {
   }, factFromKnowledge(target.name, info, rng));
 }
 
-// ---- レア度クイズ（icons.js の RARITY から作る） ----
-const TIER_LABEL = { ultra: "激レア", rare: "レア" };
-const RARE_NAMES = CATALOG.flatMap(([, , names]) => names).filter((n) => rarityOf(n));
-function rarityQuestion(target, pool, rng) {
-  // 形その2: 「激レア（レア）の食材はどれ？」— たまに出す
-  if (rng() < 0.4 && RARE_NAMES.length > 0) {
-    const rareName = pick(RARE_NAMES, rng);
-    const tier = rarityOf(rareName);
-    const normals = shuffled(pool.filter((p) => !rarityOf(p.name) && p.name !== rareName), rng).slice(0, 2);
-    if (normals.length >= 2) {
-      const choices = shuffled([rareName, ...normals.map((p) => p.name)], rng);
-      const info = knowledgeFor(rareName, rarityCategory(rareName) || "その他");
-      return withFact({
-        name: rareName, category: rarityCategory(rareName) || "その他", type: "rarity",
-        q: `${TIER_LABEL[tier]}の 食材は どれ？`,
-        choices,
-        answer: choices.indexOf(rareName),
-        explain: `『${rareName}』は${TIER_LABEL[tier]}！ 図鑑で金色のわくが付く、特別な食材だよ。`,
-      }, factFromKnowledge(rareName, info, rng));
-    }
+// ---- からだの働きクイズ（body=からだにいいこと の一文目が正解） ----
+// カテゴリ共通の知識でも、カテゴリごとに body が違うのでそのまま出題できる。
+// 同じカテゴリの間違い役は body が同一文になるため自然に除外される。
+function bodyWorkQuestion(target, info, pool, rng) {
+  const lead = (text) => {
+    const s = String(text || "").split("。")[0];
+    return s ? `${s}。` : "";
+  };
+  const correct = lead(info.body);
+  if (!correct) return null;
+  const ordered = [
+    ...shuffled(pool.filter((x) => x.name !== target.name && x.category === target.category), rng),
+    ...shuffled(pool.filter((x) => x.name !== target.name && x.category !== target.category), rng),
+  ];
+  const others = [];
+  for (const p of ordered) {
+    const t = lead(knowledgeFor(p.name, p.category).body);
+    if (t && t !== correct && !others.includes(t)) others.push(t);
+    if (others.length >= 2) break;
   }
-  // 形その1: 「○○はどのくらいめずらしい？」
-  const tier = rarityOf(target.name);
-  const label = tier ? TIER_LABEL[tier] : "ふつう";
-  const choices = shuffled(["激レア", "レア", "ふつう"], rng);
-  const info = knowledgeFor(target.name, target.category);
-  const explain = tier === "ultra"
-    ? `『${target.name}』は激レア！ なかなか出会えない、とっても特別な食材だよ。`
-    : tier === "rare"
-      ? `『${target.name}』はレア！ ちょっとめずらしい食材だよ。`
-      : `『${target.name}』はふつうの食材。スーパーでよく出会える、毎日の食卓の味方だよ。`;
+  if (others.length < 2) return null;
+  const choices = shuffled([correct, ...others], rng);
   return withFact({
-    name: target.name, category: target.category, type: "rarity",
-    q: `図鑑で ${target.name} は どのくらい めずらしい？`,
+    name: target.name, category: target.category, type: "bodywork",
+    q: `${target.name}を 食べると、体に うれしいことは どれ？`,
     choices,
-    answer: choices.indexOf(label),
-    explain,
+    answer: choices.indexOf(correct),
+    explain: `${target.name}のはたらき：${info.body}`,
+  }, factFromKnowledge(target.name, info, rng));
+}
+
+// ---- 栄養から当てるクイズ（栄養ワード → 食材名の逆引き） ----
+// 正解の食材はその栄養を body に含み、間違い役は含まない食材だけを選ぶ
+// （部分一致で判定するので「ビタミンB1」と「ビタミンB12」の取り違えも起きない）。
+function nutrientReverseQuestion(target, info, pool, rng) {
+  const nutrient = nutrientOf(info.body);
+  if (!nutrient) return null;
+  const ordered = [
+    ...shuffled(pool.filter((x) => x.name !== target.name && x.category === target.category), rng),
+    ...shuffled(pool.filter((x) => x.name !== target.name && x.category !== target.category), rng),
+  ];
+  const others = [];
+  for (const p of ordered) {
+    const pb = String(knowledgeFor(p.name, p.category).body || "");
+    if (!pb.includes(nutrient) && !others.includes(p.name)) others.push(p.name);
+    if (others.length >= 2) break;
+  }
+  if (others.length < 2) return null;
+  const choices = shuffled([target.name, ...others], rng);
+  return withFact({
+    name: target.name, category: target.category, type: "nutrientrev",
+    q: `${nutrient}が 多く 入っている 食べ物は どれ？`,
+    choices,
+    answer: choices.indexOf(target.name),
+    explain: `${target.name}には${nutrient}が入っているよ。${info.body}`,
+  }, factFromKnowledge(target.name, info, rng));
+}
+
+// ---- 見分け方から当てるクイズ（choose=見分け方 をヒントに名前を当てる） ----
+// カテゴリ共通の見分け方は食材を特定できないので、個別記事のある食材だけ。
+function chooseReverseQuestion(target, info, pool, rng) {
+  if (info.source !== "item") return null;
+  if (!info.choose) return null;
+  const others = nameDistractors(target, pool, rng);
+  if (others.length < 2) return null;
+  const hint = String(info.choose).split(target.name).join("○○○");
+  const choices = shuffled([target.name, ...others], rng);
+  return withFact({
+    name: target.name, category: target.category, type: "chooserev",
+    q: `見分け方：「${hint}」これは どの 食べ物？`,
+    choices,
+    answer: choices.indexOf(target.name),
+    explain: `正解は『${target.name}』！ ${info.choose}`,
   }, factFromKnowledge(target.name, info, rng));
 }
 
@@ -630,7 +673,7 @@ export function buildGameQuestions(pool, { count = GAME_QUESTION_COUNT, seed = 1
   const genTarget = (type) => {
     // タイプに合う食材を優先して取る（無ければどれか1つ）
     let target = null;
-    if (type === "bodyhint") target = takeTarget(hasOwnKnowledge);
+    if (type === "bodyhint" || type === "chooserev") target = takeTarget(hasOwnKnowledge);
     else if (type === "seasonfood") target = takeTarget(seasonable);
     if (!target) target = takeTarget();
     if (!target) return null;
@@ -643,7 +686,9 @@ export function buildGameQuestions(pool, { count = GAME_QUESTION_COUNT, seed = 1
       case "seasonfood": return seasonFoodQuestion(target, info, unique, rng) || knowledgeQuestion(target, info, rng);
       case "trivia": return triviaQuestion(target, info, unique, rng) || knowledgeQuestion(target, info, rng);
       case "bodyhint": return bodyHintQuestion(target, info, unique, rng) || knowledgeQuestion(target, info, rng);
-      case "rarity": return rarityQuestion(target, unique, rng);
+      case "bodywork": return bodyWorkQuestion(target, info, unique, rng) || knowledgeQuestion(target, info, rng);
+      case "nutrientrev": return nutrientReverseQuestion(target, info, unique, rng) || knowledgeQuestion(target, info, rng);
+      case "chooserev": return chooseReverseQuestion(target, info, unique, rng) || knowledgeQuestion(target, info, rng);
       default: return knowledgeQuestion(target, info, rng);
     }
   };
