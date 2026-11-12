@@ -14,7 +14,7 @@
 //   ログイン完了後に自動で参加を試みる（URL の履歴からは即座に消す）。
 
 import { el, uid, todayISO, daysUntil, formatDate, expiryLabel, expiryGroup, expiryChipClass, formatCode, fmtQtyValue, qtyStepFor, roundQty, isFractionUnit, isLowStock, matchesSearch, topPurchased, recentRegistered, oneTapCandidates, inListQuantity, planOneTapAdd, RECIPE_QUICK_FILTERS, matchesRecipeFilter, filterRecipes, STORAGE_ZONES, STORAGE_ZONE_ALL, countByStorage, filterByStorage, suggestStorage, UNIT_OPTIONS, UNIT_OTHER_VALUE, unitSelectValueFor, resolveUnitValue, upsertTodayMenuEntry, removeTodayMenuEntry, groupTodayMenuEntries, mergeMissingIngredients, isAppShellCacheName } from "./util.js";
-import { suggestRecipes, suggestMealSet, suggestEventMenu, EVENT_MENUS, suggestRegionalMenu, REGIONS, evaluateRecipe, ALL_RECIPES, rankRecipesByIngredients } from "./recipes.js";
+import { suggestRecipes, suggestFilteredCatalogue, suggestMealSet, suggestEventMenu, EVENT_MENUS, suggestRegionalMenu, REGIONS, evaluateRecipe, ALL_RECIPES, rankRecipesByIngredients } from "./recipes.js";
 import * as recipesNs from "./recipes.js";
 import { suggestCombos, repertoireSize } from "./combo.js";
 import { buildGameQuestions, scoreGame, CORRECT_PRAISE, GAME_QUESTION_COUNT, GAME_COUNT_OPTIONS, GAME_DIFFICULTIES, GAME_DIFFICULTY_DEFAULT } from "./game.js";
@@ -27,7 +27,7 @@ import { DemoStore, DEMO_DB_KEY } from "./demo-store.js";
 import { GUIDE_STEPS, guideSeen, markGuideSeen } from "./guide.js";
 import { legalDocs } from "./legal.js";
 import { buildReminders, notifyOnOpen, permissionState, subscribePush } from "./notify.js";
-import { LOADING_MESSAGES, pickLoadingChars, loadingFactPool, pickLoadingFact } from "./loading.js";
+import { LOADING_MESSAGES, pickLoadingChars, loadingFactPool, pickLoadingFact, attachCharMotion } from "./loading.js";
 
 const CATEGORIES = ["野菜", "肉", "魚", "卵・乳製品", "豆腐・大豆", "調味料", "乾物・缶詰", "冷凍食品", "飲み物", "果物", "その他"];
 // 保管場所の区分（冷蔵庫／冷凍庫／野菜室／常温）は util.js の STORAGE_ZONES が正。
@@ -178,16 +178,19 @@ window.addEventListener("storage", (e) => {
 
 // ---------- 読み込み画面（食材キャラ＋豆知識） ----------
 // 起動時・冷蔵庫を開く/切り替える時に出す全画面の待ち画面。
-// 食材キャラが波のように跳ね、ステータスメッセージと食育の豆知識が切り替わる。
+// 食材キャラが各自のリズムで跳ね回り、ステータスメッセージと食育の豆知識が切り替わる。
 // 最小表示時間は設けない（準備ができたらすぐ本画面に替わる）。
-// タイマーは loadingTimers に集め、どの画面に遷移しても stopLoadingView() で
-// 必ず止める（renderMain / renderAuth / renderFridgePicker / renderLegalPage の
-// 先頭で呼ぶ）。万一止め忘れても、ノードが DOM から外れたら自ら止まる。
+// タイマーは loadingTimers に、キャラのモーションは loadingMotion に集め、
+// どの画面に遷移しても stopLoadingView() で必ず止める（renderMain / renderAuth /
+// renderFridgePicker / renderLegalPage の先頭で呼ぶ）。万一止め忘れても、
+// ノードが DOM から外れたら自ら止まる。
 const LOADING_FACT_POOL = loadingFactPool();
 let loadingTimers = [];
+let loadingMotion = null; // キャラの遊びモーション（loading.js の rAF ループ）
 function stopLoadingView() {
   for (const t of loadingTimers) clearInterval(t);
   loadingTimers = [];
+  if (loadingMotion) { loadingMotion.stop(); loadingMotion = null; }
 }
 function renderLoadingView() {
   stopLoadingView();
@@ -200,16 +203,6 @@ function renderLoadingView() {
     const c = el("span", { class: "food-icon loading-char", "aria-hidden": "true" }, img);
     // 画像が読めなかった場合は仮表示にする（iconEl と同じ扱い）
     img.addEventListener("error", () => { c.replaceChildren(charPlaceholderEl()); }, { once: true });
-    c.style.animationDelay = `${(i * 0.13).toFixed(2)}s`;
-    // タップすると大きく跳ねる（状態を持たない、見た目だけのお楽しみ）
-    c.addEventListener("click", () => {
-      c.classList.remove("hop");
-      void c.offsetWidth; // アニメーションを最初から再生し直す
-      c.classList.add("hop");
-    });
-    c.addEventListener("animationend", (e) => {
-      if (e.animationName === "char-hop") c.classList.remove("hop");
-    });
     return c;
   }));
   const factThumb = el("span", { class: "loading-fact-thumb" });
@@ -230,6 +223,27 @@ function renderLoadingView() {
   };
   showFact();
   appRoot.append(el("div", { class: "loading-view" }, charsRow, msgNode, factCard));
+  // キャラの動きは loading.js の物理モーション（rAF で transform のみ更新）が担う。
+  // 各キャラが自分のリズムで跳ね回り、タップするとそのキャラが高く跳ぶ。
+  // reduced-motion では動かさず、rAF が無い環境では CSS アニメーションに倒す。
+  const charEls = Array.from(charsRow.children);
+  loadingMotion = attachCharMotion(charEls);
+  if (loadingMotion && loadingMotion.active) {
+    charEls.forEach((c) => c.addEventListener("click", () => loadingMotion.poke(c)));
+  } else if (!loadingMotion) {
+    charEls.forEach((c, i) => {
+      c.classList.add("bounce");
+      c.style.animationDelay = `${(i * 0.13).toFixed(2)}s`;
+      c.addEventListener("click", () => {
+        c.classList.remove("hop");
+        void c.offsetWidth; // アニメーションを最初から再生し直す
+        c.classList.add("hop");
+      });
+      c.addEventListener("animationend", (e) => {
+        if (e.animationName === "char-hop") c.classList.remove("hop");
+      });
+    });
+  }
   let msgIdx = 0;
   const msgTimer = setInterval(() => {
     if (!msgNode.isConnected) { stopLoadingView(); return; }
@@ -2084,7 +2098,13 @@ function renderRecipesTab() {
   // 献立セット・組み合わせ提案のすべてに絞り込みを効かせる。
   const SUGGEST_PAGE_SIZE = 8;
   const pool = suggestRecipes(state.items, { mode: state.recipeMode, servings: size, limit: 1000 });
-  const filteredPool = filterRecipes(pool, state.recipeFilter);
+  // クイックフィルタ有効時は、在庫マッチの候補だけを絞ると数件しか残らず
+  // 「別の提案を見る」で新しい候補が出ない（例: おつまみ101品のうち手持ちで
+  // 作れるのは数品）。フィルタ中は全固定レシピからプールを作り直す
+  // （足りない材料6件未満まで、不足が少ない順）。「すべて」は従来どおり。
+  const filteredPool = state.recipeFilter !== "all"
+    ? suggestFilteredCatalogue(state.items, { servings: size, filter: state.recipeFilter })
+    : pool;
   const filterLabel = (RECIPE_QUICK_FILTERS.find((f) => f.key === state.recipeFilter) || {}).label || "";
   const pageCount = Math.max(1, Math.ceil(filteredPool.length / SUGGEST_PAGE_SIZE));
   if (state.suggestPage >= pageCount) state.suggestPage = 0;
@@ -2118,6 +2138,10 @@ function renderRecipesTab() {
         : state.recipeMode === "stock"
           ? "今の在庫だけで作れるレシピがまだありません。\n「買い出しで作る」も見てみてください。"
           : "提案できるレシピがありません。在庫を登録すると提案が増えます。")));
+  }
+  if (state.recipeFilter !== "all" && filteredPool.length > 0) {
+    wrap.append(el("p", { class: "hint" },
+      `「${filterLabel}」のレシピ ${filteredPool.length} 件から、足りない材料が少ない順に表示しています（買い足しが必要なものもあります）。`));
   }
   // 直前に「別の提案を見る」が押されていたら、この描画のカードに出現アニメーションを付ける
   const enterSuggest = refreshEnterSection === "suggest";

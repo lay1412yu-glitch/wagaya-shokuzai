@@ -633,8 +633,9 @@ button, a, input, select, textarea, label, [role="button"], [role="tab"] { touch
 .install-close:active { background: rgba(66, 80, 31, 0.12); }
 
 /* ---------- 読み込み画面（食材キャラ＋豆知識） ---------- */
-/* ベージュ背景の全画面ビュー。キャラが波のように跳ね（transform のみ）、
-   メッセージと豆知識が切り替わる。タップしたキャラは大きく跳ねる（.hop）。 */
+/* ベージュ背景の全画面ビュー。キャラの動きは loading.js の物理モーション
+   （rAF で transform のみ更新）が担い、各キャラが自分のリズムで跳ね回る。
+   下の keyframes は rAF が無い環境向けのフォールバック（.bounce / .hop）。 */
 .loading-view { text-align: center; padding: 9vh 8px 24px; }
 .loading-chars {
   display: flex; justify-content: center; align-items: flex-end;
@@ -642,9 +643,10 @@ button, a, input, select, textarea, label, [role="button"], [role="tab"] { touch
 }
 .loading-char {
   width: 54px; height: 54px; margin-right: 0; cursor: pointer;
-  animation: char-bounce 1.15s ease-in-out infinite;
+  transform-origin: 50% 100%;
   will-change: transform;
 }
+.loading-char.bounce { animation: char-bounce 1.15s ease-in-out infinite; }
 .loading-char.hop { animation: char-hop 0.55s ease; }
 @keyframes char-bounce {
   0%, 100% { transform: translateY(0) scale(1, 1); }
@@ -674,5 +676,5 @@ button, a, input, select, textarea, label, [role="button"], [role="tab"] { touch
 .loading-fact-name { font-weight: 800; font-size: 13.5px; color: var(--accent-deep); margin-bottom: 2px; }
 .loading-fact-text { margin: 0; font-size: 14px; line-height: 1.65; }
 @media (prefers-reduced-motion: reduce) {
-  .loading-char, .loading-char.hop { animation: none; }
+  .loading-char, .loading-char.bounce, .loading-char.hop { animation: none; }
 }

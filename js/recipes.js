@@ -14,6 +14,8 @@
 //   小さく効かせ、同じ顔ぶれが毎日先頭に並ばないようにする（期限の近い
 //   食材を優先するスコア差の方が大きいので、FIFO の優先順位は崩れない）
 
+import { matchesRecipeFilter } from "./util.js";
+
 export const RECIPES = [
   { id: "oyakodon", title: "親子丼", minutes: 20, ingredients: [
     { name: "鶏もも肉", match: ["鶏もも", "鶏肉", "とり肉"], per: 75, unit: "g" },
@@ -1872,6 +1874,34 @@ export function suggestRecipes(stockItems, { mode = "stock", servings = 2, limit
   });
   for (const r of results) delete r._fifoKey;
   return results.slice(0, limit);
+}
+
+/**
+ * クイックフィルタ有効時のおすすめプール（全カタログ版）。
+ * 在庫マッチ（suggestRecipes）の結果だけを絞り込むと、フィルタ後に数件しか
+ * 残らず「別の提案を見る」で新しい候補が出てこない（例: おつまみ101品のうち
+ * 手持ちの食材で作れるのは数品だけ）。そこでフィルタが有効な間は、全固定
+ * レシピを今の在庫で評価し直し、フィルタに合うものを全部候補にする。
+ * 足りない材料が6件以上のものは「あと少しで作れる」範囲を超えるので除く
+ * （食材ピッカーと同じ上限）。並びは 不足材料数 asc → 期限ボーナス
+ * （使い切り優先） desc → タイトル順。戻り値は evaluateRecipe の評価済み
+ * レシピ（have/missing 付き）で、通常のレシピカード・詳細・お気に入り・
+ * 献立ピン留めがそのまま使える。
+ */
+export function suggestFilteredCatalogue(stockItems, { servings = 2, filter = "all" } = {}) {
+  const today = todayLocalISO();
+  const rows = [];
+  for (const recipe of ALL_RECIPES) {
+    const evaluated = evaluateRecipe(recipe, stockItems, servings, today);
+    if (evaluated.missing.length >= 6) continue;
+    if (!matchesRecipeFilter(evaluated, filter)) continue;
+    rows.push(evaluated);
+  }
+  rows.sort((a, b) =>
+    a.missing.length - b.missing.length
+    || (b.bonus || 0) - (a.bonus || 0)
+    || String(a.title).localeCompare(String(b.title), "ja"));
+  return rows;
 }
 
 /**
