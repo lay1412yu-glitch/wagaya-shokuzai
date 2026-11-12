@@ -30,6 +30,16 @@ export function formatCode(normalized) {
   return n.length === 8 ? n.slice(0, 4) + "-" + n.slice(4) : n;
 }
 
+// 冷蔵庫の名前: 前後の空白を取り除き、空は不可、長さは 30 文字まで。
+// （作成時は空なら既定名が入るが、名前変更では空への変更を認めない）
+export const FRIDGE_NAME_MAX = 30;
+export function cleanFridgeName(name) {
+  const clean = String(name || "").trim();
+  if (!clean) throw new Error("冷蔵庫の名前を入力してください");
+  if (clean.length > FRIDGE_NAME_MAX) throw new Error(`冷蔵庫の名前は${FRIDGE_NAME_MAX}文字以内にしてください`);
+  return clean;
+}
+
 // 日付ユーティリティ（ローカル日付ベース）
 export function todayISO() {
   const d = new Date();

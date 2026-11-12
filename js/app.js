@@ -13,7 +13,7 @@
 // - 参加用リンク ?join=<code> を受けたら、コードを sessionStorage に退避し、
 //   ログイン完了後に自動で参加を試みる（URL の履歴からは即座に消す）。
 
-import { el, uid, todayISO, daysUntil, formatDate, expiryLabel, expiryGroup, expiryChipClass, formatCode, fmtQtyValue, qtyStepFor, roundQty, isFractionUnit, matchesSearch, topPurchased, recentRegistered, oneTapCandidates, inListQuantity, planOneTapAdd, RECIPE_QUICK_FILTERS, matchesRecipeFilter, filterRecipes, STORAGE_ZONES, STORAGE_ZONE_ALL, countByStorage, filterByStorage, suggestStorage, UNIT_OPTIONS, UNIT_OTHER_VALUE, unitSelectValueFor, resolveUnitValue, upsertTodayMenuEntry, removeTodayMenuEntry, groupTodayMenuEntries, mergeMissingIngredients, isAppShellCacheName, userErrorMessage } from "./util.js";
+import { el, uid, todayISO, daysUntil, formatDate, expiryLabel, expiryGroup, expiryChipClass, formatCode, fmtQtyValue, qtyStepFor, roundQty, isFractionUnit, matchesSearch, topPurchased, recentRegistered, oneTapCandidates, inListQuantity, planOneTapAdd, RECIPE_QUICK_FILTERS, matchesRecipeFilter, filterRecipes, STORAGE_ZONES, STORAGE_ZONE_ALL, countByStorage, filterByStorage, suggestStorage, UNIT_OPTIONS, UNIT_OTHER_VALUE, unitSelectValueFor, resolveUnitValue, upsertTodayMenuEntry, removeTodayMenuEntry, groupTodayMenuEntries, mergeMissingIngredients, isAppShellCacheName, userErrorMessage, FRIDGE_NAME_MAX } from "./util.js";
 import { suggestRecipes, suggestFilteredCatalogue, suggestMealSet, suggestEventMenu, EVENT_MENUS, suggestRegionalMenu, REGIONS, evaluateRecipe, ALL_RECIPES, rankRecipesByIngredients } from "./recipes.js";
 import * as recipesNs from "./recipes.js";
 import { suggestCombos, repertoireSize } from "./combo.js";
@@ -112,6 +112,7 @@ const state = {
   stockQuery: "", // 在庫の検索文字列
   stockZone: STORAGE_ZONE_ALL, // 在庫の保管場所フィルタ（すべて／冷蔵庫／冷凍庫／野菜室／常温。保存しない）
   recipeDetail: null, // レシピ詳細ページ表示中: { recipe, mode, size, servingsLabel, favId, scrollY, checked }（保存しない）
+  confirmDeleteFridge: false, // 冷蔵庫削除の最終確認パネル表示中（保存しない）
   showGuide: false, // はじめてガイド表示中
   legalView: null, // 法的ページ表示中: null | "privacy" | "terms"
   sessionTrash: [], // 本番モード用: この画面で削除した食材（セッション内のみ復元可）
@@ -606,7 +607,7 @@ async function openFridge(fridgeId) {
   state.suggestPage = 0; state.comboSeen = []; state.comboRound = 0;
   state.stockZone = STORAGE_ZONE_ALL; state.recipeDetail = null; state.recipeFilter = "all";
   state.recipeSource = "omakase"; state.pickerSelected = [];
-  state.todayMenuThanks = false;
+  state.todayMenuThanks = false; state.confirmDeleteFridge = false;
   renderLoadingView(); // データ取得中は読み込み画面（キャラ＋豆知識）を出す
   try {
     await refreshData();
@@ -2657,9 +2658,26 @@ function renderSettingsTab() {
   ));
 
   // 設定
+  // 冷蔵庫の名前変更は作成者だけ（本番ルールでも fridges の更新は作成者のみ許可）
+  const fridgeNameInput = isOwner ? el("input", {
+    type: "text", class: "grow", value: fridge.name, maxlength: String(FRIDGE_NAME_MAX), "aria-label": "新しい冷蔵庫の名前",
+  }) : null;
   wrap.append(el("div", { class: "card" },
     el("h2", {}, "⚙️ 設定"),
     el("div", { class: "fridge-row" }, el("span", { class: "grow" }, "冷蔵庫の名前"), el("strong", {}, fridge.name)),
+    isOwner ? el("div", { class: "fridge-row" },
+      fridgeNameInput,
+      el("button", {
+        class: "btn secondary small", onclick: async () => {
+          try {
+            const res = await store.renameFridge(state.user.id, fridge.id, fridgeNameInput.value);
+            state.fridge = { ...state.fridge, name: res.name };
+            const entry = state.fridges.find((f) => f.id === fridge.id);
+            if (entry) entry.name = res.name;
+            renderMain(); toast("冷蔵庫の名前を変更しました");
+          } catch (e) { toast(userErrorMessage(e)); }
+        },
+      }, "名前を変更する")) : null,
     el("div", { class: "stepper" },
       el("span", {}, "家族の人数（レシピの分量）"),
       el("button", { class: "qty-btn", onclick: () => setFamilySize(size - 1) }, "−"),
@@ -2680,6 +2698,38 @@ function renderSettingsTab() {
         await store.signOut(); state.user = null; state.fridge = null; renderAuth();
       },
     }, "ログアウト"),
+    isOwner && !state.confirmDeleteFridge ? el("button", {
+      class: "btn danger wide", onclick: () => {
+        if (!confirm(`「${fridge.name}」を削除しますか？\nこの冷蔵庫の在庫・買い物リスト・食材図鑑の記録はすべて削除され、メンバー全員がアクセスできなくなります。\nあなたが登録した、この冷蔵庫のレシピのお気に入りも削除されます。`)) return;
+        state.confirmDeleteFridge = true; renderMain();
+      },
+    }, "この冷蔵庫を削除する") : null,
+    isOwner && state.confirmDeleteFridge ? el("div", { class: "danger-confirm" },
+      el("p", {}, `「${fridge.name}」を本当に削除します。メンバー ${state.members.length} 人全員がアクセスできなくなり、在庫 ${state.items.length} 件・買い物リスト ${state.shopping.length} 件・図鑑の記録がすべて消えます。この操作は取り消せません。`),
+      el("button", {
+        class: "btn danger wide", onclick: async () => {
+          const fid = fridge.id;
+          try {
+            stopRealtime();
+            await store.deleteFridge(state.user.id, fid);
+            state.confirmDeleteFridge = false;
+            state.fridges = state.fridges.filter((f) => f.id !== fid);
+            try { state.fridges = await store.listMyFridges(state.user.id); } catch { /* 一覧の再取得に失敗しても、ローカルで除外済み */ }
+            state.fridge = null;
+            state.items = []; state.shopping = []; state.members = []; state.favRecipes = []; state.catalog = [];
+            state.inviteCode = null; state.sessionTrash = [];
+            state.todayMenu = { date: "", entries: [] }; state.todayMenuThanks = false;
+            renderFridgePicker(); toast("冷蔵庫を削除しました");
+          } catch (e) {
+            state.confirmDeleteFridge = false;
+            setupRealtime(); renderMain(); toast(userErrorMessage(e));
+          }
+        },
+      }, "削除する"),
+      el("button", {
+        class: "btn ghost wide", style: "margin-top:8px", onclick: () => { state.confirmDeleteFridge = false; renderMain(); },
+      }, "やめる"),
+    ) : null,
     el("button", {
       class: "btn danger wide", onclick: async () => {
         if (!confirm("退会すると、アカウントとあなたのレシピのお気に入りが削除されます。\n共有している冷蔵庫の在庫・買い物リストは家族のものとして残ります。\nあなたが作った冷蔵庫は、他のメンバーがいれば一番古くからのメンバーに引き継がれ、メンバーがあなただけなら冷蔵庫ごと削除されます。\n本当に退会しますか？")) return;

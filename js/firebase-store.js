@@ -16,7 +16,7 @@
 //   コード、再発行で旧コード即無効、fridgeId は推測不能なランダムID）。
 // - パスワードは Firebase Authentication が管理し、このアプリは保持しない。
 
-import { generateInviteCode, normalizeCode, todayISO, normalizeTodayMenu, userErrorMessage } from "./util.js";
+import { generateInviteCode, normalizeCode, todayISO, normalizeTodayMenu, userErrorMessage, cleanFridgeName } from "./util.js";
 import {
   inviteCodeHash, memberDocId, catalogDocId, favoriteDocId, pushTokenDocId,
   itemToDoc, itemFromDoc, itemPatchToDoc, shoppingToDoc, shoppingFromDoc,
@@ -176,27 +176,74 @@ export class FirebaseStore {
     }
     this._userCache = null;
   }
-  async _deleteFridgeData(fridgeId) {
+  // 冷蔵庫のデータを丸ごと消す共通処理（退会の単独分岐と deleteFridge で共用）。
+  // 順序が重要: データ（在庫・買い物・図鑑・メンバー）→ コード類 → 設定 →
+  // 冷蔵庫本体の順に消し、本体は必ず最後にする。メンバー登録を消した後は
+  // isMember が効かなくなるため、以後の操作はすべて「作成者」基準のルール
+  // （fridge_codes / fridge_settings / fridges の delete は isOwner）で通る。
+  // strict: true のときは失敗を握りつぶさず呼び出し側へ伝える（冷蔵庫削除用）。
+  // 退会（strict でない従来動作）では、多少の残骸があっても退会自体は
+  // 完了させるため、個別の削除失敗は飲み込む。
+  async _deleteFridgeData(fridgeId, { strict = false } = {}) {
     const fs = this._mods;
+    const del = (ref) => (strict ? fs.deleteDoc(ref) : fs.deleteDoc(ref).catch(() => {}));
     // favorite_recipes はここでは消さない。その一覧ルールは「本人の分だけ」
     // （userId == uid）で、fridgeId だけの検索は必ず拒否されるため。
-    // 退会する本人のお気に入りは deleteAccount 側の userId 検索で削除済みで、
-    // 他のメンバーのお気に入りは本人の退会で消すべきではない。
+    // 本人のお気に入りは deleteAccount / deleteFridge 側の userId 検索で
+    // 削除済みで、他のメンバーのお気に入りは消すべきではない（消せもしない）。
     for (const col of ["items", "shopping_items", "fridge_catalog", "fridge_members"]) {
       const snap = await fs.getDocs(fs.query(fs.collection(this.db, col), fs.where("fridgeId", "==", fridgeId)));
       for (const d of snap.docs) {
-        await fs.deleteDoc(d.ref).catch(() => {});
+        await del(d.ref);
       }
     }
-    // コード照合ドキュメント（ハッシュID）は invite 平文側から引いて消す
+    // コード照合ドキュメント（ハッシュID）は invite 平文側から引いて消す。
+    // 平文ドキュメントが読めない場合はハッシュ側を消せないが、照合先の
+    // 冷蔵庫自体が消えるため実害はない（参加フローで「見つからない」になる）。
     const invRef = fs.doc(this.db, "fridge_invite_codes", fridgeId);
-    const inv = await fs.getDoc(invRef);
-    if (inv.exists() && inv.data().codePlain) {
-      await fs.deleteDoc(fs.doc(this.db, "fridge_codes", await inviteCodeHash(inv.data().codePlain))).catch(() => {});
+    let inv = null;
+    try { inv = await fs.getDoc(invRef); } catch { inv = null; }
+    if (inv && inv.exists() && inv.data().codePlain) {
+      await del(fs.doc(this.db, "fridge_codes", await inviteCodeHash(inv.data().codePlain)));
     }
-    await fs.deleteDoc(invRef).catch(() => {});
-    await fs.deleteDoc(fs.doc(this.db, "fridge_settings", fridgeId)).catch(() => {});
-    await fs.deleteDoc(fs.doc(this.db, "fridges", fridgeId)).catch(() => {});
+    await del(invRef);
+    await del(fs.doc(this.db, "fridge_settings", fridgeId));
+    await del(fs.doc(this.db, "fridges", fridgeId));
+  }
+
+  // ---- 冷蔵庫の削除（作成者だけ。メンバー全員分のデータを丸ごと消す） ----
+  // 退会と違い、アカウントは残して冷蔵庫だけを消す。作成者確認を最初に行い、
+  // 作成者でなければ何も書かずに投げる。削除の途中で失敗した場合は
+  // strict な _deleteFridgeData がエラーを伝えるので、呼び出し側は
+  // 日本語メッセージを出せる（冷蔵庫本体は最後まで残るため、途中まで
+  // 消えても「開けるが一部データが減った」状態で収まる）。
+  async deleteFridge(userId, fridgeId) {
+    const fs = this._mods;
+    const fSnap = await fs.getDoc(fs.doc(this.db, "fridges", fridgeId));
+    if (!fSnap.exists()) throw new Error("冷蔵庫が見つかりませんでした");
+    if (fSnap.data().ownerId !== userId) throw new Error("この冷蔵庫を削除できるのは冷蔵庫を作った人だけです");
+    // 自分のお気に入り（この冷蔵庫の分）だけを消す。他のメンバーの分は
+    // ルール上さわれない（userId 本人の一覧・削除だけ許可）ため残るが、
+    // メンバー登録ごと消えるので二度と表示・利用されることはない。
+    const favSnap = await fs.getDocs(fs.query(fs.collection(this.db, "favorite_recipes"), fs.where("userId", "==", userId)));
+    for (const d of favSnap.docs) {
+      if (d.data().fridgeId === fridgeId) await fs.deleteDoc(d.ref);
+    }
+    await this._deleteFridgeData(fridgeId, { strict: true });
+  }
+
+  // ---- 冷蔵庫の名前変更（作成者だけ） ----
+  // ルール側も fridges の update は isOwner のみ許可のため、メンバーは
+  // UI があっても変更できない（getInviteCode 等と同じ「作成者だけ」の扱い）。
+  async renameFridge(userId, fridgeId, name) {
+    const fs = this._mods;
+    const clean = cleanFridgeName(name);
+    const fRef = fs.doc(this.db, "fridges", fridgeId);
+    const fSnap = await fs.getDoc(fRef);
+    if (!fSnap.exists()) throw new Error("冷蔵庫が見つかりませんでした");
+    if (fSnap.data().ownerId !== userId) throw new Error("冷蔵庫の名前を変更できるのは冷蔵庫を作った人だけです");
+    await fs.updateDoc(fRef, { name: clean });
+    return { id: fridgeId, name: clean };
   }
 
   // ---- 冷蔵庫 ----

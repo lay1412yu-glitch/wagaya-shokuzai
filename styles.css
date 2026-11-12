@@ -234,6 +234,12 @@ input[type="date"] {
   background: #f9e8e0; border: 1px solid #e0b49d; color: var(--red);
   padding: 10px 12px; border-radius: 10px; font-size: 13px; margin-top: 10px; line-height: 1.6;
 }
+/* 冷蔵庫の削除など、取り消せない操作の最終確認パネル */
+.danger-confirm {
+  background: #fbeae6; border: 1.5px solid #eec5ba; border-radius: var(--radius-s);
+  padding: 12px; margin-top: 10px;
+}
+.danger-confirm p { font-size: 13.5px; line-height: 1.7; color: var(--red); margin: 0 0 10px; }
 
 /* ---------- 在庫 ---------- */
 .notice-item { font-size: 14px; padding: 7px 0; border-bottom: 1px dashed var(--line-soft); }

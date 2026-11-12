@@ -16,7 +16,7 @@
 //   別領域に分け、owner 以外の getInviteCode は null を返す（本番 RLS と同等仕様）。
 // - コード参加の試行回数制限（10分で10回まで）を実装し、総当たりを防ぐ。
 
-import { uid, sha256Hex, generateInviteCode, normalizeCode, todayISO, normalizeTodayMenu } from "./util.js";
+import { uid, sha256Hex, generateInviteCode, normalizeCode, todayISO, normalizeTodayMenu, cleanFridgeName } from "./util.js";
 
 const DB_KEY = "wagaya_demo_db_v1";
 const SESSION_KEY = "wagaya_demo_session_v1";
@@ -189,6 +189,35 @@ export class DemoStore {
     const fridge = db.fridges.find((f) => f.id === fridgeId);
     if (fridge && fridge.ownerId === userId) throw new Error("冷蔵庫を作った人は退出できません");
     db.members = db.members.filter((m) => !(m.fridgeId === fridgeId && m.userId === userId));
+    this._save(db);
+  }
+  // 冷蔵庫の名前変更（作成者だけ。本番のルール = fridges update は作成者のみ、と同じ）
+  async renameFridge(userId, fridgeId, name) {
+    const db = this._load();
+    const fridge = db.fridges.find((f) => f.id === fridgeId);
+    if (!fridge) throw new Error("冷蔵庫が見つかりませんでした");
+    if (fridge.ownerId !== userId) throw new Error("冷蔵庫の名前を変更できるのは冷蔵庫を作った人だけです");
+    fridge.name = cleanFridgeName(name);
+    this._save(db);
+    return { id: fridge.id, name: fridge.name };
+  }
+  // 冷蔵庫の削除（作成者だけ。メンバー全員分のデータを丸ごと消す）。
+  // お気に入りは本番と同じ意味づけで「削除した本人の分（この冷蔵庫分）」だけ消し、
+  // 他のメンバーの分は残す（メンバー登録が消えるため二度と表示されない）。
+  async deleteFridge(userId, fridgeId) {
+    const db = this._load();
+    const fridge = db.fridges.find((f) => f.id === fridgeId);
+    if (!fridge) throw new Error("冷蔵庫が見つかりませんでした");
+    if (fridge.ownerId !== userId) throw new Error("この冷蔵庫を削除できるのは冷蔵庫を作った人だけです");
+    db.fridges = db.fridges.filter((f) => f.id !== fridgeId);
+    delete db.inviteCodes[fridgeId];
+    db.members = db.members.filter((m) => m.fridgeId !== fridgeId);
+    db.items = db.items.filter((i) => i.fridgeId !== fridgeId);
+    db.shopping = db.shopping.filter((s) => s.fridgeId !== fridgeId);
+    delete db.settings[fridgeId];
+    db.catalog = (db.catalog || []).filter((c) => c.fridgeId !== fridgeId);
+    db.favoriteRecipes = (db.favoriteRecipes || []).filter((r) => !(r.fridgeId === fridgeId && r.userId === userId));
+    db.trash = this._trash(db).filter((t) => t.fridgeId !== fridgeId);
     this._save(db);
   }
 
