@@ -179,6 +179,31 @@ window.addEventListener("storage", (e) => {
   scheduleRealtimeRefresh();
 });
 
+// ---------- オフライン表示チップ ----------
+// Firebase モードで圏外のときだけ、ヘッダー下に「📴 オフライン表示中」を
+// 出す。データは Firestore の永続キャッシュから表示され、通常の登録・
+// 変更は端末に貯まって再接続時に自動で同期される（firebase-store.js の
+// オフライン設計を参照）。デモモードは端末内だけで完結するので出さない。
+let wasOffline = false;
+function updateOfflineUI() {
+  const banner = document.getElementById("offline-banner");
+  if (!banner) return;
+  const offline = typeof navigator !== "undefined" && navigator.onLine === false;
+  const firebaseMode = !!store && store.mode === "firebase";
+  banner.hidden = !(offline && firebaseMode);
+  if (offline) { wasOffline = true; return; }
+  if (wasOffline) {
+    wasOffline = false;
+    // 復帰したら家族の変更を取りに行き、画面を最新の状態に寄せる
+    if (firebaseMode && state.user && state.fridge) {
+      toast("オンラインに戻りました");
+      scheduleRealtimeRefresh();
+    }
+  }
+}
+window.addEventListener("online", updateOfflineUI);
+window.addEventListener("offline", updateOfflineUI);
+
 // ---------- 読み込み画面（食材キャラ＋豆知識） ----------
 // 起動時・冷蔵庫を開く/切り替える時に出す全画面の待ち画面。
 // 食材キャラが各自のリズムで跳ね回り、ステータスメッセージと食育の豆知識が切り替わる。
@@ -525,7 +550,18 @@ async function afterLogin() {
   state.tab = "stock";
   // 初回だけ、はじめてガイドを出す（設定からいつでも見直せる）
   if (state.user && !guideSeen(localStorage, state.user.id)) state.showGuide = true;
-  state.fridges = await store.listMyFridges(state.user.id);
+  try {
+    state.fridges = await store.listMyFridges(state.user.id);
+  } catch (e) {
+    // オフライン＋キャッシュ無し（はじめて使う端末を圏外で開いた等）では
+    // 一覧が取れない。読み込み画面や汎用エラーで固めず、理由と「最初に
+    // 一度つないだ状態で開く」必要が分かる案内を選ぶ画面に出す。
+    if (typeof navigator !== "undefined" && navigator.onLine === false) {
+      renderFridgePicker("オフラインのため、冷蔵庫の一覧を読み込めませんでした。はじめて使う端末では、最初に一度つないだ状態で開いてください。電波の良いところで開き直すと、前回の続きが表示されます");
+      return;
+    }
+    throw e;
+  }
   const code = pendingJoin();
   if (code) {
     clearPendingJoin();
@@ -2789,6 +2825,7 @@ if ("serviceWorker" in navigator) {
 renderLoadingView();
 initStore()
   .then(async () => {
+    updateOfflineUI();
     state.user = await store.currentUser();
     if (state.user) await afterLogin();
     else renderAuth();

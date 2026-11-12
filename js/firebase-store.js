@@ -15,6 +15,19 @@
 //   サーバー側で強制できない既知の制限。緩和策は README 参照（長いランダム
 //   コード、再発行で旧コード即無効、fridgeId は推測不能なランダムID）。
 // - パスワードは Firebase Authentication が管理し、このアプリは保持しない。
+//
+// オフライン対応（2026-11-13）:
+// - Firestore は initializeFirestore + persistentLocalCache（複数タブ対応
+//   マネージャ）で初期化し、データを端末にキャッシュする。圏外では最後に
+//   同期した在庫・買い物リストが読め、通常の登録・編集は SDK が端末内に
+//   キューして再接続時に自動で送る（購読は onSnapshot がキャッシュから
+//   届ける）。永続化の初期化ができない環境（プライベートモード等）では
+//   通常の getFirestore に落として、アプリ自体は壊さない。
+// - ただし「サーバーで確定すること」が前提の操作（冷蔵庫の作成・参加、
+//   コード再発行、冷蔵庫の削除、退会）は、オフラインでは書き込みを一切
+//   発行せず日本語の案内で断る（_assertOnline）。キューに貯めて後から
+//   実行されると、順序依存の掃除（退会・削除）や「再発行で旧コード即
+//   無効」が崩れてしまうため。
 
 import { generateInviteCode, normalizeCode, todayISO, normalizeTodayMenu, userErrorMessage, cleanFridgeName } from "./util.js";
 import {
@@ -25,13 +38,43 @@ import {
 
 const SDK = "https://www.gstatic.com/firebasejs/10.12.5";
 
+// オフライン時に「サーバー確定が前提の操作」を断る案内文。アプリ生成の
+// 日本語文なので、userErrorMessage はそのまま画面に出す。
+export const OFFLINE_OPERATION_MESSAGE =
+  "オフラインのため、この操作は今はできません。電波の良いところでもう一度お試しください";
+
+/** いま確実にオフラインと言えるか（navigator.onLine === false のときだけ true） */
+export function isOfflineNow() {
+  try { return typeof navigator !== "undefined" && navigator.onLine === false; }
+  catch { return false; }
+}
+
+// Firestore の初期化。永続ローカルキャッシュ（オフライン表示・登録の土台）を
+// 優先し、SDK に関数が無い／初期化が投げる場合は通常初期化にフォールバック
+// する（その場合 kind は "memory" = オンライン前提の従来動作）。
+function createFirestoreDb(mods, app) {
+  if (typeof mods.initializeFirestore === "function" && typeof mods.persistentLocalCache === "function") {
+    try {
+      const cacheOpts = {};
+      if (typeof mods.persistentMultipleTabManager === "function") {
+        cacheOpts.tabManager = mods.persistentMultipleTabManager();
+      }
+      const localCache = mods.persistentLocalCache(cacheOpts);
+      return { db: mods.initializeFirestore(app, { localCache }), kind: "persistent" };
+    } catch { /* プライベートモード・二重初期化などでは通常初期化へ */ }
+  }
+  return { db: mods.getFirestore(app), kind: "memory" };
+}
+
 export class FirebaseStore {
   constructor(mods, config) {
     this.mode = "firebase";
     this._mods = mods; // { auth, fs } の名前空間モジュール
     this.app = mods.initializeApp(config);
     this.auth = mods.getAuth(this.app);
-    this.db = mods.getFirestore(this.app);
+    const { db, kind } = createFirestoreDb(mods, this.app);
+    this.db = db;
+    this.firestoreCacheKind = kind; // "persistent"（オフライン可） | "memory"
     this._userCache = null;
   }
   static async create(config) {
@@ -50,6 +93,9 @@ export class FirebaseStore {
       onAuthStateChanged: authM.onAuthStateChanged,
       signOut: authM.signOut,
       getFirestore: fsM.getFirestore,
+      initializeFirestore: fsM.initializeFirestore,
+      persistentLocalCache: fsM.persistentLocalCache,
+      persistentMultipleTabManager: fsM.persistentMultipleTabManager,
       doc: fsM.doc, collection: fsM.collection, getDoc: fsM.getDoc, getDocs: fsM.getDocs,
       setDoc: fsM.setDoc, addDoc: fsM.addDoc, updateDoc: fsM.updateDoc, deleteDoc: fsM.deleteDoc,
       query: fsM.query, where: fsM.where, orderBy: fsM.orderBy, writeBatch: fsM.writeBatch,
@@ -109,6 +155,13 @@ export class FirebaseStore {
       default: return /[ぁ-んァ-ヶ一-龠]/.test(e?.message || "") ? e.message : "登録に失敗しました";
     }
   }
+  // サーバーで確定することが前提の操作（冷蔵庫の作成・参加、コード再発行、
+  // 冷蔵庫の削除、退会）の入口ガード。オフラインでは読み書きを一切発行せず、
+  // 日本語の案内で断る。通常の在庫・買い物の登録/編集はここを通さず、
+  // SDK のキュー（再接続時に自動送信）に任せる。
+  _assertOnline() {
+    if (isOfflineNow()) throw new Error(OFFLINE_OPERATION_MESSAGE);
+  }
 
   // ---- 退会（アカウントと自分のデータを削除） ----
   // 共有冷蔵庫の在庫・買い物リスト・図鑑は家族のものとして残す。自分が作った
@@ -117,6 +170,7 @@ export class FirebaseStore {
   // 最後に Firebase Auth のユーザー自体を削除する。再認証が必要な場合は
   // auth/requires-recent-login が返るので、ログインし直して再実行を案内する。
   async deleteAccount(userId) {
+    this._assertOnline(); // 順序依存の掃除＋Auth 削除はオフラインでは行わない
     const fs = this._mods;
     const myFridges = await this.listMyFridges(userId);
     for (const f of myFridges) {
@@ -218,6 +272,7 @@ export class FirebaseStore {
   // 日本語メッセージを出せる（冷蔵庫本体は最後まで残るため、途中まで
   // 消えても「開けるが一部データが減った」状態で収まる）。
   async deleteFridge(userId, fridgeId) {
+    this._assertOnline(); // 順序依存の掃除はオフラインでは行わない
     const fs = this._mods;
     const fSnap = await fs.getDoc(fs.doc(this.db, "fridges", fridgeId));
     if (!fSnap.exists()) throw new Error("冷蔵庫が見つかりませんでした");
@@ -261,6 +316,7 @@ export class FirebaseStore {
     return out;
   }
   async createFridge(userId, name) {
+    this._assertOnline(); // 本体→メンバー→設定→コードの逐次確定が前提
     const fs = this._mods;
     const me = await this._user(this.auth.currentUser).catch(() => null);
     const fridgeRef = fs.doc(fs.collection(this.db, "fridges"));
@@ -288,6 +344,7 @@ export class FirebaseStore {
     } catch { return null; }
   }
   async regenerateCode(userId, fridgeId) {
+    this._assertOnline(); // 「旧コード即無効」はサーバー確定が前提
     const fs = this._mods;
     const invRef = fs.doc(this.db, "fridge_invite_codes", fridgeId);
     // 招待コードの平文ドキュメントが無い場合（退会時の引き継ぎで削除された等）
@@ -318,6 +375,7 @@ export class FirebaseStore {
     return code;
   }
   async joinByCode(userId, rawCode) {
+    this._assertOnline(); // コード照合はサーバーの最新状態が前提
     const fs = this._mods;
     // 照合は「ハッシュをドキュメントIDとして引く」だけ。一覧・検索はルールで禁止。
     const hash = await inviteCodeHash(rawCode);

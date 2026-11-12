@@ -2,11 +2,18 @@
 // 方針: アプリの殻（HTML/CSS/JS）はキャッシュして高速・オフライン表示に対応。
 // Firebase への通信は常にネットワーク（キャッシュしない）ことで、
 // 在庫データが古いまま固定される事故を防ぐ。
-const CACHE = "wagaya-shokuzai-v44";
+// 例外: Firebase SDK 本体（gstatic のバージョニング済みファイル）は不変
+// なので cache-first で貯める。これが無いと圏外では SDK 自体を読み込めず、
+// 殻＋Firestore 永続キャッシュによるオフライン起動が成立しない。
+const CACHE = "wagaya-shokuzai-v45";
 // ミュゼ版キャラ画像（img/chars/*.webp・200枚超）は SHELL に入れず、
 // 初回表示時にここへ貯めるランタイムキャッシュにする（cache-first）。
 // アプリ本体の版数が上がってもキャラキャッシュは消さない。
 const CHAR_CACHE = "wagaya-chars-v1";
+// Firebase SDK（firebasejs/10.12.5 配下）のランタイムキャッシュ。
+// バージョン固定 URL で内容は不変。殻キャッシュとは別名にし、「アプリを
+// 最新に更新する」（殻だけ削除）の対象にもしない。
+const SDK_CACHE = "wagaya-sdk-v1";
 const SHELL = [
   "./", "./index.html", "./styles.css", "./config.js", "./manifest.webmanifest", "./icon.svg",
   "./icon-192.png", "./icon-512.png", "./apple-touch-icon.png", "./favicon-32.png", "./favicon.ico",
@@ -17,11 +24,26 @@ self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
 });
 self.addEventListener("activate", (e) => {
-  e.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== CACHE && k !== CHAR_CACHE).map((k) => caches.delete(k)))).then(() => self.clients.claim()));
+  e.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== CACHE && k !== CHAR_CACHE && k !== SDK_CACHE).map((k) => caches.delete(k)))).then(() => self.clients.claim()));
 });
 self.addEventListener("fetch", (e) => {
   const url = new URL(e.request.url);
-  if (e.request.method !== "GET" || url.origin !== self.location.origin) return; // 外部（Firebase等）は素通し
+  if (e.request.method !== "GET") return;
+  // Firebase SDK 本体は不変ファイルなので cache-first（初回だけ取得して貯める）。
+  // 圏外でも SDK が読めることが、オフライン起動の前提になる。
+  if (url.origin === "https://www.gstatic.com" && url.pathname.includes("/firebasejs/")) {
+    e.respondWith(
+      caches.open(SDK_CACHE).then(async (c) => {
+        const hit = await c.match(e.request);
+        if (hit) return hit;
+        const res = await fetch(e.request);
+        if (res && res.ok) c.put(e.request, res.clone());
+        return res;
+      })
+    );
+    return;
+  }
+  if (url.origin !== self.location.origin) return; // 外部（Firebase等）は素通し
   // キャラ画像は不変ファイルなので cache-first（初回だけ取得して貯める）。
   if (url.pathname.includes("/img/chars/")) {
     e.respondWith(

@@ -151,6 +151,22 @@ body.drawer-open { overflow: hidden; }
 }
 .demo-banner { background: #fdf3d8; border: 1px dashed #d9a94f; color: #6b5518; }
 .join-banner { background: #eef2e2; border: 1px solid #b9c48f; color: #42501f; }
+/* オフライン表示チップ: ヘッダー直下の細い帯。Firebase モードで圏外の
+   ときだけ app.js（updateOfflineUI）が表示する。通常フロー内の要素なので
+   ☰ ボタンやタイトルには重ならない。やさいあわせの全画面シェル表示中は
+   シェルに覆われて見えない（シェル側の操作は端末内で完結するため問題なし）。 */
+.offline-banner {
+  max-width: 640px; margin: 8px auto 0; padding: 0 4px;
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+}
+.offline-banner[hidden] { display: none; }
+.offline-chip {
+  flex: none; display: inline-flex; align-items: center;
+  background: #fdf3d8; border: 1px dashed #d9a94f; color: #6b5518;
+  border-radius: 999px; padding: 4px 12px;
+  font-size: var(--label-size); font-weight: 800; letter-spacing: var(--label-spacing);
+}
+.offline-note { font-size: 12px; color: var(--ink-soft); line-height: 1.5; }
 .app-main { max-width: 640px; margin: 0 auto; padding: 16px 14px 122px; position: relative; }
 .loading { text-align: center; color: var(--ink-soft); padding: 40px 0; }
 
