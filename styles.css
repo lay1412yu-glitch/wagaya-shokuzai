@@ -977,3 +977,15 @@ button, a, input, select, textarea, label, [role="button"], [role="tab"] { touch
   /* サイドバーメニューのスライド／フェードも止める */
   .drawer-panel, .drawer-backdrop { transition: none; }
 }
+
+/* ---------- レシピ UX (P1-P8) ---------- */
+.chip.new-chip { background: #f9e0d2; border-color: #efcbb2; color: var(--red); font-weight: 800; }
+.filter-lead { flex: none; align-self: center; font-size: 12px; color: var(--ink-soft); line-height: 1.7; letter-spacing: 0.02em; font-weight: 700; padding: 0 6px 0 8px; }
+.course-tabs { flex-wrap: wrap; border-radius: 18px; }
+.course-tabs button { flex: 1 1 auto; min-height: 44px; }
+.cook-card { text-align: left; }
+.cook-progress { font-size: 13px; font-weight: 800; letter-spacing: 0.08em; color: var(--accent-deep); margin: 4px 0 10px; }
+.cook-step-text { font-size: 1.45rem; line-height: 1.8; font-weight: 600; margin: 8px 0 12px; }
+.cook-nav { display: flex; gap: 10px; margin-top: 18px; }
+.cook-nav .btn { flex: 1; min-height: 52px; }
+.cook-card > .btn { width: 100%; margin-top: 10px; min-height: 44px; }

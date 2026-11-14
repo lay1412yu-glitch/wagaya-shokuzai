@@ -269,11 +269,20 @@ export const RECIPE_QUICK_FILTERS = [
   { key: "otsumami", label: "おつまみ" },
   { key: "quick", label: "時短（15分以内）" },
 ];
+// 気分フィルタ（P2）: パパッと時短は既存の "quick" キーを再利用する
+export const RECIPE_MOOD_FILTERS = [
+  { key: "sappari", label: "さっぱり" },
+  { key: "gattsuri", label: "がっつり" },
+  { key: "hott", label: "ほっと温かく" },
+];
 export function matchesRecipeFilter(recipe, filter) {
   if (!recipe) return false;
   switch (filter) {
     case "microwave": return recipe.method === "レンジ";
     case "otsumami": return recipe.course === "おつまみ";
+    case "sappari": return ["和える", "ゆでる", "蒸す", "スープ"].includes(recipe.method);
+    case "gattsuri": return ["炒める", "焼く", "揚げる"].includes(recipe.method) && ["主菜", "主食"].includes(recipe.course);
+    case "hott": return ["煮る", "スープ"].includes(recipe.method);
     case "quick": {
       const m = Number(recipe.minutes);
       return Number.isFinite(m) && m > 0 && m <= 15;
