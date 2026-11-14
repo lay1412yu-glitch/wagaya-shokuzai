@@ -7,7 +7,7 @@
 // - 物理演算は自前。衝突判定は円ではなく「野菜の輪郭ポリゴン」ベース:
 //   キャラ画像のアルファチャンネルから輪郭ポリゴンを抽出し（読込時）、
 //   その凸包同士を SAT で判定して押し戻す。ピースは回転しない（直立）。
-//   合体判定も輪郭同士の距離ベース（輪郭が触れていれば合体）。
+//   合体判定も凸包同士の距離ベース（凸包が触れていれば合体）。
 //   画像が読めない/抽出できない段階は従来どおり円相当の正多角形で代用。
 // - キャラ画像はミュゼ版の食材キャラ画像（js/chars.js）を使う。全11段階が
 //   専用キャラに解決される（Web版SVGイラストは使わない）
@@ -18,19 +18,19 @@ import { charUrlForSuikaStage } from "./chars.js";
 
 export const VEG_STAGES = [
   { name: "プチトマト", radius: 17, score: 1, tint: "#f6dfc9" },
-  { name: "にんじん", radius: 23, score: 3, tint: "#fbe3cd" },
-  { name: "なす", radius: 29, score: 6, tint: "#e7dff2" },
-  { name: "ピーマン", radius: 36, score: 10, tint: "#e2edd4" },
-  { name: "玉ねぎ", radius: 43, score: 15, tint: "#f7ecd9" },
-  { name: "じゃがいも", radius: 51, score: 21, tint: "#f7eccf" },
-  { name: "かぼちゃ", radius: 60, score: 28, tint: "#fbe3cd" },
-  { name: "大根", radius: 70, score: 36, tint: "#f1eee2" },
-  { name: "キャベツ", radius: 81, score: 45, tint: "#e2edd4" },
-  { name: "白菜", radius: 93, score: 55, tint: "#e9eec9" },
-  { name: "やさいバスケット", radius: 106, score: 66, tint: "#f6dfc9" },
+  { name: "にんじん", radius: 22, score: 3, tint: "#fbe3cd" },
+  { name: "なす", radius: 28, score: 6, tint: "#e7dff2" },
+  { name: "ピーマン", radius: 34, score: 10, tint: "#e2edd4" },
+  { name: "玉ねぎ", radius: 41, score: 15, tint: "#f7ecd9" },
+  { name: "じゃがいも", radius: 49, score: 21, tint: "#f7eccf" },
+  { name: "かぼちゃ", radius: 58, score: 28, tint: "#fbe3cd" },
+  { name: "大根", radius: 66, score: 36, tint: "#f1eee2" },
+  { name: "キャベツ", radius: 74, score: 45, tint: "#e2edd4" },
+  { name: "白菜", radius: 84, score: 55, tint: "#e9eec9" },
+  { name: "やさいバスケット", radius: 92, score: 66, tint: "#f6dfc9" },
 ];
 
-export const SUIKA_W = 360;
+export const SUIKA_W = 396;
 export const SUIKA_H = 520;
 export const SUIKA_H_MIN = 430; // 論理高さの調整範囲（幅優先レイアウト用）
 export const SUIKA_H_MAX = 560;
@@ -65,6 +65,16 @@ const DROP_POOL = [0, 0, 0, 1, 1, 1, 2, 2, 3, 3, 4];
 const MERGE_TOLERANCE = 1.04; // 接触判定の遊び（半径合計に対する倍率）
 const MERGE_MIN_AGE = 90; // 生まれてすぐは合体しない (ms)
 const SPRITE_SCALE = 1.18; // 描画サイズ = 半径×2×この倍率（従来どおり）
+
+/* 段階ごとのアート傾き補正（ラジアン、キャンバス座標系）。
+ * 白菜のキャラ絵は顔ごと約18°傾いて描かれている（実測: 両目の結線が
+ * +20°、背骨が +12°）ため、そのまま描くと「倒れて寝ている」ように
+ * 見える。形状（輪郭・凸包）と描画の両方を同じ角度だけ戻し、直立の
+ * 設計（顔が読める）に合わせる。他段階の絵はほぼ直立（±2°以内）。 */
+const STAGE_ART_ROT = { 9: (-18 * Math.PI) / 180 };
+export function stageArtRotation(stage) {
+  return STAGE_ART_ROT[stage] ?? 0;
+}
 
 export function randomDropStage() {
   return DROP_POOL[Math.floor(Math.random() * DROP_POOL.length)] ?? 0;
@@ -305,11 +315,22 @@ export function collideBodies(a, b) {
   const rvx = b.vx - a.vx, rvy = b.vy - a.vy;
   const vn = rvx * nx + rvy * ny;
   if (vn < 0) {
-    const rest = 0.16;
+    // 反発は速い衝突だけに効かせる。静止接触では反発させない
+    // （積み重なったピースが微振動し続けるのを防ぐ）。
+    const rest = vn < -12 ? 0.16 : 0;
     const imp = (-(1 + rest) * vn) / (1 / ma + 1 / mb);
     a.vx -= (imp / ma) * nx; a.vy -= (imp / ma) * ny;
     b.vx += (imp / mb) * nx; b.vy += (imp / mb) * ny;
-    a.vx *= 0.985; b.vx *= 0.985;
+    // 接線方向の摩擦（クーロン摩擦の簡易版）: 接触面で滑り続ける
+    // 相対速度を、法線インパルスに比例する上限つきで打ち消す。
+    // スイカゲームの大きな実がゴロゴロ転がり続けずに落ち着く挙動に寄せる。
+    const tx = -ny, ty = nx;
+    const vt = rvx * tx + rvy * ty;
+    const maxF = 0.35 * imp;
+    let jt = -vt / (1 / ma + 1 / mb);
+    jt = Math.max(-maxF, Math.min(maxF, jt));
+    a.vx -= (jt / ma) * tx; a.vy -= (jt / ma) * ty;
+    b.vx += (jt / mb) * tx; b.vy += (jt / mb) * ty;
   }
   return true;
 }
@@ -323,7 +344,14 @@ export function collideBodies(a, b) {
 function buildStageShape(stage, normPts, real) {
   const st = stageOf(stage);
   const scale = st.radius * SPRITE_SCALE;
-  const outline = normPts.map(([nx, ny]) => [nx * scale, ny * scale]);
+  const rot = stageArtRotation(stage);
+  const cr = Math.cos(rot), sr = Math.sin(rot);
+  const outline = normPts.map(([nx, ny]) => {
+    // アート傾き補正: 描画と同じ回転を輪郭にも適用し、見た目と一致させる
+    const rx = rot ? nx * cr - ny * sr : nx;
+    const ry = rot ? nx * sr + ny * cr : ny;
+    return [rx * scale, ry * scale];
+  });
   let hull = convexHull(outline);
   if (hull.length < 3) hull = outline;
   let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity, boundR = 0;
@@ -366,16 +394,52 @@ function setStageShapeFromImage(stage, img) {
 
 /**
  * 合体判定（純粋関数）: 同じ段階同士が「接触」していれば合体する。
- * a, b に輪郭オフセット（offs）があれば輪郭同士の距離で判定し、
+ * a, b に輪郭オフセット（offs）があれば凸包同士の距離で判定し、
  * 無ければ従来の円距離で判定する。now は ms。
  */
+/**
+ * 細長い形（大根・にんじん等）の「自己スタンドオフ」: 同じ形2個を
+ * バウンディングボックス同士が接する位置に横並びしても、凸包同士は
+ * 斜めの肩越しにしか近づけず数十px離れてしまう（実測: 大根 約38px、
+ * にんじん 約12px、丸い形はほぼ 0）。その距離を実測して合体許容に
+ * 加算しないと、見た目いっぱいに並んだ同種同士が永遠に合体しない。
+ * 縦積みのスタンドオフは横並び以下か、基本許容（下限3.5px＋半径比）
+ * の範囲に収まることを全段階で確認済み。凸包配列ごとに一度だけ
+ * 計算して WeakMap にキャッシュする（実画像の形状に差し替わったら
+ * 配列参照が変わるので自動で再計算される）。
+ */
+const _selfGapCache = new WeakMap();
+function hullSelfGap(offs) {
+  let g = _selfGapCache.get(offs);
+  if (g !== undefined) return g;
+  let minX = Infinity, maxX = -Infinity;
+  for (const p of offs) {
+    if (p[0] < minX) minX = p[0];
+    if (p[0] > maxX) maxX = p[0];
+  }
+  g = Math.min(40, polygonDistance(offs, 0, 0, offs, maxX - minX, 0));
+  _selfGapCache.set(offs, g);
+  return g;
+}
+
 export function shouldMerge(a, b, now) {
   if (!a || !b || a === b) return false;
   if (a.stage !== b.stage || a.stage >= VEG_STAGES.length - 1) return false;
   if (now - a.bornAt < MERGE_MIN_AGE || now - b.bornAt < MERGE_MIN_AGE) return false;
   if (a.offs && b.offs) {
-    const tol = (a.r + b.r) * (MERGE_TOLERANCE - 1);
-    return polygonDistance(a.offs, a.x, a.y, b.offs, b.x, b.y) <= tol;
+    // 判定は凸包同士の距離で行う。衝突解決が押し戻すのは凸包なので、
+    // 静止接触では凸包同士はほぼ 0 距離になる。一方、輪郭（シルエット）
+    // 同士の距離で判定すると、接触点が輪郭の凹み（玉ねぎの芽の脇や
+    // プチトマトの双子の谷間など）に当たった場合に、くっついているのに
+    // 合体しない取りこぼしが起きる。凸包が無ければ輪郭で代用する。
+    // 許容量には、その形自身の自己スタンドオフ（hullSelfGap）も加える:
+    // 大根のように斜めに細長い形は、絵同士が目一杯寄っても凸包間には
+    // 構造的な隙間が残るため、その分を差し引かないと合体できない。
+    const aOffs = a.hull && a.hull.length >= 3 ? a.hull : a.offs;
+    const bOffs = b.hull && b.hull.length >= 3 ? b.hull : b.offs;
+    const tol = Math.max(3.5, (a.r + b.r) * (MERGE_TOLERANCE - 1))
+      + (hullSelfGap(aOffs) + hullSelfGap(bOffs)) / 2;
+    return polygonDistance(aOffs, a.x, a.y, bOffs, b.x, b.y) <= tol;
   }
   const dist = Math.hypot(b.x - a.x, b.y - a.y);
   return dist <= (a.r + b.r) * MERGE_TOLERANCE;
@@ -530,6 +594,23 @@ export function createSuikaGame(hooks = {}) {
   }
 
   /* ---------- 物理（輪郭ポリゴンベース・ピースは直立） ---------- */
+  // 壁・床・天井のクランプ（輪郭の端 extents で判定）。
+  // 衝突解決の反復の中でも毎回呼ぶ: 押し戻しの後にクランプし直さないと、
+  // 山に押されたピースが壁や床を突き抜けた位置で描画・静止してしまう
+  // （右壁を越えるキャベツ、左下の角にめり込むプチトマトの原因）。
+  function clampToBoard(b) {
+    const sh = stageShapes[b.stage];
+    if (b.x - sh.extL < 4) { b.x = 4 + sh.extL; b.vx = Math.abs(b.vx) * 0.35; }
+    if (b.x + sh.extR > SUIKA_W - 4) { b.x = SUIKA_W - 4 - sh.extR; b.vx = -Math.abs(b.vx) * 0.35; }
+    if (b.y + sh.extB > boardH - 4) {
+      b.y = boardH - 4 - sh.extB;
+      b.vy = -Math.abs(b.vy) * 0.18;
+      if (Math.abs(b.vy) < 28) b.vy = 0;
+      b.vx *= 0.82;
+    }
+    if (b.y - sh.extT < 2) { b.y = 2 + sh.extT; b.vy = Math.abs(b.vy) * 0.2; }
+  }
+
   function physics(now, dtRaw) {
     const sub = 3;
     const dt = dtRaw / sub;
@@ -544,20 +625,9 @@ export function createSuikaGame(hooks = {}) {
         const sh = stageShapes[b.stage];
         b.offs = sh.outline; b.hull = sh.hull; b.mass = sh.area; b.br = sh.boundR;
       }
-      // 壁・床・天井: 輪郭の端（extents）で判定する
-      for (const b of bodies) {
-        const sh = stageShapes[b.stage];
-        if (b.x - sh.extL < 4) { b.x = 4 + sh.extL; b.vx = Math.abs(b.vx) * 0.35; }
-        if (b.x + sh.extR > SUIKA_W - 4) { b.x = SUIKA_W - 4 - sh.extR; b.vx = -Math.abs(b.vx) * 0.35; }
-        if (b.y + sh.extB > boardH - 4) {
-          b.y = boardH - 4 - sh.extB;
-          b.vy = -Math.abs(b.vy) * 0.18;
-          if (Math.abs(b.vy) < 28) b.vy = 0;
-          b.vx *= 0.82;
-        }
-        if (b.y - sh.extT < 2) { b.y = 2 + sh.extT; b.vy = Math.abs(b.vy) * 0.2; }
-      }
-      // ピース同士: 境界円で候補を絞ってから SAT（凸包）で解決。2回反復で積み重なりを安定させる
+      // ピース同士: 境界円で候補を絞ってから SAT（凸包）で解決。
+      // 反復ごとに壁・床クランプもかけ直し、サブステップの最終状態が
+      // 必ず盤面内に収まるようにする（積み重なりの安定化）。
       for (let iter = 0; iter < 2; iter++) {
         for (let i = 0; i < bodies.length; i++) {
           const a = bodies[i]; if (!a) continue;
@@ -569,6 +639,7 @@ export function createSuikaGame(hooks = {}) {
             collideBodies(a, b);
           }
         }
+        for (const b of bodies) clampToBoard(b);
       }
     }
 
@@ -610,10 +681,13 @@ export function createSuikaGame(hooks = {}) {
     }
 
     // game over: settled body above deadline for a while
-    const over = bodies.some((b) => now - b.bornAt > 900 && b.y - stageShapes[b.stage].extT < SUIKA_DEADLINE_Y && Math.abs(b.vy) < 130);
+    // 静止判定は厳しめに取る（落下直後や合体の勢いで一瞬はみ出しただけの
+    // ピースでは数えない。スイカゲーム同様「置いてから落ち着いたのに
+    // ラインを超えたまま」のときだけ、あふれ判定を始める）。
+    const over = bodies.some((b) => now - b.bornAt > 1200 && b.y - stageShapes[b.stage].extT < SUIKA_DEADLINE_Y && Math.abs(b.vy) < 70 && Math.abs(b.vx) < 70);
     if (over) {
       if (overflowSince == null) overflowSince = now;
-      if (now - overflowSince > 1900 && !gameOver) {
+      if (now - overflowSince > 2000 && !gameOver) {
         gameOver = true;
         emit();
       }
@@ -685,7 +759,7 @@ export function createSuikaGame(hooks = {}) {
       if (img && img.complete && img.naturalWidth > 0) {
         ctx.save();
         ctx.translate(b.x, b.y);
-        ctx.rotate(Math.max(-0.35, Math.min(0.35, b.angle)));
+        ctx.rotate(Math.max(-0.35, Math.min(0.35, b.angle)) + stageArtRotation(b.stage));
         ctx.drawImage(img, -size / 2, -size / 2, size, size);
         ctx.restore();
       } else {
