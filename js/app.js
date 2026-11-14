@@ -13,7 +13,7 @@
 // - 参加用リンク ?join=<code> を受けたら、コードを sessionStorage に退避し、
 //   ログイン完了後に自動で参加を試みる（URL の履歴からは即座に消す）。
 
-import { el, uid, todayISO, daysUntil, formatDate, expiryLabel, expiryGroup, expiryChipClass, formatCode, fmtQtyValue, qtyStepFor, roundQty, isFractionUnit, matchesSearch, topPurchased, collectedByCanonicalName, stockByCanonicalName, stockQtyText, recentRegistered, oneTapCandidates, inListQuantity, planOneTapAdd, usualQtyUnitFor, storageOf, RECIPE_QUICK_FILTERS, RECIPE_MOOD_FILTERS, matchesRecipeFilter, filterRecipes, STORAGE_ZONES, STORAGE_ZONE_ALL, countByStorage, filterByStorage, suggestStorage, UNIT_OPTIONS, UNIT_OTHER_VALUE, unitSelectValueFor, resolveUnitValue, upsertTodayMenuEntry, removeTodayMenuEntry, groupTodayMenuEntries, mergeMissingIngredients, isAppShellCacheName, userErrorMessage, FRIDGE_NAME_MAX, storagePresetFor, groupShoppingByAisle, planMissingAdditions, shuffledIndices } from "./util.js";
+import { el, uid, todayISO, daysUntil, formatDate, expiryLabel, expiryGroup, expiryChipClass, formatCode, fmtQtyValue, qtyStepFor, roundQty, isFractionUnit, matchesSearch, topPurchased, collectedByCanonicalName, stockByCanonicalName, stockQtyText, recentRegistered, oneTapCandidates, inListQuantity, planOneTapAdd, usualQtyUnitFor, storageOf, RECIPE_QUICK_FILTERS, RECIPE_MOOD_FILTERS, matchesRecipeFilter, filterRecipes, STORAGE_ZONES, STORAGE_ZONE_ALL, countByStorage, filterByStorage, suggestStorage, UNIT_OPTIONS, UNIT_OTHER_VALUE, unitSelectValueFor, resolveUnitValue, upsertTodayMenuEntry, removeTodayMenuEntry, groupTodayMenuEntries, mergeMissingIngredients, isAppShellCacheName, userErrorMessage, FRIDGE_NAME_MAX, storagePresetFor, groupShoppingByAisle, planMissingAdditions, shuffledIndices, planOneTapRegister, resolveOneTapRegisterStorage } from "./util.js";
 import { resolveCanonicalName } from "./names.js";
 import { suggestRecipes, suggestFilteredCatalogue, suggestMealSet, suggestEventMenu, EVENT_MENUS, EVENT_RECIPES, suggestRegionalMenu, REGIONS, REGIONAL_RECIPES, evaluateRecipe, ALL_RECIPES, rankRecipesByIngredients, isNewRecipe, demoteSeenRecipes, ensureCourseVariety } from "./recipes.js";
 import * as recipesNs from "./recipes.js";
@@ -164,6 +164,8 @@ const state = {
   shoppingCategory: null, // 買い物タブ「カテゴリから選ぶ」で選択中のカテゴリ（保存しない）
   shoppingEditor: null, // 買い物タブ「カテゴリから選ぶ」の数量エディタ対象 { name, category }（保存しない）
   editingItemId: null, // 在庫のその場編集中のアイテム ID（保存しない）
+  stockOneTapPick: null, // 在庫ワンタップ登録: 保管場所の選択待ちの食材 { name, quantity, unit }（保存しない）
+  stockBrowseCategory: null, // 在庫ワンタップ登録「カテゴリから選ぶ」で選択中のカテゴリ（保存しない）
   errandMode: false, // おつかいモード表示中（保存しない・端末内だけ）
   errandChecked: [], // おつかいモードで「買えた」チェックした買い物行 ID（端末内だけ・投入時に共有データへ反映）
   addFormOpen: null, // 在庫登録フォームの開閉（null=既定: 在庫0件なら開く）
@@ -1434,6 +1436,10 @@ function renderStockTab() {
       class: "btn wide", onclick: () => { state.addFormOpen = true; renderMain(); },
     }, "＋ 食材を登録する"));
   }
+  // ワンタップ登録: 食材タップで登録（新しい食材は保管場所を選んでから）
+  wrap.append(renderStockOneTapCard());
+  const storageChooser = renderStockStorageChooser();
+  if (storageChooser) wrap.append(storageChooser);
   // 在庫の検索（名前の部分一致・カタカナ/ひらがなの揺れを吸収）。
   // 入力中に入力欄のフォーカスを失わないよう、再描画はリスト部分だけにする。
   const listBox = el("div", { class: "stock-list-box" });
@@ -1943,6 +1949,194 @@ function renderAddItemForm() {
     }, "登録する"),
   );
   return form;
+}
+
+// ---------- 在庫へのワンタップ登録（食材タップ → 保管場所タップ） ----------
+// 食材はワンタップで選ぶ。保管場所だけは勝手に決めず、ユーザーが
+// 選んでから登録する（ユーザーの設計指定 2026-11-15）:
+// - すでに同じ食材が在庫にある場合は、保管場所は既存ロットのものを
+//   そのまま使うので、選ばずに数量を増やす（「買った！」の数量加算経路と
+//   同じ流儀: updateItem + recordPurchase で図鑑にも記録する）。
+// - 在庫に無い食材は、タップすると保管場所の選択チップが出る
+//   （おすすめの場所は色づけするが、登録は場所をタップするまで起きない）。
+//   選んだ場所で addItem する（図鑑への記録は addItem が行う。フォーム
+//   登録と同じ）。期限は付けない（フォームの既定＝空と同じ）。
+// カテゴリは「図鑑の前回記録 → カタログ」の順（フォームのプリセット順）。
+function oneTapRegisterCategory(name) {
+  const rec = collectedByCanonicalName(state.catalog).get(name);
+  if (rec && rec.category) return rec.category;
+  return categoryOf(name) || rarityCategory(name);
+}
+
+// 食材タップ時: 計画を立て、在庫にあれば即・数量加算し、無ければ
+// 保管場所の選択待ちにする（この時点ではまだ登録しない）。
+async function pickOneTapRegisterItem(entry) {
+  const plan = planOneTapRegister(state.items, entry, oneTapRegisterCategory);
+  if (!plan) return;
+  if (plan.action === "increment") {
+    state.stockOneTapPick = null;
+    await commitOneTapRegister(plan);
+    return;
+  }
+  state.stockOneTapPick = { name: plan.name, quantity: plan.addedQuantity, unit: plan.unit };
+  renderMain();
+}
+
+// 保管場所タップ時: 選択で計画を確定して登録する。未選択・不正な場所では
+// resolveOneTapRegisterStorage が null を返し、登録は行われない。
+async function chooseOneTapRegisterStorage(storage) {
+  const pick = state.stockOneTapPick;
+  if (!pick) return;
+  const plan = planOneTapRegister(state.items, pick, oneTapRegisterCategory);
+  const finalPlan = resolveOneTapRegisterStorage(plan, storage);
+  if (!finalPlan || finalPlan.action !== "add") return;
+  state.stockOneTapPick = null;
+  await commitOneTapRegister(finalPlan);
+}
+
+// 登録の実行とフィードバック（「元に戻す」つきトースト）。
+async function commitOneTapRegister(plan) {
+  const beforeCounts = catalogCountsBefore();
+  try {
+    if (plan.action === "increment") {
+      const item = state.items.find((i) => i.id === plan.itemId);
+      if (!item) { await refreshData(); renderMain(); return; }
+      const prevQty = Number(item.quantity) || 0;
+      await store.updateItem(state.user.id, item.id, { quantity: plan.quantity });
+      // 数量加算だけの経路でも図鑑の購入回数を数える（「買った！」と同じ）
+      await store.recordPurchase(state.user.id, state.fridge.id, plan.name,
+        categoryOf(plan.name) || item.category || "その他");
+      await refreshData(); renderMain();
+      if (!celebratePurchase(plan.name, beforeCounts)) {
+        toastWithAction(`「${plan.name}」を登録しました（在庫は ${fmtQtyValue(plan.quantity, plan.unit)}${plan.unit} になりました）`, "元に戻す", async () => {
+          await store.updateItem(state.user.id, item.id, { quantity: prevQty });
+          await refreshData(); renderMain();
+          toast("数量を元に戻しました");
+        });
+      }
+    } else {
+      const item = await store.addItem(state.user.id, state.fridge.id, {
+        name: plan.name, category: plan.category, quantity: plan.quantity, unit: plan.unit,
+        expiryDate: null, storage: plan.storage, isFavorite: false,
+      });
+      await refreshData(); renderMain();
+      if (!celebratePurchase(plan.name, beforeCounts)) {
+        toastWithAction(`「${plan.name}」を${plan.storage}に登録しました`, "元に戻す", async () => {
+          // 登録の取り消しは削除と同じ扱い（ゴミ箱経由で復元できる）
+          await store.deleteItem(state.user.id, item.id);
+          if (store.mode !== "demo") state.sessionTrash = [{ ...item }, ...state.sessionTrash].slice(0, 30);
+          await refreshData(); renderMain();
+          toast("登録を取り消しました");
+        });
+      }
+    }
+  } catch (e) { toast(userErrorMessage(e)); }
+}
+
+// 保管場所の選択チップ列（選択待ちの食材があるときだけ出す）。
+// おすすめ（storagePresetFor 由来）は「おすすめ」として色づけするが、
+// 押されるまでは何も登録されない。やめるボタンで選択待ちを解除できる。
+function renderStockStorageChooser() {
+  const pick = state.stockOneTapPick;
+  if (!pick) return null;
+  const plan = planOneTapRegister(state.items, pick, oneTapRegisterCategory);
+  if (!plan || plan.action !== "add") return null;
+  return el("div", { class: "card stock-storage-picker" },
+    el("div", { class: "shop-editor-head" },
+      iconEl(plan.name, plan.category),
+      el("span", { class: "grow shop-editor-name" },
+        `「${plan.name}」 ${fmtQtyValue(plan.quantity, plan.unit)}${plan.unit} を登録します`),
+      el("button", {
+        type: "button", class: "icon-btn", "aria-label": "やめる",
+        onclick: () => { state.stockOneTapPick = null; renderMain(); },
+      }, "✕"),
+    ),
+    el("p", { class: "hint" }, "保管場所を選ぶと登録されます。"),
+    el("div", { class: "stock-zone-row", role: "group", "aria-label": "保管場所を選ぶ" },
+      STORAGE_ZONES.map((z) => el("button", {
+        type: "button",
+        class: "stock-zone-chip" + (z === plan.suggestedStorage ? " recommended" : ""),
+        onclick: (e) => withBusy(e.currentTarget, () => chooseOneTapRegisterStorage(z)),
+      }, z, z === plan.suggestedStorage ? el("span", { class: "zone-rec" }, "おすすめ") : null))),
+  );
+}
+
+// ワンタップ登録カード: よく買うもの／最近買ったもの／お気に入りのチップと、
+// カテゴリから選ぶグリッド（買い物タブと同じカタログ構造）。
+// 在庫にある食材のチップには今の在庫量バッジを出す。
+function renderStockOneTapCard() {
+  const card = el("div", { class: "card stock-onetap-card" },
+    el("h2", {}, "👆 ワンタップ登録"),
+    el("p", { class: "hint" }, "食材をタップするだけで、いつもの数量・単位で登録できます。在庫にある食材は数量が増え、新しい食材は保管場所を選ぶと登録されます。"),
+  );
+  const stock = stockByCanonicalName(state.items);
+  const stockBadge = (name) => {
+    const st = stock.get(resolveCanonicalName(name));
+    return st && st.quantity > 0 ? st : null;
+  };
+  const oneTap = oneTapCandidates([...collectedByCanonicalName(state.catalog).values()], state.items, 10);
+  const rows = [
+    ["⭐ よく買うもの", oneTap.top],
+    ["🕘 最近買ったもの", oneTap.recent],
+    ["💗 お気に入り食材", oneTap.favorites],
+  ].filter(([, entries]) => entries.length);
+  if (rows.length) {
+    for (const [label, entries] of rows) {
+      card.append(el("div", { class: "quick-label" }, label));
+      card.append(el("div", { class: "onetap-row" }, entries.map((entry) => {
+        const st = stockBadge(entry.name);
+        const picked = state.stockOneTapPick && state.stockOneTapPick.name === resolveCanonicalName(entry.name);
+        return el("button", {
+          type: "button",
+          class: "onetap-chip" + (st ? " in-list" : "") + (picked ? " editing" : ""),
+          onclick: () => pickOneTapRegisterItem(entry),
+        },
+          iconEl(entry.name),
+          el("span", { class: "onetap-main" },
+            el("span", { class: "onetap-name" }, entry.name),
+            el("span", { class: "onetap-sub" }, `いつもの ${fmtQtyValue(entry.quantity, entry.unit)}${entry.unit}`)),
+          st ? el("span", { class: "onetap-badge" }, `在庫 ${stockQtyText(st)}`) : null,
+        );
+      })));
+    }
+  } else {
+    card.append(el("p", { class: "hint" }, "登録するたびに、ここによく買うものが並びます。"));
+  }
+  // カテゴリから選ぶ（買い物タブと同じカタログ構造・専用の選択状態）
+  const byCat = shoppingCatalogByCategory();
+  const categories = catalogCategories().filter((c) => byCat.has(c));
+  const selected = state.stockBrowseCategory && byCat.has(state.stockBrowseCategory)
+    ? state.stockBrowseCategory : null;
+  card.append(el("h3", { class: "stock-browse-title" }, "🗂 カテゴリから選ぶ"));
+  card.append(el("div", { class: "shop-cat-row", role: "tablist", "aria-label": "カテゴリを選ぶ" },
+    categories.map((c) => el("button", {
+      type: "button", role: "tab",
+      class: selected === c ? "active" : "",
+      "aria-selected": selected === c ? "true" : "false",
+      onclick: () => {
+        state.stockBrowseCategory = c;
+        renderMain();
+      },
+    }, c, el("span", { class: "cat-count" }, String(byCat.get(c).length))))));
+  if (selected) {
+    const names = byCat.get(selected) || [];
+    card.append(el("div", { class: "shop-browse-grid" }, names.map((name) => {
+      const st = stockBadge(name);
+      const picked = state.stockOneTapPick && state.stockOneTapPick.name === resolveCanonicalName(name);
+      return el("button", {
+        type: "button",
+        class: "shop-browse-item" + (st ? " in-list" : "") + (picked ? " editing" : ""),
+        onclick: () => pickOneTapRegisterItem({ name, ...usualQtyUnitFor(name, state.items) }),
+      },
+        iconEl(name, categoryOf(name) || selected),
+        el("span", { class: "shop-browse-name" }, name),
+        st ? el("span", { class: "onetap-badge" }, `在庫 ${stockQtyText(st)}`) : null,
+      );
+    })));
+  } else {
+    card.append(el("p", { class: "hint" }, "カテゴリを選ぶと食材が並びます。食材をタップすると登録できます。"));
+  }
+  return card;
 }
 
 // ---------- 食材図鑑タブ ----------

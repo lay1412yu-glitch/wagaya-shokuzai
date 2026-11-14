@@ -330,6 +330,71 @@ export function planOneTapAdd(shopping, entry) {
   return { action: "add", quantity: addQty, unit: (entry && entry.unit) || "" };
 }
 
+// ---- 在庫へのワンタップ登録（食材タップ→保管場所タップの2タップ） ----
+// 食材はワンタップで選ぶが、保管場所は勝手に決めず、必ずユーザーが
+// 選んでから登録する（ユーザーの設計指定 2026-11-15）。
+// そのため計画は2段に分ける:
+//   1. planOneTapRegister: 食材が決まった時点の計画（この時点では未登録）。
+//      同じ食材（正規名で一致）がすでに在庫にあれば、新しいロットを作らず
+//      一番新しいロットの数量を増やす（買い物「買った！」の数量加算経路と
+//      同じ流儀: updateItem で数量加算 + recordPurchase で図鑑に記録）。
+//      在庫に無ければ新規ロットとして登録する（addItem が図鑑にも記録する、
+//      フォーム登録と同じ）。期限は常に未設定（フォームの既定と同じく空）。
+//      新規登録のカテゴリは「前回の登録 → カタログ」の順で引く（登録
+//      フォームのプリセットと同じ順序）。おすすめ保管場所
+//      （suggestedStorage = storagePresetFor(カテゴリ)）は選択チップの
+//      事前ハイライト専用で、自動では登録しない。
+//   2. resolveOneTapRegisterStorage: 保管場所が選ばれたら最終形に確定する。
+//      storage が未選択（null/空・不正）なら null を返し、登録は実行
+//      されない。数量加算のときは既存ロットの保管場所をそのまま使うので、
+//      選ばれた保管場所は使わない（既存ロットを別の場所へ移さない）。
+// entry は { name, quantity, unit }（いつもの数量・単位に解決済み）。
+// resolveCategory(name) はカテゴリ解決関数（app.js の categoryOf 等）。
+export function planOneTapRegister(items, entry, resolveCategory) {
+  const rawName = entry && entry.name ? String(entry.name) : "";
+  const name = resolveCanonicalName(rawName);
+  if (!name) return null;
+  const usualQty = Number(entry && entry.quantity);
+  const addQty = Number.isFinite(usualQty) && usualQty > 0 ? roundQty(usualQty) : 1;
+  // マージ先は「正規名が一致する一番新しいロット」（usualQtyUnitFor が
+  // いつもの数量・単位を読む先と同じロット）。旧データの別表記ロット
+  // （ねぎ等）も正規名で突合するので、別ロットが増殖しない。
+  let target = null;
+  for (const item of items || []) {
+    if (!item || !item.name) continue;
+    if (resolveCanonicalName(item.name) !== name) continue;
+    if (!target || String(item.createdAt || "") >= String(target.createdAt || "")) target = item;
+  }
+  if (target) {
+    return {
+      action: "increment", itemId: target.id, name,
+      addedQuantity: addQty,
+      quantity: roundQty((Number(target.quantity) || 0) + addQty),
+      unit: target.unit || (entry && entry.unit) || "",
+    };
+  }
+  let category = null;
+  if (resolveCategory) {
+    try { category = resolveCategory(name) || null; } catch { category = null; }
+  }
+  if (!category) category = "その他";
+  return {
+    action: "add", name, addedQuantity: addQty, quantity: addQty,
+    unit: (entry && entry.unit) || "",
+    category, suggestedStorage: storagePresetFor(category),
+    isFavorite: false, expiryDate: null,
+  };
+}
+
+// 保管場所の選択を受けて登録計画を確定する。保管場所が STORAGE_ZONES に
+// 無い（未選択・不正）場合は null（＝登録しない）。
+export function resolveOneTapRegisterStorage(plan, storage) {
+  if (!plan) return null;
+  if (plan.action === "increment") return { ...plan, storage: null };
+  if (!STORAGE_ZONES.includes(storage)) return null;
+  return { ...plan, storage };
+}
+
 // ---- レシピのクイックフィルタ ----
 // レシピタブの絞り込みチップ: すべて／レンジだけ（method=レンジ）／
 // おつまみ（course=おつまみ）／時短（15分以内）。
