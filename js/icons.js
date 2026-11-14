@@ -4779,6 +4779,39 @@ export function iconSvg(name, category) {
   return ICONS[iconKeyFor(name, category)] || ICONS.cat_generic;
 }
 
+/**
+ * 下部タブ専用アイコン（2026-11-15 ユーザー指摘で絵文字から差し替え）。
+ * 絵文字（🧊🛒🍳📖🔗）はアプリの画風（手描き・淡いパステル・細い茶色の
+ * 輪郭・素朴な顔）と合わず「浮いて見える」ため、食材キャラと同じ文法で
+ * 描いた自前SVGにする。すべて静的データのみ（ユーザー入力は混ざらない）。
+ * 顔は点目＋小さな口、頬は淡く。キラキラ・ツヤ等の装飾は付けない。
+ */
+export const TAB_ICONS = {
+  // 在庫: 開いた冷蔵庫に、トマト・牛乳・にんじん・チーズ
+  stock: svg(`<path d="M6.6 4.5 L4.6 6.1 V19.5 L6.6 21 Z" fill="#f7efdd"/><path d="M5.6 10.8v4.2" stroke-width="1"/><rect x="6.6" y="2.8" width="10.8" height="18.4" rx="1.8" fill="#eef3e4"/><circle cx="12" cy="7.7" r="2.3" fill="#e2604d"/><path d="M10.6 5.9c.8-.7 2-.7 2.8 0-.3.8-1 1.2-1.4 1.2s-1.1-.4-1.4-1.2Z" fill="#93bd78"/><circle cx="11.2" cy="7.7" r="0.32" fill="#8a5a34" stroke="none"/><circle cx="12.8" cy="7.7" r="0.32" fill="#8a5a34" stroke="none"/><path d="M11.4 8.7 Q12 9.25 12.6 8.7" stroke="#8a5a34" stroke-width="0.8"/><path d="M7.8 10.6h8.4" stroke="#b98d5f" stroke-width="0.8"/><path d="M8.7 12.2 L9.9 11 L11.1 12.2 V16.2 H8.7 Z" fill="#fdfdf6"/><path d="M8.7 14h2.4" stroke="#d9c39c" stroke-width="0.8"/><path d="M12.9 12.4 L15.3 12.4 L14.1 16.2 Z" fill="#f28c5a"/><path d="M13.4 12.3c-.2-.8-.7-1.3-1.4-1.6M14.1 12.2c0-.9.3-1.6.9-2.1M14.8 12.3c.2-.8.7-1.3 1.4-1.6" stroke="#93bd78" stroke-width="0.9"/><path d="M7.8 17.2h8.4" stroke="#b98d5f" stroke-width="0.8"/><path d="M9.6 20.2 L12.4 17.9 L15.2 20.2 Z" fill="#f7d06e"/><circle cx="12.1" cy="19.5" r="0.35" fill="#e0aa4e" stroke="none"/>`),
+  // 買い物: かごからトマト・牛乳・にんじんが顔を出す（かごにも顔）
+  shopping: svg(`<path d="M8.4 11.6 C8.4 8.4 10 6.6 12 6.6 C14 6.6 15.6 8.4 15.6 11.6"/><circle cx="9.2" cy="9.9" r="2.1" fill="#e2604d"/><path d="M8 8.3c.7-.6 1.7-.6 2.4 0-.2.7-.8 1-1.2 1S8.2 9 8 8.3Z" fill="#93bd78"/><circle cx="8.5" cy="9.9" r="0.3" fill="#8a5a34" stroke="none"/><circle cx="9.9" cy="9.9" r="0.3" fill="#8a5a34" stroke="none"/><path d="M8.7 10.8 Q9.2 11.3 9.7 10.8" stroke="#8a5a34" stroke-width="0.75"/><path d="M11.3 8.6 L12.4 7.5 L13.5 8.6 V11.8 H11.3 Z" fill="#fdfdf6"/><path d="M14.4 11.8 L16.4 11.8 L15.4 7.8 Z" fill="#f28c5a"/><path d="M15 7.7c-.2-.8-.6-1.3-1.3-1.6M15.5 7.6c.1-.8.5-1.4 1.1-1.8" stroke="#93bd78" stroke-width="0.9"/><path d="M4.8 11.6 h14.4 l-1.6 7.9 a2 2 0 0 1-2 1.6 H8.4 a2 2 0 0 1-2-1.6 Z" fill="#f4ead6"/><path d="M9.2 12.4 L9.9 19.6 M14.8 12.4 L14.1 19.6" stroke="#d9c39c" stroke-width="0.9"/><circle cx="10.7" cy="15.6" r="0.4" fill="#8a5a34" stroke="none"/><circle cx="13.3" cy="15.6" r="0.4" fill="#8a5a34" stroke="none"/><path d="M11.3 16.8 Q12 17.5 12.7 16.8" stroke="#8a5a34" stroke-width="0.8"/>`),
+  // レシピ: フライパンと目玉焼き（黄身に顔）
+  recipe: svg(`<path d="M14.8 9.4 L20.8 6.2" stroke-width="2.8"/><circle cx="10.3" cy="13.2" r="6.4" fill="#d9cfc0"/><circle cx="10.3" cy="13.2" r="5.1" fill="#f3ecdf"/><ellipse cx="10.3" cy="13.2" rx="3.5" ry="3" fill="#fdfdf6"/><circle cx="10.3" cy="13.2" r="1.9" fill="#f7d06e"/><circle cx="9.6" cy="13" r="0.28" fill="#8a5a34" stroke="none"/><circle cx="11" cy="13" r="0.28" fill="#8a5a34" stroke="none"/><path d="M9.8 13.9 Q10.3 14.3 10.8 13.9" stroke="#8a5a34" stroke-width="0.7"/>`),
+  // 図鑑: 開いた本とトマトのキャラ
+  zukan: svg(`<path d="M12 6.4 C9.9 4.8 6.8 4.3 4.2 4.9 V18.8 C6.8 18.2 9.9 18.7 12 20.3 C14.1 18.7 17.2 18.2 19.8 18.8 V4.9 C17.2 4.3 14.1 4.8 12 6.4 Z" fill="#a5cc8a"/><path d="M12 7.3 C10.1 5.9 7.4 5.5 5.2 6 V17.7 C7.4 17.2 10.1 17.6 12 19 C13.9 17.6 16.6 17.2 18.8 17.7 V6 C16.6 5.5 13.9 5.9 12 7.3 Z" fill="#fdfdf6"/><path d="M12 7.3 V19" stroke="#d9c39c" stroke-width="0.9"/><path d="M6.8 9.8h3.4M6.8 12.6h3.4" stroke="#d9c39c" stroke-width="0.9"/><circle cx="15.7" cy="11.2" r="2" fill="#e2604d"/><path d="M14.6 9.7c.7-.6 1.5-.6 2.2 0-.2.6-.7.9-1.1.9s-.9-.3-1.1-.9Z" fill="#93bd78"/><circle cx="15" cy="11.2" r="0.3" fill="#8a5a34" stroke="none"/><circle cx="16.4" cy="11.2" r="0.3" fill="#8a5a34" stroke="none"/><path d="M15.2 12.1 Q15.7 12.6 16.2 12.1" stroke="#8a5a34" stroke-width="0.75"/>`),
+  // 共有・設定: 親子の家族（パステルの丸い2人）
+  settings: svg(`<path d="M4.6 20 V15.4 C4.6 13 6.6 11.6 9 11.6 C11.4 11.6 13.4 13 13.4 15.4 V20 Z" fill="#f3b8a6"/><circle cx="9" cy="8.7" r="3" fill="#fdeeda"/><path d="M7.6 5.9 Q9 4.7 10.4 5.9" stroke-width="1.1"/><circle cx="6.7" cy="9.4" r="0.72" fill="#f4a988" opacity="0.5" stroke="none"/><circle cx="11.3" cy="9.4" r="0.72" fill="#f4a988" opacity="0.5" stroke="none"/><circle cx="7.9" cy="8.5" r="0.42" fill="#8a5a34" stroke="none"/><circle cx="10.1" cy="8.5" r="0.42" fill="#8a5a34" stroke="none"/><path d="M8.3 9.7 Q9 10.35 9.7 9.7" stroke="#8a5a34" stroke-width="0.8"/><path d="M12.3 20 V16.8 C12.3 15 13.9 13.9 15.9 13.9 C17.9 13.9 19.5 15 19.5 16.8 V20 Z" fill="#a9cfa4"/><circle cx="15.9" cy="11.7" r="2.5" fill="#fdeeda"/><path d="M14.9 9.3 Q15.9 8.3 16.9 9.3" stroke-width="1"/><circle cx="14" cy="12.3" r="0.58" fill="#f4a988" opacity="0.5" stroke="none"/><circle cx="17.8" cy="12.3" r="0.58" fill="#f4a988" opacity="0.5" stroke="none"/><circle cx="15.1" cy="11.5" r="0.36" fill="#8a5a34" stroke="none"/><circle cx="16.7" cy="11.5" r="0.36" fill="#8a5a34" stroke="none"/><path d="M15.3 12.6 Q15.9 13.1 16.5 12.6" stroke="#8a5a34" stroke-width="0.75"/>`),
+};
+
+/** 下部タブ用アイコンの DOM 要素（span.nav-icon）を返す。静的SVGのみ。 */
+export function tabIconEl(key) {
+  const span = document.createElement("span");
+  span.className = "nav-icon";
+  span.setAttribute("aria-hidden", "true");
+  const str = TAB_ICONS[key];
+  if (str) {
+    const doc = new DOMParser().parseFromString(str, "image/svg+xml");
+    span.appendChild(document.importNode(doc.documentElement, true));
+  }
+  return span;
+}
+
 /** 仮表示（ミュゼ版キャラが無い食材用・絵のないプレースホルダー） */
 export function charPlaceholderEl() {
   const ph = document.createElement("span");

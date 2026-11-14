@@ -21,7 +21,7 @@ import { suggestCombos, repertoireSize } from "./combo.js";
 import { buildGameQuestions, scoreGame, CORRECT_PRAISE, GAME_QUESTION_COUNT, GAME_COUNT_OPTIONS, GAME_DIFFICULTIES, GAME_DIFFICULTY_DEFAULT } from "./game.js";
 import { createSuikaGame, VEG_STAGES, SUIKA_W, SUIKA_H, computeSuikaBoardLayout } from "./suika.js";
 import { qrToCanvas } from "./qrcode.js";
-import { iconEl, charPlaceholderEl, CATALOG, rarityOf, rarityCategory, categoryOf, catalogCategories } from "./icons.js";
+import { iconEl, tabIconEl, charPlaceholderEl, CATALOG, rarityOf, rarityCategory, categoryOf, catalogCategories } from "./icons.js";
 import { levelForCount, titleFor, remainingToNextLevel } from "./levels.js";
 import { knowledgeFor } from "./knowledge.js";
 import { DemoStore, DEMO_DB_KEY } from "./demo-store.js";
@@ -859,8 +859,8 @@ function renderMain() {
   else content.append(renderSettingsTab());
   appRoot.append(content);
   const nav = el("nav", { class: "bottom-nav" },
-    navBtn("stock", "🧊", "在庫"), navBtn("shopping", "🛒", "買い物"),
-    navBtn("recipes", "🍳", "レシピ"), navBtn("zukan", "📖", "図鑑"), navBtn("settings", "🔗", "共有・設定"),
+    navBtn("stock", "stock", "在庫"), navBtn("shopping", "shopping", "買い物"),
+    navBtn("recipes", "recipe", "レシピ"), navBtn("zukan", "zukan", "図鑑"), navBtn("settings", "settings", "共有・設定"),
   );
   appRoot.append(nav);
   syncSuikaShell();
@@ -872,9 +872,11 @@ function renderMain() {
     try { window.scrollTo(0, savedScrollY); } catch { /* noop */ }
   }
 }
-function navBtn(tab, icon, label) {
+function navBtn(tab, iconKey, label) {
+  // アイコンは絵文字ではなく、アプリの画風で描いた自前SVG（icons.js の
+  // TAB_ICONS）。絵文字は画風と合わず「浮いて見える」ための差し替え。
   return el("button", { class: state.tab === tab && !state.knowledgeName && !state.gameView && !state.suikaView && !state.recipeDetail ? "active" : "", onclick: () => { state.tab = tab; state.knowledgeName = null; state.gameView = false; state.game = null; state.suikaView = false; state.recipeDetail = null; state.recipeFilter = "all"; state.recipeCourse = null; state.errandMode = false; state.errandChecked = []; renderMain(); } },
-    el("span", { class: "nav-icon" }, icon), label);
+    tabIconEl(iconKey), label);
 }
 
 // ---------- 食材の知識ページ（食育） ----------
@@ -1418,37 +1420,44 @@ function renderStockTab() {
     }
   }
   if (alerts.length) {
-    wrap.append(el("div", { class: "card" }, el("h2", {}, "🔔 お知らせ"),
+    wrap.append(el("div", { class: "card notice-card" }, el("h2", {}, "🔔 お知らせ"),
       alerts.map((a) => el("div", { class: "notice-item" }, a))));
   }
-  // 登録フォームは既定で閉じる（在庫0件のときと、図鑑からの下書きがあるときは開く）
+  // ワンタップ登録はフォームより先に出す: 日常の登録はタップで済む導線が
+  // 主役で、詳しい登録フォームはその下に回す（2026-11-15 ユーザー指摘:
+  // フォームの下に埋もれて見つけにくかった）。
+  wrap.append(renderStockOneTapCard());
+  const storageChooser = renderStockStorageChooser();
+  if (storageChooser) wrap.append(storageChooser);
+  // 登録フォームは既定で閉じる（在庫0件のときと、図鑑からの下書きがあるときは開く）。
+  // 開閉ボタンは大きな主ボタンではなく、静かな補助導線として出す。
   if (state.presetAdd) state.addFormOpen = true;
   const formOpen = state.addFormOpen === null ? state.items.length === 0 : state.addFormOpen;
   if (formOpen) {
     wrap.append(renderAddItemForm());
     if (state.items.length > 0) {
       wrap.append(el("button", {
-        class: "btn ghost wide", onclick: () => { state.addFormOpen = false; renderMain(); },
+        class: "btn ghost wide form-toggle", onclick: () => { state.addFormOpen = false; renderMain(); },
       }, "登録フォームを閉じる"));
     }
   } else {
     wrap.append(el("button", {
-      class: "btn wide", onclick: () => { state.addFormOpen = true; renderMain(); },
-    }, "＋ 食材を登録する"));
+      class: "btn ghost wide form-toggle", onclick: () => { state.addFormOpen = true; renderMain(); },
+    }, "＋ 食材を登録する（詳しく入力）"));
   }
-  // ワンタップ登録: 食材タップで登録（新しい食材は保管場所を選んでから）
-  wrap.append(renderStockOneTapCard());
-  const storageChooser = renderStockStorageChooser();
-  if (storageChooser) wrap.append(storageChooser);
   // 在庫の検索（名前の部分一致・カタカナ/ひらがなの揺れを吸収）。
   // 入力中に入力欄のフォーカスを失わないよう、再描画はリスト部分だけにする。
   const listBox = el("div", { class: "stock-list-box" });
   const updateStockList = () => listBox.replaceChildren(...stockListNodes());
   const searchInput = el("input", {
     type: "search", placeholder: "食材名で検索（例：たまご）", value: state.stockQuery || "",
+    "aria-label": "食材名で検索",
   });
   searchInput.addEventListener("input", () => { state.stockQuery = searchInput.value; updateStockList(); });
-  wrap.append(el("div", { class: "search-row" },
+  // 検索と保管場所フィルタは「リストを絞る道具」としてひとまとめにし、
+  // リストの真上に置く（探す場所が1か所に定まるように）。
+  const tools = el("div", { class: "stock-tools" });
+  tools.append(el("div", { class: "search-row" },
     el("span", { class: "search-icon" }, "🔍"),
     searchInput,
     el("button", {
@@ -1474,7 +1483,8 @@ function renderStockTab() {
     }, z, el("span", { class: "cat-count" }, String(z === STORAGE_ZONE_ALL ? state.items.length : counts[z] || 0)))));
   };
   renderZoneChips();
-  wrap.append(zoneRow);
+  tools.append(zoneRow);
+  wrap.append(tools);
   wrap.append(listBox);
   updateStockList();
   return wrap;
@@ -1512,7 +1522,7 @@ function stockListNodes() {
       || String(a.createdAt || "").localeCompare(String(b.createdAt || "")));
   }
   if (state.items.length === 0) {
-    nodes.push(el("div", { class: "card" }, el("p", { class: "empty" }, "まだ食材がありません。\n上のフォームから登録してみましょう。")));
+    nodes.push(el("div", { class: "card" }, el("p", { class: "empty" }, "まだ食材がありません。\n上の「ワンタップ登録」やフォームから登録してみましょう。")));
     return nodes;
   }
   if (sorted.length === 0) {
@@ -1520,7 +1530,7 @@ function stockListNodes() {
     nodes.push(el("div", { class: "card" }, el("p", { class: "empty" },
       query && zoneActive ? `「${query}」に合う食材は${zone}にありませんでした。\n別の名前で探すか、区分を変えてみてください。`
         : query ? `「${query}」に合う食材がありませんでした。\n別の名前で探してみてください。`
-          : `${zone}にはまだ食材がありません。\n上のフォームから登録するか、別の区分を選んでください。`)));
+          : `${zone}にはまだ食材がありません。\n上のワンタップ登録・フォームから登録するか、別の区分を選んでください。`)));
     return nodes;
   }
   if (query) nodes.push(el("p", { class: "hint" }, `「${query}」の検索結果：${sorted.length}件`));
@@ -1620,11 +1630,14 @@ function renderEditItemForm(item) {
 
 function renderItemCard(item) {
   const d = daysUntil(item.expiryDate);
+  // メタ情報の並びは「期限 → 保管場所 → カテゴリ」: 一番大事な期限を
+  // 色つきチップで先頭に、保管場所はチップ、カテゴリは補助情報として
+  // 静かなテキストで添え、全部が同じ重さのチップで並ぶノイズを減らす。
   const meta = [
-    el("span", { class: "chip" }, item.category),
-    el("span", { class: "chip" }, item.storage),
     // 消費期限の管理が OFF のときは期限チップを出さない（データ自体は保持する）
     (expiryEnabled() && item.expiryDate) ? el("span", { class: "chip expiry-chip " + (expiryChipClass(d) || "") }, `期限 ${formatDate(item.expiryDate)}・${expiryLabel(item.expiryDate)}`) : null,
+    el("span", { class: "chip" }, item.storage),
+    el("span", { class: "item-cat" }, item.category),
   ];
   const iconTile = iconEl(item.name, item.category);
   iconTile.classList.add("tile");
@@ -1645,16 +1658,16 @@ function renderItemCard(item) {
     ),
     el("div", { class: "item-ctrls" },
       el("div", { class: "qty-ctrl" },
-        el("button", { class: "qty-btn", onclick: () => changeQty(item, -1, qtyNum) }, "−"),
+        el("button", { class: "qty-btn", "aria-label": `${item.name}の数量を減らす`, onclick: () => changeQty(item, -1, qtyNum) }, "−"),
         qtyNum,
-        el("button", { class: "qty-btn", onclick: () => changeQty(item, 1, qtyNum) }, "+"),
+        el("button", { class: "qty-btn", "aria-label": `${item.name}の数量を増やす`, onclick: () => changeQty(item, 1, qtyNum) }, "+"),
       ),
       el("button", {
         class: "btn secondary small", title: "この食材を編集",
         onclick: () => { state.editingItemId = item.id; renderMain(); },
       }, "編集"),
       el("button", {
-        class: "icon-btn", title: "削除", onclick: () => deleteItemWithUndo(item),
+        class: "icon-btn", title: "削除", "aria-label": `${item.name}を削除`, onclick: () => deleteItemWithUndo(item),
       }, "🗑"),
     ),
   );
@@ -2067,7 +2080,7 @@ function renderStockStorageChooser() {
 function renderStockOneTapCard() {
   const card = el("div", { class: "card stock-onetap-card" },
     el("h2", {}, "👆 ワンタップ登録"),
-    el("p", { class: "hint" }, "食材をタップするだけで、いつもの数量・単位で登録できます。在庫にある食材は数量が増え、新しい食材は保管場所を選ぶと登録されます。"),
+    el("p", { class: "hint" }, "タップで登録。新しい食材は保管場所を選んでね。"),
   );
   const stock = stockByCanonicalName(state.items);
   const stockBadge = (name) => {
@@ -2083,19 +2096,23 @@ function renderStockOneTapCard() {
   if (rows.length) {
     for (const [label, entries] of rows) {
       card.append(el("div", { class: "quick-label" }, label));
-      card.append(el("div", { class: "onetap-row" }, entries.map((entry) => {
+      // コンパクトチップ: 1行に複数並ぶ小さなピルにする（買い物の大きな
+      // チップと違い、在庫側は「名前＋いつもの数量」を畳んで横に流す）。
+      // 在庫量はチップ右上の小さなバッジ（×2本）で控えめに示す。
+      card.append(el("div", { class: "onetap-row stock-chip-row" }, entries.map((entry) => {
         const st = stockBadge(entry.name);
         const picked = state.stockOneTapPick && state.stockOneTapPick.name === resolveCanonicalName(entry.name);
         return el("button", {
           type: "button",
-          class: "onetap-chip" + (st ? " in-list" : "") + (picked ? " editing" : ""),
+          class: "stock-chip" + (st ? " in-list" : "") + (picked ? " editing" : ""),
+          "aria-label": st ? `${entry.name}を登録（現在庫 ${stockQtyText(st)}）` : `${entry.name}を登録`,
           onclick: () => pickOneTapRegisterItem(entry),
         },
           iconEl(entry.name),
-          el("span", { class: "onetap-main" },
-            el("span", { class: "onetap-name" }, entry.name),
-            el("span", { class: "onetap-sub" }, `いつもの ${fmtQtyValue(entry.quantity, entry.unit)}${entry.unit}`)),
-          st ? el("span", { class: "onetap-badge" }, `在庫 ${stockQtyText(st)}`) : null,
+          el("span", { class: "stock-chip-main" },
+            el("span", { class: "stock-chip-name" }, entry.name),
+            el("span", { class: "stock-chip-sub" }, `いつもの ${fmtQtyValue(entry.quantity, entry.unit)}${entry.unit}`)),
+          st ? el("span", { class: "stock-chip-stock" }, stockQtyText(st)) : null,
         );
       })));
     }
@@ -2130,7 +2147,7 @@ function renderStockOneTapCard() {
       },
         iconEl(name, categoryOf(name) || selected),
         el("span", { class: "shop-browse-name" }, name),
-        st ? el("span", { class: "onetap-badge" }, `在庫 ${stockQtyText(st)}`) : null,
+        st ? el("span", { class: "stock-tile-stock" }, `在庫 ${stockQtyText(st)}`) : null,
       );
     })));
   } else {
