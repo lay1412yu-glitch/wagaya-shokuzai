@@ -5,11 +5,13 @@
 // 例外: Firebase SDK 本体（gstatic のバージョニング済みファイル）は不変
 // なので cache-first で貯める。これが無いと圏外では SDK 自体を読み込めず、
 // 殻＋Firestore 永続キャッシュによるオフライン起動が成立しない。
-const CACHE = "wagaya-shokuzai-v45";
+const CACHE = "wagaya-shokuzai-v46";
 // ミュゼ版キャラ画像（img/chars/*.webp・200枚超）は SHELL に入れず、
 // 初回表示時にここへ貯めるランタイムキャッシュにする（cache-first）。
 // アプリ本体の版数が上がってもキャラキャッシュは消さない。
-const CHAR_CACHE = "wagaya-chars-v1";
+// 例外: v46 ではキャラ画像の白背景を透過化したため、旧キャッシュを
+// 破棄させる目的で CHAR_CACHE を v2 に上げた（activate で v1 は削除される）。
+const CHAR_CACHE = "wagaya-chars-v2";
 // Firebase SDK（firebasejs/10.12.5 配下）のランタイムキャッシュ。
 // バージョン固定 URL で内容は不変。殻キャッシュとは別名にし、「アプリを
 // 最新に更新する」（殻だけ削除）の対象にもしない。
