@@ -895,6 +895,7 @@ export const CHAR_BY_NAME = {
  "ザワークラウト": "sauerkraut.webp",
  "サルサ": "salsa.webp",
  "小ねぎ": "konegi.webp",
+ "刻みねぎ": "kizaminegi.webp",
  "パセリ": "parsley.webp",
  "わらび": "warabi.webp",
  "ぜんまい": "zenmai.webp",

@@ -13,7 +13,7 @@
 // - 参加用リンク ?join=<code> を受けたら、コードを sessionStorage に退避し、
 //   ログイン完了後に自動で参加を試みる（URL の履歴からは即座に消す）。
 
-import { el, uid, todayISO, daysUntil, formatDate, expiryLabel, expiryGroup, expiryChipClass, formatCode, fmtQtyValue, qtyStepFor, roundQty, isFractionUnit, matchesSearch, topPurchased, recentRegistered, oneTapCandidates, inListQuantity, planOneTapAdd, usualQtyUnitFor, storageOf, RECIPE_QUICK_FILTERS, RECIPE_MOOD_FILTERS, matchesRecipeFilter, filterRecipes, STORAGE_ZONES, STORAGE_ZONE_ALL, countByStorage, filterByStorage, suggestStorage, UNIT_OPTIONS, UNIT_OTHER_VALUE, unitSelectValueFor, resolveUnitValue, upsertTodayMenuEntry, removeTodayMenuEntry, groupTodayMenuEntries, mergeMissingIngredients, isAppShellCacheName, userErrorMessage, FRIDGE_NAME_MAX } from "./util.js";
+import { el, uid, todayISO, daysUntil, formatDate, expiryLabel, expiryGroup, expiryChipClass, formatCode, fmtQtyValue, qtyStepFor, roundQty, isFractionUnit, matchesSearch, topPurchased, collectedByCanonicalName, stockByCanonicalName, stockQtyText, recentRegistered, oneTapCandidates, inListQuantity, planOneTapAdd, usualQtyUnitFor, storageOf, RECIPE_QUICK_FILTERS, RECIPE_MOOD_FILTERS, matchesRecipeFilter, filterRecipes, STORAGE_ZONES, STORAGE_ZONE_ALL, countByStorage, filterByStorage, suggestStorage, UNIT_OPTIONS, UNIT_OTHER_VALUE, unitSelectValueFor, resolveUnitValue, upsertTodayMenuEntry, removeTodayMenuEntry, groupTodayMenuEntries, mergeMissingIngredients, isAppShellCacheName, userErrorMessage, FRIDGE_NAME_MAX } from "./util.js";
 import { resolveCanonicalName } from "./names.js";
 import { suggestRecipes, suggestFilteredCatalogue, suggestMealSet, suggestEventMenu, EVENT_MENUS, EVENT_RECIPES, suggestRegionalMenu, REGIONS, REGIONAL_RECIPES, evaluateRecipe, ALL_RECIPES, rankRecipesByIngredients, isNewRecipe, demoteSeenRecipes, ensureCourseVariety } from "./recipes.js";
 import * as recipesNs from "./recipes.js";
@@ -60,25 +60,27 @@ function toastWithAction(msg, actionLabel, onAction, ms = 7000) {
 // 購入前に図鑑の購入回数を控えておき、購入後に比べることで
 // 「はじめて集めた激レア」「レベルアップ」を検出してお祝いする。
 function catalogCountsBefore() {
-  return new Map(state.catalog.map((c) => [c.name, c.purchaseCount ?? 1]));
+  // 正規名で統合して控える（旧データの別表記エントリとも突合できるように）
+  return new Map([...collectedByCanonicalName(state.catalog)].map(([k, v]) => [k, v.purchaseCount ?? 1]));
 }
 function celebratePurchase(name, before) {
-  const rec = state.catalog.find((c) => c.name === name);
+  const key = resolveCanonicalName(name);
+  const rec = collectedByCanonicalName(state.catalog).get(key);
   if (!rec) return false;
   const count = rec.purchaseCount ?? 1;
-  const isNew = !before.has(name);
-  const tier = rarityOf(name);
+  const isNew = !before.has(key);
+  const tier = rarityOf(key);
   if (isNew && tier === "ultra") {
-    toast(`激レア食材『${name}』をゲット！🎉 ずかんに とうろくされたよ`, 5200);
+    toast(`激レア食材『${key}』をゲット！🎉 ずかんに とうろくされたよ`, 5200);
     return true;
   }
-  const beforeCount = before.get(name) ?? 0;
+  const beforeCount = before.get(key) ?? 0;
   if (!isNew && levelForCount(count) > levelForCount(beforeCount)) {
-    toast(`${name}が Lv${levelForCount(count)}にアップ！称号『${titleFor(name, count)}』をゲット！🎉`, 5200);
+    toast(`${key}が Lv${levelForCount(count)}にアップ！称号『${titleFor(key, count)}』をゲット！🎉`, 5200);
     return true;
   }
   if (isNew && tier === "rare") {
-    toast(`レア食材『${name}』をゲット！✨ ずかんに とうろくされたよ`, 4600);
+    toast(`レア食材『${key}』をゲット！✨ ずかんに とうろくされたよ`, 4600);
     return true;
   }
   return false;
@@ -756,7 +758,11 @@ function renderKnowledgePage() {
   const category = state.knowledgeCategory || rarityCategory(name) || "その他";
   const info = knowledgeFor(name, category);
   const tier = rarityOf(name);
-  const rec = state.catalog.find((c) => c.name === name);
+  // 図鑑の記録は正規名で引く（旧データが別表記で保存されていても突合する）
+  const rec = collectedByCanonicalName(state.catalog).get(resolveCanonicalName(name));
+  // 今の在庫も正規名で引く（冷蔵庫⇔図鑑の連携を「見える」形にする）
+  const stockRec = stockByCanonicalName(state.items).get(resolveCanonicalName(name));
+  const inStock = !!stockRec && stockRec.quantity > 0;
   const wrap = el("div", {});
   const heroIcon = iconEl(name, category);
   const count = rec ? (rec.purchaseCount ?? 1) : 0;
@@ -794,6 +800,7 @@ function renderKnowledgePage() {
         tier === "ultra" ? el("span", { class: "rare-chip ultra" }, "激レア！") : tier === "rare" ? el("span", { class: "rare-chip rare" }, "レア") : null,
         rec ? el("span", { class: "chip" }, `Lv${lv} ・ ${count}回買ったよ`) : el("span", { class: "chip" }, "図鑑ではまだ未発見"),
         rec && titleFor(name, count) ? el("span", { class: "chip" }, `称号『${titleFor(name, count)}』`) : null,
+        inStock ? el("span", { class: "chip stock-chip" }, `🧊 在庫あり（${stockQtyText(stockRec)}）`) : null,
       ),
       el("button", {
         class: "btn wide", onclick: () => {
@@ -821,7 +828,7 @@ function renderKnowledgePage() {
 function gamePool() {
   const catOf = new Map();
   for (const [, c, ns] of CATALOG) for (const n of ns) if (!catOf.has(n)) catOf.set(n, c);
-  const collected = state.catalog.map((c) => ({
+  const collected = [...collectedByCanonicalName(state.catalog).values()].map((c) => ({
     name: c.name,
     category: c.category || catOf.get(c.name) || rarityCategory(c.name) || "その他",
   }));
@@ -1463,7 +1470,7 @@ function renderAddItemForm() {
     type: "button", class: "quick-chip", onclick,
   }, label, sub ? el("span", { class: "quick-sub" }, sub) : null);
   const quickKids = [];
-  const top = topPurchased(state.catalog, 8);
+  const top = topPurchased([...collectedByCanonicalName(state.catalog).values()], 8);
   if (top.length) {
     quickKids.push(el("div", { class: "quick-label" }, "⭐ よく買うもの（タップで入力）"));
     quickKids.push(el("div", { class: "quick-row" }, top.map((c) => {
@@ -1520,11 +1527,16 @@ function renderAddItemForm() {
 // セルをタップすると、その食材を在庫登録フォームに下書きして在庫タブへ進む。
 function renderZukanTab() {
   const wrap = el("div", { class: "zukan-wrap" });
-  const collected = new Map(state.catalog.map((c) => [c.name, c]));
+  // 収集判定は正規名で統合した Map で行う。旧データ（正規化前に別表記で
+  // 保存された記録）が残っていても、冷蔵庫に登録した食材が図鑑に
+  // 反映されないことがないようにするため（保存データは書き換えない）。
+  const collected = collectedByCanonicalName(state.catalog);
+  // 今の在庫も正規名で統合しておく（収集済みセルに「在庫あり」を出すため）
+  const stock = stockByCanonicalName(state.items);
   const catalogNames = new Set(CATALOG.flatMap(([, , names]) => names));
   const totalInCatalog = catalogNames.size;
   const gotInCatalog = [...catalogNames].filter((n) => collected.has(n)).length;
-  const extras = state.catalog.filter((c) => !catalogNames.has(c.name));
+  const extras = [...collected.values()].filter((c) => !catalogNames.has(c.name));
   // レアリティ別の収集状況（激レアは別枠で見せて「集める楽しさ」を出す）
   const tierNames = (tier) => CATALOG.flatMap(([, , names]) => names).filter((n) => rarityOf(n) === tier);
   const ultraNames = tierNames("ultra"), rareNames = tierNames("rare");
@@ -1590,6 +1602,9 @@ function renderZukanTab() {
       kids.push(el("span", { class: "zukan-lv" }, `Lv${lv} ・ ${count}回`));
       if (title) kids.push(el("span", { class: "zukan-title" }, `『${title}』`));
       kids.push(el("span", { class: "zukan-next" }, `あと${remainingToNextLevel(count)}回で Lv${lv + 1}`));
+      // 冷蔵庫に今ある食材はひと目で分かるように（旧データの別表記在庫も正規名で突合）
+      const st = stock.get(resolveCanonicalName(name));
+      if (st && st.quantity > 0) kids.push(el("span", { class: "zukan-stock" }, `🧊 在庫あり ${stockQtyText(st)}`));
     } else {
       kids.push(el("span", { class: "zukan-state" }, tier ? "❓ 未発見" : "まだ"));
     }
@@ -1797,7 +1812,7 @@ function renderShoppingTab() {
   // 単位も登録フォームと同じプルダウンで選べるようにする
   const unitPicker = createUnitPicker();
   // ---- ワンタップ追加（よく買うもの／最近買ったもの／お気に入り食材） ----
-  const oneTap = oneTapCandidates(state.catalog, state.items, 10);
+  const oneTap = oneTapCandidates([...collectedByCanonicalName(state.catalog).values()], state.items, 10);
   const oneTapRows = [
     ["⭐ よく買うもの", oneTap.top],
     ["🕘 最近買ったもの", oneTap.recent],
@@ -1856,7 +1871,9 @@ function renderShoppingTab() {
                   if (item) {
                     await store.updateItem(state.user.id, item.id, { quantity: Number(item.quantity) + Number(s.quantity) });
                     // 数量を足すだけの経路でも「買った」として図鑑の購入回数を数える
-                    await store.recordPurchase(state.user.id, state.fridge.id, s.name, rarityCategory(s.name) || "その他");
+                    // （図鑑の記録は正規名で数える: 行名が別表記でも正規品に寄せる）
+                    const canonName = resolveCanonicalName(s.name);
+                    await store.recordPurchase(state.user.id, state.fridge.id, canonName, rarityCategory(canonName) || "その他");
                   }
                 } else {
                   await store.addItem(state.user.id, state.fridge.id, {
@@ -1982,7 +1999,7 @@ function favStarBtn(active, onclick) {
 }
 async function addMissingToShopping(missing) {
   for (const m of missing)
-    await store.addShopping(state.user.id, state.fridge.id, { name: m.name, quantity: m.amount, unit: m.unit, source: "recipe" });
+    await store.addShopping(state.user.id, state.fridge.id, { name: resolveCanonicalName(m.name), quantity: m.amount, unit: m.unit, source: "recipe" });
   await refreshData(); toast("足りない材料を買い物リストに追加しました");
 }
 

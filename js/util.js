@@ -172,6 +172,76 @@ export function topPurchased(catalog, limit = 8) {
     .sort((a, b) => (b.purchaseCount ?? 1) - (a.purchaseCount ?? 1) || String(a.name).localeCompare(String(b.name)))
     .slice(0, limit);
 }
+
+/**
+ * 図鑑コレクションを「正規名キー」で統合した Map を返す（読み取り時の解決）。
+ *
+ * 背景: 在庫登録時の名前の正規化（names.js）が入る前に保存された記録や、
+ * 正規化を経ない経路で保存された記録は、別表記（例: ねぎ・たまご）のまま
+ * コレクションに残りうる。図鑑のセル・進捗・知識ページの記録照合は正規名で
+ * 行うため、そのままだと「冷蔵庫に登録したのに図鑑に反映されない」状態になる。
+ * 保存データ自体は書き換えず、読むときに正規名へ解決して統合する:
+ * - キーと name は正規名（resolveCanonicalName）
+ * - 同じ正規名に複数エントリがある場合は購入回数を合算する
+ * - firstAddedAt は最も古いものを残す
+ * 加工形態などの別品（刻みねぎ等）は正規化でも統合されないため混ざらない。
+ */
+export function collectedByCanonicalName(catalog) {
+  const map = new Map();
+  for (const c of catalog || []) {
+    if (!c || !c.name) continue;
+    const key = resolveCanonicalName(c.name);
+    const prev = map.get(key);
+    if (!prev) {
+      map.set(key, { ...c, name: key, purchaseCount: c.purchaseCount ?? 1 });
+    } else {
+      prev.purchaseCount = (prev.purchaseCount ?? 1) + (c.purchaseCount ?? 1);
+      if (c.firstAddedAt && (!prev.firstAddedAt || String(c.firstAddedAt) < String(prev.firstAddedAt))) {
+        prev.firstAddedAt = c.firstAddedAt;
+      }
+    }
+  }
+  return map;
+}
+
+/**
+ * 在庫を「正規名キー」で統合した Map を返す（図鑑・知識ページの「在庫あり」表示用）。
+ *
+ * collectedByCanonicalName と対になる読み取り時解決: 在庫の保存名が
+ * 別表記（ねぎ等）のままでも、正規名（長ねぎ）で引けるようにする。
+ * 値は { name, quantity, unit }:
+ * - 数量はロットを合算する。ただし単位の違うロット同士は合算しない
+ *   （食材ピッカーと同じ流儀）。単位グループが複数ある場合は合計が
+ *   最も大きいグループを代表値にする。
+ * - quantity が 0 の食材もエントリは残る（呼び出し側で > 0 を在庫あり判定）。
+ * 加工形態などの別品（刻みねぎ等）は正規化でも統合されないため混ざらない。
+ */
+export function stockByCanonicalName(items) {
+  const byUnit = new Map(); // 正規名 -> Map(単位 -> 合計数量)
+  for (const item of items || []) {
+    if (!item || !item.name) continue;
+    const key = resolveCanonicalName(item.name);
+    const unit = item.unit || "";
+    const q = Number(item.quantity);
+    if (!byUnit.has(key)) byUnit.set(key, new Map());
+    const groups = byUnit.get(key);
+    groups.set(unit, roundQty((groups.get(unit) || 0) + (Number.isFinite(q) ? q : 0)));
+  }
+  const map = new Map();
+  for (const [key, groups] of byUnit) {
+    let best = { name: key, quantity: 0, unit: "" };
+    for (const [unit, quantity] of groups) {
+      if (quantity > best.quantity) best = { name: key, quantity, unit };
+    }
+    map.set(key, best);
+  }
+  return map;
+}
+// 「在庫あり」チップの数量部分（例: ×3束 / ×1/2玉）。図鑑セル・知識ページ共通。
+export function stockQtyText(entry) {
+  if (!entry) return "";
+  return `×${fmtQtyValue(entry.quantity, entry.unit)}${entry.unit || ""}`;
+}
 // 在庫アイテムから「最近登録したもの」を名前の重複なしで新しい順に返す。
 export function recentRegistered(items, limit = 8) {
   const seen = new Set();

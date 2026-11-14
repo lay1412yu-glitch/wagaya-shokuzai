@@ -331,6 +331,8 @@ input[type="date"] {
 .chip.exp-red { background: #f8d8cc; border-color: #e89a7d; color: #a03a24; }
 .chip.exp-orange { background: #fce8cd; border-color: #f0bd7e; color: #9a5b16; }
 .chip.exp-calm { background: #e9efe0; border-color: #c3d2ab; color: #55663c; }
+/* 在庫ありチップ（図鑑・知識ページ）: 冷蔵庫の「今ある」を淡い氷色で示す */
+.chip.stock-chip { background: #e8f1f4; border-color: #c2d9e1; color: #406a7d; font-weight: 700; }
 .qty-ctrl { display: flex; align-items: center; gap: 6px; }
 .qty-btn {
   width: 42px; height: 42px; border-radius: 50%; border: 1.5px solid var(--line);
@@ -463,6 +465,11 @@ input[type="date"] {
 .rare-badge.ultra { background: linear-gradient(135deg, #f7df8e, #eec95c); color: #7a5608; border: 1px solid #d9ae3c; }
 .rare-badge.rare { background: #e4efcf; color: #56743a; border: 1px solid #b9d18f; }
 .zukan-lv { font-size: 11px; font-weight: 800; color: var(--accent-deep); letter-spacing: 0.03em; }
+/* 収集済みセルの「在庫あり」: 小さな氷色ピル（未収集セルには出さない） */
+.zukan-stock {
+  font-size: 9.5px; font-weight: 700; letter-spacing: 0.02em; white-space: nowrap;
+  color: #406a7d; background: #e8f1f4; border: 1px solid #c2d9e1; border-radius: 999px; padding: 1px 6px;
+}
 .zukan-title { font-size: 10.5px; color: #8a6414; font-weight: 700; line-height: 1.35; text-align: center; }
 .zukan-next { font-size: 9.5px; color: var(--ink-soft); letter-spacing: 0.02em; }
 
