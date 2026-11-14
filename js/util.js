@@ -531,3 +531,84 @@ export function mergeMissingIngredients(missingLists) {
   }
   return [...map.values()];
 }
+
+// ---- ブラッシュアップ P0 用の純粋関数群（2026-11-15） ----
+
+// 登録フォームの保管場所プリセット（拡張版）: suggestStorage の基本規則
+// （野菜→野菜室、それ以外→冷蔵庫）に、冷凍食品→冷凍庫・乾物/缶詰→常温を足す。
+// suggestStorage 自体は既存の呼び出し・テスト互換のため変更しない。
+export function storagePresetFor(category) {
+  if (category === "冷凍食品") return "冷凍庫";
+  if (category === "乾物・缶詰") return "常温";
+  return suggestStorage(category);
+}
+
+// 買い物リストの売り場（動線）順。日本の標準的なスーパーの売り場順に固定。
+export const SHOPPING_AISLE_ORDER = [
+  "野菜", "果物", "魚", "肉", "卵・乳製品", "豆腐・大豆", "主食",
+  "惣菜・おかず", "調味料", "乾物・缶詰", "飲み物", "冷凍食品",
+  "おやつ・デザート", "その他",
+];
+// 買い物行を売り場カテゴリ順にグループ化する。
+// resolveCategory(name) がカテゴリ名（または null）を返す関数。
+// 解決できない・順序表に無いカテゴリは「その他」グループ（末尾）に寄せる。
+// グループ内は元の並び順を保つ。空グループは返さない。
+export function groupShoppingByAisle(rows, resolveCategory) {
+  const groups = new Map(SHOPPING_AISLE_ORDER.map((c) => [c, []]));
+  for (const row of rows || []) {
+    if (!row) continue;
+    let cat = null;
+    try { cat = resolveCategory ? resolveCategory(row.name) : null; } catch { cat = null; }
+    if (!cat || !groups.has(cat)) cat = "その他";
+    groups.get(cat).push(row);
+  }
+  return [...groups.entries()]
+    .filter(([, list]) => list.length)
+    .map(([category, list]) => ({ category, rows: list }));
+}
+
+// 「足りない材料を買い物リストへ」の重複防止プラン。
+// 未チェックの既存行（正規名＋単位が一致）があれば数量合算（merges）、
+// 無ければ新規追加（adds）に振り分ける。canon は名前の正規化関数。
+// merges の quantity は合算後の新しい合計数量。
+export function planMissingAdditions(shopping, missing, canon = (n) => n) {
+  const adds = [];
+  const merges = [];
+  const pending = new Map(); // key -> { row?, add? } 同一プラン内の連続合算も寄せる
+  for (const m of missing || []) {
+    if (!m || !m.name) continue;
+    const name = canon(m.name);
+    const unit = m.unit || "";
+    const amount = Number(m.amount) || 0;
+    const key = `${name}${unit}`;
+    const prior = pending.get(key);
+    if (prior) {
+      if (prior.merge) prior.merge.quantity = roundQty(prior.merge.quantity + amount);
+      else prior.add.quantity = roundQty(prior.add.quantity + amount);
+      continue;
+    }
+    const row = (shopping || []).find((s) => s && !s.isChecked
+      && canon(s.name) === name && (s.unit || "") === unit);
+    if (row) {
+      const merge = { id: row.id, name, unit, quantity: roundQty((Number(row.quantity) || 0) + amount) };
+      merges.push(merge);
+      pending.set(key, { merge });
+    } else {
+      const add = { name, quantity: amount, unit };
+      adds.push(add);
+      pending.set(key, { add });
+    }
+  }
+  return { adds, merges };
+}
+
+// 0..length-1 の表示順シャッフル（Fisher–Yates）。rand は [0,1) を返す関数。
+// クイズの選択肢表示順など、データ自体を変えずに並びだけ変えるために使う。
+export function shuffledIndices(length, rand = Math.random) {
+  const idx = Array.from({ length: Math.max(0, length | 0) }, (_, i) => i);
+  for (let i = idx.length - 1; i > 0; i--) {
+    const j = Math.min(i, Math.floor(rand() * (i + 1)));
+    [idx[i], idx[j]] = [idx[j], idx[i]];
+  }
+  return idx;
+}

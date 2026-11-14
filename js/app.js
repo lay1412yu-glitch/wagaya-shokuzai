@@ -13,7 +13,7 @@
 // - 参加用リンク ?join=<code> を受けたら、コードを sessionStorage に退避し、
 //   ログイン完了後に自動で参加を試みる（URL の履歴からは即座に消す）。
 
-import { el, uid, todayISO, daysUntil, formatDate, expiryLabel, expiryGroup, expiryChipClass, formatCode, fmtQtyValue, qtyStepFor, roundQty, isFractionUnit, matchesSearch, topPurchased, collectedByCanonicalName, stockByCanonicalName, stockQtyText, recentRegistered, oneTapCandidates, inListQuantity, planOneTapAdd, usualQtyUnitFor, storageOf, RECIPE_QUICK_FILTERS, RECIPE_MOOD_FILTERS, matchesRecipeFilter, filterRecipes, STORAGE_ZONES, STORAGE_ZONE_ALL, countByStorage, filterByStorage, suggestStorage, UNIT_OPTIONS, UNIT_OTHER_VALUE, unitSelectValueFor, resolveUnitValue, upsertTodayMenuEntry, removeTodayMenuEntry, groupTodayMenuEntries, mergeMissingIngredients, isAppShellCacheName, userErrorMessage, FRIDGE_NAME_MAX } from "./util.js";
+import { el, uid, todayISO, daysUntil, formatDate, expiryLabel, expiryGroup, expiryChipClass, formatCode, fmtQtyValue, qtyStepFor, roundQty, isFractionUnit, matchesSearch, topPurchased, collectedByCanonicalName, stockByCanonicalName, stockQtyText, recentRegistered, oneTapCandidates, inListQuantity, planOneTapAdd, usualQtyUnitFor, storageOf, RECIPE_QUICK_FILTERS, RECIPE_MOOD_FILTERS, matchesRecipeFilter, filterRecipes, STORAGE_ZONES, STORAGE_ZONE_ALL, countByStorage, filterByStorage, suggestStorage, UNIT_OPTIONS, UNIT_OTHER_VALUE, unitSelectValueFor, resolveUnitValue, upsertTodayMenuEntry, removeTodayMenuEntry, groupTodayMenuEntries, mergeMissingIngredients, isAppShellCacheName, userErrorMessage, FRIDGE_NAME_MAX, storagePresetFor, groupShoppingByAisle, planMissingAdditions, shuffledIndices } from "./util.js";
 import { resolveCanonicalName } from "./names.js";
 import { suggestRecipes, suggestFilteredCatalogue, suggestMealSet, suggestEventMenu, EVENT_MENUS, EVENT_RECIPES, suggestRegionalMenu, REGIONS, REGIONAL_RECIPES, evaluateRecipe, ALL_RECIPES, rankRecipesByIngredients, isNewRecipe, demoteSeenRecipes, ensureCourseVariety } from "./recipes.js";
 import * as recipesNs from "./recipes.js";
@@ -54,6 +54,45 @@ function toastWithAction(msg, actionLabel, onAction, ms = 7000) {
   toastNode.hidden = false;
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => { toastNode.hidden = true; }, ms);
+}
+
+// ---------- 非同期ボタンの共通「処理中」ガード（多重送信防止） ----------
+// 書き込み系ボタンの onclick をこれで包むと、処理中は disabled＋スピナーに
+// なり、連打による二重登録・二重加算を防ぐ。描画し直しでボタンが消える
+// 経路では、終わったときに元のボタンが残っていれば表示だけ戻す。
+async function withBusy(btn, fn) {
+  if (!btn || btn.disabled) return;
+  const label = btn.textContent;
+  btn.disabled = true;
+  btn.classList.add("is-busy");
+  btn.setAttribute("aria-busy", "true");
+  btn.replaceChildren(el("span", { class: "btn-spinner", "aria-hidden": "true" }), label);
+  try {
+    await fn();
+  } finally {
+    if (btn.isConnected) {
+      btn.disabled = false;
+      btn.classList.remove("is-busy");
+      btn.removeAttribute("aria-busy");
+      btn.textContent = label;
+    }
+  }
+}
+
+// ---------- 破壊的操作のインライン確認パネル（.danger-confirm の一般化） ----------
+// ブラウザ標準の確認ダイアログの代わりに、ボタンの場所そのものへ確認パネルを差し込む。
+// host の中身をパネルに置き換え、「やめる」で renderMain() し直して元に戻す。
+function mountDangerConfirm(host, { text, confirmLabel, onConfirm }) {
+  const panel = el("div", { class: "danger-confirm" },
+    el("p", {}, text),
+    el("div", { class: "dc-actions" },
+      el("button", {
+        class: "btn danger", onclick: (e) => withBusy(e.currentTarget, async () => { await onConfirm(); }),
+      }, confirmLabel),
+      el("button", { class: "btn ghost", onclick: () => renderMain() }, "やめる"),
+    ));
+  host.replaceChildren(panel);
+  return panel;
 }
 
 // ---------- 購入のお祝い（激レアゲット／レベルアップ） ----------
@@ -124,6 +163,13 @@ const state = {
   trash: [], // デモモード用: ストアのゴミ箱（refreshData で読み込む）
   shoppingCategory: null, // 買い物タブ「カテゴリから選ぶ」で選択中のカテゴリ（保存しない）
   shoppingEditor: null, // 買い物タブ「カテゴリから選ぶ」の数量エディタ対象 { name, category }（保存しない）
+  editingItemId: null, // 在庫のその場編集中のアイテム ID（保存しない）
+  errandMode: false, // おつかいモード表示中（保存しない・端末内だけ）
+  errandChecked: [], // おつかいモードで「買えた」チェックした買い物行 ID（端末内だけ・投入時に共有データへ反映）
+  addFormOpen: null, // 在庫登録フォームの開閉（null=既定: 在庫0件なら開く）
+  confirmWithdraw: 0, // 退会の2段階確認パネルの段階（0=閉 / 1=説明 / 2=最終）
+  joinRetry: false, // 自動参加に失敗し、コード確認待ちの状態か（保存しない）
+  boardAddSig: null, // ボードの買い物追加済み表示のための署名（保存しない）
 };
 
 // ---------- 消費期限のオン/オフ設定 ----------
@@ -173,10 +219,51 @@ async function initStore() {
 // どちらも使えない場合は従来通り（操作・再読み込みで反映）にフォールバック。
 let realtimeCleanup = null;
 let realtimeTimer = null;
+let realtimePending = false; // 入力保護のため反映を保留中か
+// ユーザーがいま入力中か: フォーカスがフォーム部品にある、または
+// 登録／買い物フォームに未送信の下書きが残っている場合は true。
+// この間は家族の変更で画面を作り直すと入力が消えるため、反映を保留する。
+function isUserEditing() {
+  const ae = document.activeElement;
+  if (ae && appRoot.contains(ae) && /^(INPUT|SELECT|TEXTAREA)$/.test(ae.tagName)) return true;
+  // 下書き判定: 登録フォームの食材名・買い物フォームの買うもの欄に文字がある
+  for (const ph of ["例）鶏もも肉", "買うもの（例：牛乳）"]) {
+    const input = appRoot.querySelector(`input[placeholder="${ph}"]`);
+    if (input && input.value.trim()) return true;
+  }
+  return false;
+}
+function showRealtimeChip() {
+  if (document.getElementById("realtime-chip")) return;
+  const chip = el("button", {
+    id: "realtime-chip", class: "realtime-chip", type: "button",
+    onclick: async () => {
+      chip.remove();
+      realtimePending = false;
+      if (!state.user || !state.fridge) return;
+      await refreshData().catch(() => {});
+      if (!state.knowledgeName && !state.legalView) renderMain();
+    },
+  }, "👨‍👩‍👧 家族の変更があります（タップで反映）");
+  document.body.append(chip);
+}
+function hideRealtimeChip() {
+  const chip = document.getElementById("realtime-chip");
+  if (chip) chip.remove();
+  realtimePending = false;
+}
 function scheduleRealtimeRefresh() {
   clearTimeout(realtimeTimer);
   realtimeTimer = setTimeout(async () => {
     if (!state.user || !state.fridge) return;
+    if (isUserEditing()) {
+      // 入力中フォームを壊さない: 反映は保留し、チップで知らせる。
+      // 次のスナップショット到着時（または入力終了後の再通知）で再判定する。
+      realtimePending = true;
+      showRealtimeChip();
+      return;
+    }
+    hideRealtimeChip();
     await refreshData().catch(() => {});
     if (!state.knowledgeName && !state.legalView) renderMain();
   }, 400);
@@ -396,7 +483,7 @@ function renderLegalPage() {
       },
     }, "← もどる"),
     el("h2", {}, doc.title),
-    el("p", { class: "hint" }, "※ これは下書きです。[運営者名] などの空欄は、公開前に運営者が記入します。"),
+    el("p", { class: "hint" }, "この文章は運営者が用意したものです。専門家（弁護士）の確認を受けたものではありません。"),
   );
   for (const sec of doc.sections) {
     wrap.append(el("h3", { class: "legal-h" }, sec.heading));
@@ -440,6 +527,7 @@ if (updateBtn) updateBtn.addEventListener("click", () => { updateBtn.classList.a
 function goTab(tab) {
   state.tab = tab; state.knowledgeName = null; state.gameView = false; state.game = null;
   state.suikaView = false; state.recipeDetail = null; state.recipeFilter = "all"; state.recipeCourse = null;
+  state.errandMode = false; state.errandChecked = [];
   renderMain();
 }
 function drawerItem(icon, label, sub, onClick) {
@@ -547,15 +635,28 @@ function renderAuth(errorMsg = "") {
     state.authTab === "signup" ? name : null,
     errorMsg ? el("div", { class: "error" }, errorMsg) : null,
     el("button", {
-      class: "btn wide", onclick: async () => {
+      class: "btn wide", onclick: (e) => withBusy(e.currentTarget, async () => {
         try {
           if (state.authTab === "login") state.user = await store.signIn(email.value, pass.value);
           else state.user = await store.signUp(email.value, pass.value, name.value.trim());
           toast(state.authTab === "login" ? "ログインしました" : "アカウントを作りました");
           await afterLogin();
-        } catch (e) { renderAuth(userErrorMessage(e)); }
-      },
+        } catch (e2) { renderAuth(userErrorMessage(e2)); }
+      }),
     }, state.authTab === "login" ? "ログインする" : "登録する"),
+    // パスワード再設定（本番モードのみ）: 登録の有無を漏らさない汎用文で案内する
+    (store.mode === "firebase" && typeof store.resetPassword === "function" && state.authTab === "login")
+      ? el("div", { class: "forgot-row" },
+          el("button", {
+            class: "link-btn", type: "button",
+            onclick: (e) => withBusy(e.currentTarget, async () => {
+              const addr = email.value.trim();
+              if (!addr) { toast("メールアドレスを入力してから押してください"); return; }
+              try { await store.resetPassword(addr); } catch { /* 存在を区別しない */ }
+              toast("再設定用のメールを送信しました（登録がある場合）。メールをご確認ください");
+            }),
+          }, "パスワードを忘れた方はこちら"))
+      : null,
     el("p", { class: "hint" }, store.mode === "demo"
       ? "デモモードでは、この端末の中だけで使えるローカルアカウントです。別の人を試すときは、一度ログアウトして別のメールアドレスで登録してください。"
       : "パスワードはログイン専門の仕組み（Firebase Authentication）が管理し、このアプリは保持しません。本名などの個人情報は集めません。"),
@@ -585,16 +686,22 @@ async function afterLogin() {
   }
   const code = pendingJoin();
   if (code) {
-    clearPendingJoin();
-    document.getElementById("join-banner").hidden = true;
     try {
       const fridge = await store.joinByCode(state.user.id, code);
+      clearPendingJoin();
+      state.joinRetry = false;
+      const banner = document.getElementById("join-banner");
+      if (banner) banner.hidden = true;
       toast(`「${fridge.name}」に参加しました`);
       state.fridges = await store.listMyFridges(state.user.id);
       await openFridge(fridge.id);
       return;
     } catch (e) {
-      toast(userErrorMessage(e));
+      // 失敗してもコードは消さない: 選択画面にコードを残したまま出し、
+      // 確認してもう一度参加できるようにする（トーストだけで終わらせない）
+      state.joinRetry = true;
+      renderFridgePicker(userErrorMessage(e));
+      return;
     }
   }
   if (state.fridges.length === 1) await openFridge(state.fridges[0].id);
@@ -611,42 +718,68 @@ function renderFridgePicker(errorMsg = "") {
   const codeInput = el("input", { type: "text", placeholder: "フレンドコード（例: K7QX-3M9P）", style: "text-transform:uppercase" });
   const pending = pendingJoin();
   if (pending) codeInput.value = formatCode(pending);
-  const card = el("div", { class: "card" },
-    el("h2", {}, "冷蔵庫を選ぶ"),
-    state.fridges.length === 0
-      ? el("p", { class: "hint" }, "まだ冷蔵庫がありません。下で新しく作るか、家族のフレンドコードで参加してください。")
-      : el("div", {}, state.fridges.map((f) =>
-          el("div", { class: "fridge-row" },
-            el("span", { class: "grow" }, "🧊 " + f.name, el("span", { class: "chip" }, f.role === "owner" ? "作成者" : "メンバー")),
-            el("button", { class: "btn small", onclick: () => openFridge(f.id) }, "開く"),
-          ))),
+  const scrollToShareCard = () => {
+    goTab("settings");
+    setTimeout(() => {
+      const codeBox = appRoot.querySelector(".code-box");
+      if (codeBox) codeBox.closest(".card")?.scrollIntoView({ block: "start" });
+    }, 60);
+  };
+  const listSection = state.fridges.length === 0
+    ? el("p", { class: "hint" }, "まだ冷蔵庫がありません。下で新しく作るか、家族のフレンドコードで参加してください。")
+    : el("div", {}, state.fridges.map((f) =>
+        el("div", { class: "fridge-row" },
+          el("span", { class: "grow" }, "🧊 " + f.name, el("span", { class: "chip" }, f.role === "owner" ? "作成者" : "メンバー")),
+          el("button", { class: "btn small", onclick: () => openFridge(f.id) }, "開く"),
+        )));
+  const joinSection = [
+    el("h3", {}, "フレンドコードで参加する"),
+    el("p", { class: "hint" }, "家族に招待された方はこちら。家族から受け取ったフレンドコードを入力してください。"),
+    pending ? el("p", { class: "hint" }, "QRコードから受け取った参加コードが入っています。コードを確認して「参加する」を押してください。") : null,
+    codeInput,
+    el("button", {
+      class: "btn secondary wide", onclick: (e) => withBusy(e.currentTarget, async () => {
+        try {
+          const fridge = await store.joinByCode(state.user.id, codeInput.value);
+          clearPendingJoin();
+          state.joinRetry = false;
+          toast(`「${fridge.name}」に参加しました`);
+          state.fridges = await store.listMyFridges(state.user.id);
+          await openFridge(fridge.id);
+        } catch (e2) {
+          // 失敗しても入力したコードは保持し、確認して再参加できるようにする
+          try { sessionStorage.setItem("wagaya_pending_join", codeInput.value.trim()); } catch { /* noop */ }
+          state.joinRetry = true;
+          renderFridgePicker(userErrorMessage(e2));
+        }
+      }),
+    }, state.joinRetry ? "コードを確認してもう一度参加する" : "参加する"),
+  ];
+  const createSection = [
     el("h3", {}, "冷蔵庫を作る"),
+    el("p", { class: "hint" }, "新しく始める方はこちら。自分の冷蔵庫を作って、あとから家族を招待できます。"),
     nameInput,
     el("button", {
-      class: "btn wide", onclick: async () => {
+      class: "btn wide", onclick: (e) => withBusy(e.currentTarget, async () => {
         try {
           const { fridge } = await store.createFridge(state.user.id, nameInput.value.trim());
           state.fridges = await store.listMyFridges(state.user.id);
           await openFridge(fridge.id);
-          toast("冷蔵庫を作りました。共有タブでフレンドコードを家族に伝えてください");
-        } catch (e) { renderFridgePicker(userErrorMessage(e)); }
-      },
+          // 作成直後の案内はトースト文だけにせず、招待（共有カード）へ直接進める導線を出す
+          toastWithAction("冷蔵庫を作りました", "家族を招待する", scrollToShareCard);
+        } catch (e2) { renderFridgePicker(userErrorMessage(e2)); }
+      }),
     }, "この名前で作る"),
-    el("h3", {}, "フレンドコードで参加する"),
-    pending ? el("p", { class: "hint" }, "QRコードから受け取った参加コードが入っています。そのまま「参加する」を押してください。") : null,
-    codeInput,
+  ];
+  // 参加コードを持っている人は「参加」を主役に、作る方は後ろへ。
+  // 持っていない人は、参加／作成の2つの入口を見出しで案内する。
+  const sections = pending
+    ? [...joinSection, listSection, ...createSection]
+    : [listSection, ...createSection, ...joinSection];
+  const card = el("div", { class: "card" },
+    el("h2", {}, "冷蔵庫を選ぶ"),
     errorMsg ? el("div", { class: "error" }, errorMsg) : null,
-    el("button", {
-      class: "btn secondary wide", onclick: async () => {
-        try {
-          const fridge = await store.joinByCode(state.user.id, codeInput.value);
-          clearPendingJoin();
-          toast(`「${fridge.name}」に参加しました`);
-          state.fridges = await store.listMyFridges(state.user.id);
-          await openFridge(fridge.id);
-        } catch (e) { renderFridgePicker(userErrorMessage(e)); }
-      },
-    }, "参加する"),
+    ...sections,
     el("button", {
       class: "btn ghost wide", onclick: async () => { await store.signOut(); state.user = null; renderAuth(); },
     }, "ログアウト"),
@@ -656,6 +789,7 @@ function renderFridgePicker(errorMsg = "") {
   releaseLeavingLoadingView();
 }
 
+
 // ================= 冷蔵庫を開く =================
 async function openFridge(fridgeId) {
   state.fridge = state.fridges.find((f) => f.id === fridgeId) || null;
@@ -664,7 +798,7 @@ async function openFridge(fridgeId) {
   state.suggestPage = 0; state.comboSeen = []; state.comboRound = 0;
   state.stockZone = STORAGE_ZONE_ALL; state.recipeDetail = null; state.recipeFilter = "all"; state.recipeCourse = null;
   state.recipeSource = "omakase"; state.pickerSelected = []; state.pickerInit = false;
-  state.todayMenuThanks = false; state.confirmDeleteFridge = false;
+  state.todayMenuThanks = false; state.confirmDeleteFridge = false; state.confirmWithdraw = 0;
   renderLoadingView(); // データ取得中は読み込み画面（キャラ＋豆知識）を出す
   try {
     await refreshData();
@@ -696,10 +830,16 @@ async function refreshData() {
 }
 
 // ================= メイン画面 =================
+let lastMainTab = null; // 直前に描画したタブ（同一タブ再描画時のスクロール保持判定用）
 function renderMain() {
   if (state.legalView) { renderLegalPage(); return; }
   captureLeavingLoadingView();
   stopLoadingView();
+  // 在庫タブの同一タブ再描画（削除・登録・リアルタイム反映など）では
+  // スクロール位置を保つ。タブ切替や詳細表示への遷移では持ち越さない。
+  const overlayOpen = !!(state.knowledgeName || state.gameView || state.suikaView || state.recipeDetail);
+  const preserveStockScroll = !overlayOpen && state.tab === "stock" && lastMainTab === "stock";
+  const savedScrollY = preserveStockScroll ? (window.scrollY || 0) : 0;
   if (state.tab !== "recipes") refreshEnterSection = null; // 別タブの描画に出現アニメーションを持ち越さない
   if (!state.suikaView && suikaCtrl) suikaCtrl.detach(); // ゲーム画面を離れたら物理ループを止める
   if (!state.suikaView) suikaFitFn = null; // 離れたらリサイズ時のフィット対象も外す
@@ -725,9 +865,13 @@ function renderMain() {
   releaseLeavingLoadingView();
   document.getElementById("header-sub").textContent = state.fridge ? state.fridge.name : "";
   syncMenuButton();
+  lastMainTab = overlayOpen ? lastMainTab : state.tab;
+  if (preserveStockScroll && savedScrollY > 0) {
+    try { window.scrollTo(0, savedScrollY); } catch { /* noop */ }
+  }
 }
 function navBtn(tab, icon, label) {
-  return el("button", { class: state.tab === tab && !state.knowledgeName && !state.gameView && !state.suikaView && !state.recipeDetail ? "active" : "", onclick: () => { state.tab = tab; state.knowledgeName = null; state.gameView = false; state.game = null; state.suikaView = false; state.recipeDetail = null; state.recipeFilter = "all"; state.recipeCourse = null; renderMain(); } },
+  return el("button", { class: state.tab === tab && !state.knowledgeName && !state.gameView && !state.suikaView && !state.recipeDetail ? "active" : "", onclick: () => { state.tab = tab; state.knowledgeName = null; state.gameView = false; state.game = null; state.suikaView = false; state.recipeDetail = null; state.recipeFilter = "all"; state.recipeCourse = null; state.errandMode = false; state.errandChecked = []; renderMain(); } },
     el("span", { class: "nav-icon" }, icon), label);
 }
 
@@ -769,9 +913,14 @@ function renderKnowledgePage() {
   const lv = levelForCount(count);
   const section = (title, ...kids) => el("div", { class: "card k-section" }, el("h3", { class: "k-title" }, title), ...kids);
   // クイズ（正解したら褒める。間違えたらもう一度考えられる）
+  // 選択肢の表示順は開くたびにシャッフルする（データの正解は常に先頭側に
+  // 固定されていたため、正解がいつも1番目のボタンになっていた）。
+  // データ自体は変えず、表示位置だけをランダムにして、正誤判定は元の番号で照合する。
   const quizResult = el("p", { class: "quiz-result", hidden: true }, "");
   let quizDone = false;
-  const quizBtns = info.quiz.choices.map((choice, idx) => el("button", {
+  const quizOrder = shuffledIndices(info.quiz.choices.length);
+  const quizBtns = quizOrder.map((idx, pos) => {
+    const btn = el("button", {
     class: "btn secondary wide quiz-btn", onclick: () => {
       if (quizDone) return;
       if (idx === info.quiz.answer) {
@@ -780,16 +929,18 @@ function renderKnowledgePage() {
         quizResult.textContent = `せいかい！🎉 すごい！ ${info.quiz.why}`;
         quizResult.classList.add("correct");
         for (const b of quizBtns) b.disabled = true;
-        quizBtns[idx].classList.add("right");
+        btn.classList.add("right");
       } else {
         quizResult.hidden = false;
         quizResult.textContent = "おしい！ もういちど かんがえてみよう。";
         quizResult.classList.remove("correct");
-        quizBtns[idx].disabled = true;
-        quizBtns[idx].classList.add("wrong");
+        btn.disabled = true;
+        btn.classList.add("wrong");
       }
     },
-  }, `${idx + 1}. ${choice}`));
+  }, `${pos + 1}. ${info.quiz.choices[idx]}`);
+    return btn;
+  });
   wrap.append(
     el("button", { class: "btn secondary small", onclick: () => closeKnowledge() }, "← もどる"),
     el("div", { class: "card knowledge-hero" },
@@ -1202,8 +1353,60 @@ async function maybeAutoAddShopping(item) {
   toast(`お気に入りの「${item.name}」を買い物リストに追加しました`);
 }
 
+// 在庫タブ上部の「今夜」ストリップ: 今日の献立・期限間近・買い物残りを
+// 既存の state から組み立てる（追加の取得はしない）。各行タップで該当画面へ。
+function renderTonightStrip() {
+  const entries = (state.todayMenu && state.todayMenu.date === todayISO())
+    ? (state.todayMenu.entries || []) : [];
+  const titles = entries.map((e) => e.title).filter(Boolean);
+  const rows = [
+    el("button", {
+      class: "tonight-row", type: "button", onclick: () => goTab("recipes"),
+    }, `🍽 今日の献立：${titles.length ? titles.join("・") : "まだ決まっていません"}`),
+  ];
+  if (expiryEnabled()) {
+    const soon = state.items.filter((i) => {
+      const d = daysUntil(i.expiryDate);
+      return d !== null && d <= 3;
+    }).length;
+    rows.push(el("button", {
+      class: "tonight-row", type: "button", onclick: () => {
+        state.stockQuery = "";
+        state.stockZone = STORAGE_ZONE_ALL;
+        renderMain();
+        setTimeout(() => {
+          const box = appRoot.querySelector(".stock-list-box");
+          if (box) box.scrollIntoView({ block: "start" });
+        }, 60);
+      },
+    }, `⏰ 期限3日以内：${soon}件`));
+  }
+  const remaining = state.shopping.filter((s) => !s.isChecked).length;
+  rows.push(el("button", {
+    class: "tonight-row", type: "button", onclick: () => goTab("shopping"),
+  }, `🛒 買い物リスト：${remaining ? `あと${remaining}件` : "なし"}`));
+  return el("div", { class: "card tonight-strip" }, ...rows);
+}
+
 function renderStockTab() {
   const wrap = el("div", {});
+  // 家族がまだ参加していない間だけ、招待への導線を一番上に出す
+  if (state.members.length <= 1) {
+    wrap.append(el("div", { class: "card invite-banner" },
+      el("p", {}, "👨‍👩‍👧 まだ家族が参加していません。フレンドコードやQRコードを伝えると、同じ冷蔵庫を一緒に使えます。"),
+      el("button", {
+        class: "btn wide", onclick: () => {
+          goTab("settings");
+          setTimeout(() => {
+            const codeBox = appRoot.querySelector(".code-box");
+            if (codeBox) codeBox.closest(".card")?.scrollIntoView({ block: "start" });
+          }, 60);
+        },
+      }, "フレンドコード・QRを見せる"),
+    ));
+  }
+  // 「今夜」ストリップ: 今日の献立・期限が近い食材・買い物の残りを1タップで
+  wrap.append(renderTonightStrip());
   // お知らせ（消費期限の管理が OFF のときは期限のお知らせは出さない）
   const alerts = [];
   if (expiryEnabled()) {
@@ -1216,10 +1419,24 @@ function renderStockTab() {
     wrap.append(el("div", { class: "card" }, el("h2", {}, "🔔 お知らせ"),
       alerts.map((a) => el("div", { class: "notice-item" }, a))));
   }
-  wrap.append(renderAddItemForm());
+  // 登録フォームは既定で閉じる（在庫0件のときと、図鑑からの下書きがあるときは開く）
+  if (state.presetAdd) state.addFormOpen = true;
+  const formOpen = state.addFormOpen === null ? state.items.length === 0 : state.addFormOpen;
+  if (formOpen) {
+    wrap.append(renderAddItemForm());
+    if (state.items.length > 0) {
+      wrap.append(el("button", {
+        class: "btn ghost wide", onclick: () => { state.addFormOpen = false; renderMain(); },
+      }, "登録フォームを閉じる"));
+    }
+  } else {
+    wrap.append(el("button", {
+      class: "btn wide", onclick: () => { state.addFormOpen = true; renderMain(); },
+    }, "＋ 食材を登録する"));
+  }
   // 在庫の検索（名前の部分一致・カタカナ/ひらがなの揺れを吸収）。
   // 入力中に入力欄のフォーカスを失わないよう、再描画はリスト部分だけにする。
-  const listBox = el("div", {});
+  const listBox = el("div", { class: "stock-list-box" });
   const updateStockList = () => listBox.replaceChildren(...stockListNodes());
   const searchInput = el("input", {
     type: "search", placeholder: "食材名で検索（例：たまご）", value: state.stockQuery || "",
@@ -1304,16 +1521,95 @@ function stockListNodes() {
   else if (zone !== STORAGE_ZONE_ALL) nodes.push(el("p", { class: "hint" }, `${zone}の食材：${sorted.length}件`));
   if (!showExpiry) {
     // 期限 OFF: グループ見出しなしでフラットに並べる（並びは上のフォールバック順）
-    for (const item of sorted) nodes.push(renderItemCard(item));
+    for (const item of sorted) nodes.push(itemNode(item));
     return nodes;
   }
   for (const [key, label] of groups) {
     const rows = sorted.filter((i) => expiryGroup(i.expiryDate) === key);
     if (!rows.length) continue;
     nodes.push(el("h3", { class: "group-title" }, el("span", { class: "dot " + key }), label, el("span", { class: "group-count" }, `${rows.length}件`)));
-    for (const item of rows) nodes.push(renderItemCard(item));
+    for (const item of rows) nodes.push(itemNode(item));
   }
   return nodes;
+}
+
+// 編集中のアイテムはカードの代わりに編集フォームを出す
+function itemNode(item) {
+  return state.editingItemId === item.id ? renderEditItemForm(item) : renderItemCard(item);
+}
+
+// 在庫アイテムのその場編集: 削除＋再登録ではなく updateItem の部分更新だけを
+// 使うので、アイテム ID・登録日時・FIFO の並び・お気に入り連動・図鑑の購入
+// 履歴はそのまま保たれる。名前は保存時に正規名へ寄せる。
+function renderEditItemForm(item) {
+  const name = el("input", { type: "text", value: item.name, "aria-label": "食材名" });
+  const category = el("select", { "aria-label": "カテゴリ" },
+    CATEGORIES.map((c) => el("option", { value: c }, c)));
+  category.value = CATEGORIES.includes(item.category) ? item.category : "その他";
+  const qty = el("input", { type: "number", value: String(item.quantity), min: "0", step: "0.25", "aria-label": "数量" });
+  const unitPicker = createUnitPicker();
+  unitPicker.setValue(item.unit || "");
+  const FRACS = [[0.25, "1/4玉"], [0.5, "半玉（1/2）"], [0.75, "3/4玉"], [1, "1玉"], [1.5, "1玉半"], [2, "2玉"]];
+  const fracRow = el("div", { class: "frac-row", style: "display:none" },
+    el("span", { class: "frac-label" }, "分数で選ぶ："),
+    FRACS.map(([v, label]) => el("button", {
+      type: "button", class: "frac-chip",
+      onclick: () => { qty.value = String(v); },
+    }, label)));
+  const syncFrac = () => { fracRow.style.display = isFractionUnit(unitPicker.getValue()) ? "" : "none"; };
+  unitPicker.onChange = syncFrac;
+  syncFrac();
+  const storage = el("select", { "aria-label": "保管場所" },
+    STORAGE_ZONES.map((z) => el("option", { value: z }, z)));
+  storage.value = STORAGE_ZONES.includes(item.storage) ? item.storage : "冷蔵庫";
+  const expiry = el("input", { type: "date", value: item.expiryDate || "", "aria-label": "消費期限" });
+  const fav = el("input", { type: "checkbox" });
+  fav.checked = !!item.isFavorite;
+  const fields = [
+    el("label", {}, "食材名", name),
+    el("div", { class: "row" },
+      el("label", {}, "カテゴリ", category),
+      el("label", {}, "保管場所", storage)),
+    el("div", { class: "row" },
+      el("label", {}, "数量", qty),
+      el("label", {}, "単位", ...unitPicker.nodes)),
+    fracRow,
+  ];
+  // 消費期限の管理が OFF のときは期限欄を出さない（既存の期限データは保持する）
+  if (expiryEnabled()) fields.push(el("label", {}, "消費期限", expiry));
+  fields.push(el("label", { class: "check" }, fav, " ★ お気に入り（なくなったら買い物リストに自動追加）"));
+  const form = el("div", { class: "card item-card edit-card" },
+    el("h3", {}, `✏️ 「${item.name}」を編集`),
+    ...fields,
+    el("div", { class: "row" },
+      el("button", {
+        class: "btn", onclick: (e) => withBusy(e.currentTarget, async () => {
+          const newName = name.value.trim();
+          if (!newName) { toast("食材名を入力してください"); return; }
+          const q = Number(qty.value);
+          const patch = {
+            name: resolveCanonicalName(newName),
+            category: category.value,
+            storage: storage.value,
+            quantity: Number.isFinite(q) ? Math.max(0, roundQty(q)) : Number(item.quantity),
+            unit: unitPicker.getValue(),
+            isFavorite: fav.checked,
+          };
+          // 期限 OFF のときは patch に含めない（保存済みの期限を消さない）
+          if (expiryEnabled()) patch.expiryDate = expiry.value || null;
+          try {
+            await store.updateItem(state.user.id, item.id, patch);
+          } catch (err) { toast(userErrorMessage(err)); return; }
+          state.editingItemId = null;
+          await refreshData(); renderMain();
+          toast(`「${patch.name}」を更新しました`);
+        }),
+      }, "保存する"),
+      el("button", { class: "btn ghost", onclick: () => { state.editingItemId = null; renderMain(); } }, "やめる"),
+      el("button", { class: "btn danger", onclick: () => deleteItemWithUndo(item) }, "削除"),
+    ),
+  );
+  return form;
 }
 
 function renderItemCard(item) {
@@ -1332,6 +1628,9 @@ function renderItemCard(item) {
   // 構造: グリッドの左列=アイコン、右列=名前+チップ、その下の独立行=数量と削除。
   // 1行フレックスに全部並べると固定幅の操作部に名前列が潰され、名前が
   // 1文字ずつ縦に折れる（実機で再発）。操作部は .item-ctrls の行に分離する。
+  const qtyNum = el("span", { class: "qty-num", title: "タップで数量を直接入力" }, `${fmtQtyValue(item.quantity, item.unit)}${item.unit || ""}`);
+  qtyNum.style.cursor = "pointer";
+  qtyNum.addEventListener("click", () => startQtyEdit(item, qtyNum));
   const card = el("div", { class: "card item-card" },
     iconTile,
     el("div", { class: "item-main" },
@@ -1340,24 +1639,16 @@ function renderItemCard(item) {
     ),
     el("div", { class: "item-ctrls" },
       el("div", { class: "qty-ctrl" },
-        el("button", { class: "qty-btn", onclick: () => changeQty(item, -1) }, "−"),
-        el("span", { class: "qty-num" }, `${fmtQtyValue(item.quantity, item.unit)}${item.unit || ""}`),
-        el("button", { class: "qty-btn", onclick: () => changeQty(item, 1) }, "+"),
+        el("button", { class: "qty-btn", onclick: () => changeQty(item, -1, qtyNum) }, "−"),
+        qtyNum,
+        el("button", { class: "qty-btn", onclick: () => changeQty(item, 1, qtyNum) }, "+"),
       ),
       el("button", {
-        class: "icon-btn", title: "削除", onclick: async () => {
-          if (!confirm(`「${item.name}」を削除しますか？`)) return;
-          const snapshot = { ...item };
-          await store.deleteItem(state.user.id, item.id);
-          // 本番モードはゴミ箱が端末内に無いので、この画面の間だけ復元用に保持する
-          if (store.mode !== "demo") state.sessionTrash = [snapshot, ...state.sessionTrash].slice(0, 30);
-          await refreshData(); renderMain();
-          toastWithAction(`「${item.name}」を削除しました`, "元に戻す", async () => {
-            await store.restoreDeletedItem(state.user.id, state.fridge.id, snapshot);
-            state.sessionTrash = state.sessionTrash.filter((t) => t.id !== snapshot.id);
-            await refreshData(); renderMain(); toast("元に戻しました");
-          });
-        },
+        class: "btn secondary small", title: "この食材を編集",
+        onclick: () => { state.editingItemId = item.id; renderMain(); },
+      }, "編集"),
+      el("button", {
+        class: "icon-btn", title: "削除", onclick: () => deleteItemWithUndo(item),
       }, "🗑"),
     ),
   );
@@ -1365,20 +1656,85 @@ function renderItemCard(item) {
   return card;
 }
 
-async function changeQty(item, delta) {
+// 削除（確認ダイアログなし）: 削除直後の「元に戻す」トーストと、
+// デモではゴミ箱、本番ではセッション内復元で取り戻せるため確認は不要。
+async function deleteItemWithUndo(item) {
+  const snapshot = { ...item };
+  await store.deleteItem(state.user.id, item.id);
+  // 本番モードはゴミ箱が端末内に無いので、この画面の間だけ復元用に保持する
+  if (store.mode !== "demo") state.sessionTrash = [snapshot, ...state.sessionTrash].slice(0, 30);
+  if (state.editingItemId === item.id) state.editingItemId = null;
+  await refreshData(); renderMain();
+  toastWithAction(`「${item.name}」を削除しました`, "元に戻す", async () => {
+    await store.restoreDeletedItem(state.user.id, state.fridge.id, snapshot);
+    state.sessionTrash = state.sessionTrash.filter((t) => t.id !== snapshot.id);
+    await refreshData(); renderMain(); toast("元に戻しました");
+  });
+}
+
+// 数量の変更は「その場」だけ更新する: 全件再取得・全画面再描画はしない
+// （スクロール位置も入力フォーカスも保たれる）。失敗したときだけ
+// 表示を巻き戻して知らせ、整合性のため全体を再取得する。
+const qtyBusyItems = new Set();
+async function applyQtyChange(item, next, qtyNumEl) {
+  const prev = Number(item.quantity);
+  if (next === prev || qtyBusyItems.has(item.id)) return;
+  qtyBusyItems.add(item.id);
+  item.quantity = next;
+  if (qtyNumEl && qtyNumEl.isConnected) qtyNumEl.textContent = `${fmtQtyValue(next, item.unit)}${item.unit || ""}`;
+  try {
+    await store.updateItem(state.user.id, item.id, { quantity: next });
+  } catch (e) {
+    item.quantity = prev;
+    if (qtyNumEl && qtyNumEl.isConnected) qtyNumEl.textContent = `${fmtQtyValue(prev, item.unit)}${item.unit || ""}`;
+    toast(userErrorMessage(e));
+    await refreshData().catch(() => {});
+    renderMain();
+    return;
+  } finally {
+    qtyBusyItems.delete(item.id);
+  }
+  await maybeAutoAddShopping(item);
+  toastWithAction(`「${item.name}」の数量を ${fmtQtyValue(next, item.unit)}${item.unit || ""} に変更しました`, "元に戻す", async () => {
+    await store.updateItem(state.user.id, item.id, { quantity: prev });
+    item.quantity = prev;
+    if (qtyNumEl && qtyNumEl.isConnected) qtyNumEl.textContent = `${fmtQtyValue(prev, item.unit)}${item.unit || ""}`;
+    await refreshData(); renderMain(); toast("数量を元に戻しました");
+  });
+}
+
+async function changeQty(item, delta, qtyNumEl) {
   // 「玉」単位は 1/4 玉刻み、それ以外は 1 刻みで増減する
   const prev = Number(item.quantity);
   const next = Math.max(0, roundQty(prev + delta * qtyStepFor(item.unit)));
-  if (next === prev) return;
-  await store.updateItem(state.user.id, item.id, { quantity: next });
-  item.quantity = next;
-  await maybeAutoAddShopping(item);
-  await refreshData();
-  renderMain();
-  toastWithAction(`「${item.name}」の数量を ${fmtQtyValue(next, item.unit)}${item.unit || ""} に変更しました`, "元に戻す", async () => {
-    await store.updateItem(state.user.id, item.id, { quantity: prev });
-    await refreshData(); renderMain(); toast("数量を元に戻しました");
+  await applyQtyChange(item, next, qtyNumEl);
+}
+
+// 数量表示タップ → その場で数値入力に切り替え、確定で1回だけ保存する。
+// 分数単位（玉）のクイック選択と両立させるため、入力欄の隣に分数チップも出す。
+function startQtyEdit(item, qtyNumEl) {
+  if (!qtyNumEl.isConnected || qtyNumEl.dataset.editing === "1") return;
+  qtyNumEl.dataset.editing = "1";
+  const input = el("input", {
+    type: "number", class: "qty-input", value: String(item.quantity), min: "0", step: "0.25",
+    "aria-label": `${item.name}の数量`,
   });
+  input.style.width = "76px";
+  const commit = async () => {
+    const v = Number(input.value);
+    const next = Number.isFinite(v) ? Math.max(0, roundQty(v)) : Number(item.quantity);
+    qtyNumEl.dataset.editing = "";
+    qtyNumEl.textContent = `${fmtQtyValue(Number(item.quantity), item.unit)}${item.unit || ""}`;
+    await applyQtyChange(item, next, qtyNumEl);
+  };
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") { e.preventDefault(); input.blur(); }
+    if (e.key === "Escape") { input.value = String(item.quantity); input.blur(); }
+  });
+  input.addEventListener("blur", commit, { once: true });
+  qtyNumEl.replaceChildren(input);
+  input.focus();
+  input.select();
 }
 
 // 単位プルダウン: 選択肢から選ぶ＋最後の「その他（自由入力）」で
@@ -1409,7 +1765,11 @@ function createUnitPicker() {
 }
 
 function renderAddItemForm() {
-  const name = el("input", { type: "text", placeholder: "例）鶏もも肉" });
+  const name = el("input", { type: "text", placeholder: "例）鶏もも肉", list: "wagaya-name-suggest", autocomplete: "off" });
+  // 入力候補: カタログ全件＋在庫履歴（端末内のデータだけ・外部送信なし）
+  const suggestList = el("datalist", { id: "wagaya-name-suggest" },
+    [...new Set([...CATALOG.flatMap(([, , names]) => names), ...state.items.map((i) => i.name)])]
+      .map((n) => el("option", { value: n })));
   const category = el("select", {}, CATEGORIES.map((c) => el("option", { value: c }, c)));
   const qty = el("input", { type: "number", value: "1", min: "0", step: "0.5" });
   const unitPicker = createUnitPicker();
@@ -1436,13 +1796,29 @@ function renderAddItemForm() {
     state.presetAdd = null;
     updateNamePreview();
   }
-  const expiry = el("input", { type: "date", value: todayISO() });
+  // 消費期限の初期値は「空」にする（今日が勝手に入ると、期限なしで買った
+  // 食材まで「今日が期限」に見えてしまうため）。近い日はクイックチップで選ぶ。
+  const expiry = el("input", { type: "date", value: "" });
+  const expiryQuickRow = el("div", { class: "expiry-quick-row" },
+    [["今日", 0], ["+3日", 3], ["+7日", 7], ["+14日", 14], ["なし", null]].map(([label, days]) =>
+      el("button", {
+        type: "button", class: "expiry-quick-chip",
+        onclick: (e) => {
+          expiry.value = days === null ? "" : addDaysISO(todayISO(), days);
+          for (const b of expiryQuickRow.querySelectorAll(".expiry-quick-chip")) b.classList.remove("active");
+          e.currentTarget.classList.add("active");
+        },
+      }, label)));
+  expiry.addEventListener("change", () => {
+    for (const b of expiryQuickRow.querySelectorAll(".expiry-quick-chip")) b.classList.remove("active");
+  });
   const storageSel = el("select", {}, STORAGE_ZONES.map((s) => el("option", { value: s }, s)));
-  // カテゴリが「野菜」のときは保管場所を野菜室にプリセットする。
-  // ユーザーが保管場所を手で選んだら、それ以降は自動で上書きしない。
+  // 保管場所はカテゴリからプリセットする（拡張テーブル: 冷凍食品→冷凍庫、
+  // 乾物・缶詰→常温、野菜→野菜室、それ以外→冷蔵庫）。
+  // ユーザーが手で選んだら、それ以降は自動で上書きしない。
   let storageTouched = false;
   storageSel.addEventListener("change", () => { storageTouched = true; });
-  const syncStorageDefault = () => { if (!storageTouched) storageSel.value = suggestStorage(category.value); };
+  const syncStorageDefault = () => { if (!storageTouched) storageSel.value = storagePresetFor(category.value); };
   category.addEventListener("change", syncStorageDefault);
   syncStorageDefault();
   const fav = el("input", { type: "checkbox" });
@@ -1452,16 +1828,62 @@ function renderAddItemForm() {
     qty.step = tama ? "0.25" : "0.5";
     fracRow.style.display = tama ? "" : "none";
   };
-  unitPicker.onChange = updateUnitUI;
+  // カテゴリ・単位はユーザーが手で変えたらプリセットで上書きしない
+  let categoryTouched = false;
+  let unitTouched = false;
+  let suppressUnitTouch = false;
+  category.addEventListener("change", () => { categoryTouched = true; });
+  unitPicker.onChange = () => { if (!suppressUnitTouch) unitTouched = true; updateUnitUI(); };
   updateUnitUI();
+  // 食材名が決まったら、前回の登録（同名の在庫）→カタログの順で
+  // カテゴリ・単位・保管場所・お気に入りをプリセットする。
+  const presetHint = el("p", { class: "hint", hidden: true }, "");
+  const applyNamePreset = () => {
+    const raw = name.value.trim();
+    presetHint.hidden = true;
+    if (!raw) return;
+    const canon = resolveCanonicalName(raw);
+    const known = [...state.items].reverse().find((i) => resolveCanonicalName(i.name) === canon);
+    let applied = false;
+    if (known) {
+      if (!categoryTouched && CATEGORIES.includes(known.category)) { category.value = known.category; applied = true; }
+      syncStorageDefault();
+      if (!storageTouched && STORAGE_ZONES.includes(known.storage)) { storageSel.value = known.storage; applied = true; }
+      if (!unitTouched && known.unit) {
+        suppressUnitTouch = true;
+        unitPicker.setValue(known.unit);
+        suppressUnitTouch = false;
+        applied = true;
+      }
+      fav.checked = !!known.isFavorite;
+      applied = true;
+    } else {
+      const cat = categoryOf(canon) || rarityCategory(canon);
+      if (!categoryTouched && cat && CATEGORIES.includes(cat)) { category.value = cat; applied = true; }
+      syncStorageDefault();
+    }
+    updateNamePreview(); updateUnitUI();
+    if (applied) {
+      presetHint.textContent = "前回の登録やカタログから推定しました。ちがうときは直してください";
+      presetHint.hidden = false;
+    }
+  };
+  name.addEventListener("change", applyNamePreset);
   // ---- よく買うもの／最近登録したもの（ワンタップ再登録） ----
   // 図鑑の購入回数と直近の登録から候補を出し、タップで名前・カテゴリ・単位を
   // フォームに入れる。あとは「登録する」を押すだけで再登録できる。
-  const applyQuickPick = (n, c, u) => {
+  const applyQuickPick = (n, c, u, q, favFlag) => {
     name.value = n;
-    if (c && CATEGORIES.includes(c)) category.value = c;
+    if (c && CATEGORIES.includes(c)) { category.value = c; categoryTouched = true; }
     syncStorageDefault();
-    if (u) unitPicker.setValue(u);
+    if (u) {
+      suppressUnitTouch = true;
+      unitPicker.setValue(u);
+      suppressUnitTouch = false;
+      unitTouched = true;
+    }
+    if (q !== undefined && q !== null && Number.isFinite(Number(q)) && Number(q) > 0) qty.value = String(q);
+    if (favFlag !== undefined) fav.checked = !!favFlag;
     updateNamePreview(); updateUnitUI();
     try { name.focus(); } catch { /* noop */ }
     toast(`「${n}」をフォームに入れました。内容を確認して「登録する」を押してください`);
@@ -1476,14 +1898,15 @@ function renderAddItemForm() {
     quickKids.push(el("div", { class: "quick-row" }, top.map((c) => {
       const known = state.items.find((i) => i.name === c.name);
       return quickChip(c.name, `${c.purchaseCount ?? 1}回`, () =>
-        applyQuickPick(c.name, rarityCategory(c.name) || (known ? known.category : ""), known ? known.unit : ""));
+        applyQuickPick(c.name, rarityCategory(c.name) || (known ? known.category : ""), known ? known.unit : "",
+          known ? known.quantity : undefined, known ? known.isFavorite : undefined));
     })));
   }
   const recent = recentRegistered(state.items, 8);
   if (recent.length) {
     quickKids.push(el("div", { class: "quick-label" }, "🕘 最近登録したもの"));
     quickKids.push(el("div", { class: "quick-row" }, recent.map((i) =>
-      quickChip(i.name, "", () => applyQuickPick(i.name, i.category, i.unit)))));
+      quickChip(i.name, "", () => applyQuickPick(i.name, i.category, i.unit, i.quantity, i.isFavorite)))));
   }
   const quickBox = quickKids.length ? el("div", { class: "quick-box" }, ...quickKids) : null;
   // 消費期限の管理が OFF のときは期限入力欄自体を出さず、登録も expiryDate: null にする
@@ -1491,7 +1914,7 @@ function renderAddItemForm() {
   const form = el("div", { class: "card" },
     el("h2", {}, "＋ 食材を登録"),
     quickBox,
-    el("label", {}, "食材名"), name, namePreview,
+    el("label", {}, "食材名"), name, suggestList, namePreview, presetHint,
     el("div", { class: "form-grid" },
       el("div", {}, el("label", {}, "カテゴリ"), category),
       el("div", {}, el("label", {}, "保管場所"), storageSel),
@@ -1499,11 +1922,12 @@ function renderAddItemForm() {
       el("div", {}, el("label", {}, "単位"), ...unitPicker.nodes),
       showExpiry ? el("div", {}, el("label", {}, "賞味・消費期限"), expiry) : null,
     ),
+    showExpiry ? expiryQuickRow : null,
     fracRow,
     el("p", { class: "hint" }, "白菜・キャベツなどの頭野菜は、単位を「玉」にすると半玉（1/2）・1/4玉・3/4玉のような分数で登録できます。"),
     el("label", { class: "check-line" }, fav, "お気に入りにする（在庫がなくなったら買い物リストへ自動追加）"),
     el("button", {
-      class: "btn wide", onclick: async () => {
+      class: "btn wide", onclick: (e) => withBusy(e.currentTarget, async () => {
         if (!name.value.trim()) { toast("食材名を入力してください"); return; }
         try {
           const beforeCounts = catalogCountsBefore();
@@ -1514,8 +1938,8 @@ function renderAddItemForm() {
           });
           await refreshData(); renderMain();
           if (!celebratePurchase(item.name, beforeCounts)) toast(`「${item.name}」を登録しました`);
-        } catch (e) { toast(userErrorMessage(e)); }
-      },
+        } catch (e2) { toast(userErrorMessage(e2)); }
+      }),
     }, "登録する"),
   );
   return form;
@@ -1792,25 +2216,194 @@ function renderShopBrowseCard() {
         ...unitPicker.nodes,
         el("button", {
           type: "button", class: "btn wide",
-          onclick: () => {
+          onclick: (e) => withBusy(e.currentTarget, async () => {
             const q = Number(qtyInput.value);
-            addCatalogItemToShopping({
+            await addCatalogItemToShopping({
               name: ed.name,
               quantity: Number.isFinite(q) && q > 0 ? roundQty(q) : 1,
               unit: unitPicker.getValue(),
             });
-          },
+          }),
         }, "リストに追加"),
       ));
     }
   }
   return card;
 }
+// 「買った！」の共通処理: 在庫へ戻し（または数量加算）、図鑑に購入を記録し、
+// 買い物行を消す。戻り値はお祝い表示用に購入前の図鑑カウント。
+// カテゴリはカタログから引く（以前はレア判定の結果を使っていたため、
+// レアでない食材が全部「その他」で登録される不具合があった）。
+// 保管場所は冷凍食品だけ冷凍庫、それ以外は冷蔵庫を初期値にする。
+async function purchaseShoppingRow(s) {
+  const beforeCounts = catalogCountsBefore();
+  const canonName = resolveCanonicalName(s.name);
+  if (s.linkedItemId) {
+    const item = state.items.find((i) => i.id === s.linkedItemId);
+    if (item) {
+      await store.updateItem(state.user.id, item.id, { quantity: Number(item.quantity) + Number(s.quantity) });
+      // 数量を足すだけの経路でも「買った」として図鑑の購入回数を数える
+      // （図鑑の記録は正規名で数える: 行名が別表記でも正規品に寄せる）
+      await store.recordPurchase(state.user.id, state.fridge.id, canonName, categoryOf(canonName) || "その他");
+    }
+  } else {
+    const cat = categoryOf(canonName) || "その他";
+    await store.addItem(state.user.id, state.fridge.id, {
+      name: canonName, category: cat, quantity: Number(s.quantity) || 1, unit: s.unit || "",
+      expiryDate: null, storage: cat === "冷凍食品" ? "冷凍庫" : "冷蔵庫", isFavorite: false,
+    });
+  }
+  await store.deleteShopping(state.user.id, s.id);
+  return beforeCounts;
+}
+
+function shoppingRowNode(s) {
+  return el("div", { class: "shop-row" },
+    // おつかいの子が見分けやすいよう、キャラ＋名前を大きく目立たせる
+    // キャラ／名前タップで食材の知識ページ（食育）にも行ける
+    el("span", { class: "grow shop-main" },
+      el("span", { class: "k-link", title: "食材の知識を見る", onclick: () => openKnowledge(s.name) }, iconEl(s.name)),
+      el("span", { class: "shop-name k-link", title: "食材の知識を見る", onclick: () => openKnowledge(s.name) }, s.name), " ",
+      rarityOf(s.name) === "ultra" ? el("span", { class: "rare-chip ultra" }, "激レア！") : rarityOf(s.name) === "rare" ? el("span", { class: "rare-chip rare" }, "レア") : null,
+      el("span", { class: "chip" }, `${fmtQtyValue(s.quantity, s.unit)}${s.unit || ""}`),
+      el("span", { class: "chip" }, SOURCE_LABEL[s.source] || "")),
+    el("button", {
+      class: "btn small", onclick: (e) => withBusy(e.currentTarget, async () => {
+        try {
+          const beforeCounts = await purchaseShoppingRow(s);
+          await refreshData(); renderMain();
+          if (!celebratePurchase(s.name, beforeCounts)) toast(`「${s.name}」を在庫に戻しました`);
+        } catch (err) { toast(userErrorMessage(err)); }
+      }),
+    }, "買った！"),
+    el("button", {
+      class: "icon-btn", title: "リストから消す", onclick: async () => {
+        const snapshot = { ...s };
+        await store.deleteShopping(state.user.id, s.id);
+        await refreshData(); renderMain();
+        toastWithAction(`「${s.name}」をリストから消しました`, "元に戻す", async () => {
+          await store.addShopping(state.user.id, state.fridge.id, {
+            name: snapshot.name, quantity: snapshot.quantity, unit: snapshot.unit || "",
+            source: snapshot.source || "manual", linkedItemId: snapshot.linkedItemId || null,
+          });
+          await refreshData(); renderMain(); toast("元に戻しました");
+        });
+      },
+    }, "✕"),
+  );
+}
+
+// ---------- おつかいモード ----------
+// 子どもが店内で使う大きな表示。チェックは端末内だけに持ち、
+// 「おわる」を押した時点で初めて共有データ（在庫・図鑑）へ反映する。
+function renderErrandView() {
+  const wrap = el("div", { class: "errand-view" });
+  const unchecked = state.shopping.filter((s) => !s.isChecked);
+  const checkedSet = new Set(state.errandChecked);
+  const remaining = unchecked.filter((s) => !checkedSet.has(s.id));
+  const done = unchecked.filter((s) => checkedSet.has(s.id));
+  wrap.append(el("h2", {}, "🧺 おつかいモード"));
+  wrap.append(el("p", { class: "errand-progress" },
+    remaining.length ? `あと ${remaining.length}こ` : "ぜんぶ買えた！🎉"));
+  const rowFor = (s, isDone) => el("button", {
+    type: "button", class: "errand-row" + (isDone ? " is-done" : ""),
+    onclick: () => {
+      state.errandChecked = isDone
+        ? state.errandChecked.filter((id) => id !== s.id)
+        : [...state.errandChecked, s.id];
+      renderMain();
+    },
+  },
+    el("span", { class: "errand-char" }, iconEl(s.name)),
+    el("span", { class: "errand-name" }, s.name),
+    el("span", { class: "errand-qty" }, `${fmtQtyValue(s.quantity, s.unit)}${s.unit || ""}`),
+    isDone ? el("span", { class: "errand-qty" }, "買えた ✓") : null);
+  for (const g of groupShoppingByAisle(remaining, (n) => categoryOf(n))) {
+    wrap.append(el("h3", { class: "group-title" }, g.category));
+    for (const s of g.rows) wrap.append(rowFor(s, false));
+  }
+  if (done.length) {
+    wrap.append(el("h3", { class: "errand-bought-title" }, "買えたもの"));
+    for (const s of done) wrap.append(rowFor(s, true));
+  }
+  if (!unchecked.length) wrap.append(el("p", { class: "empty" }, "買い物リストは空です。"));
+  wrap.append(el("button", {
+    class: "btn wide errand-finish",
+    onclick: (e) => withBusy(e.currentTarget, async () => { await finishErrand(); }),
+  }, done.length ? `おわる（買えた${done.length}件を在庫に入れる）` : "おわる"));
+  wrap.append(el("button", {
+    class: "btn ghost wide",
+    onclick: () => { state.errandMode = false; state.errandChecked = []; renderMain(); },
+  }, "やめる（買えたチェックを破棄）"));
+  return wrap;
+}
+
+async function finishErrand() {
+  const ids = [...state.errandChecked];
+  state.errandMode = false;
+  state.errandChecked = [];
+  if (!ids.length) { renderMain(); return; }
+  // 投入直前に最新化する: 家族が先に買った行は二重に数えない
+  await refreshData().catch(() => {});
+  let bought = 0;
+  for (const id of ids) {
+    const s = state.shopping.find((row) => row.id === id && !row.isChecked);
+    if (!s) continue;
+    try {
+      await purchaseShoppingRow(s);
+      bought++;
+    } catch (e) { toast(userErrorMessage(e)); }
+  }
+  await refreshData(); renderMain();
+  if (bought) toast(`おつかいおつかれさま！ ${bought}件を在庫に入れました`);
+  else toast("買えたものはもう在庫に入っていました");
+}
+
 function renderShoppingTab() {
+  if (state.errandMode) return renderErrandView();
   const wrap = el("div", {});
   const name = el("input", { type: "text", placeholder: "買うもの（例：牛乳）" });
   // 単位も登録フォームと同じプルダウンで選べるようにする
   const unitPicker = createUnitPicker();
+  // ---- 買い物リスト（画面の主役: 一番上。売り場順にグループ表示） ----
+  const unchecked = state.shopping.filter((s) => !s.isChecked);
+  const checkedRows = state.shopping.filter((s) => s.isChecked);
+  const listKids = [el("h2", {}, "🛒 買い物リスト")];
+  if (unchecked.length) {
+    listKids.push(el("button", {
+      class: "btn wide",
+      onclick: () => { state.errandMode = true; state.errandChecked = []; renderMain(); },
+    }, "🧺 おつかいモード（大きな文字でお買い物）"));
+    listKids.push(el("p", { class: "hint" }, "お店の売り場の順番に並んでいます。お子さんのおつかいには上のボタンがおすすめです。"));
+    for (const g of groupShoppingByAisle(unchecked, (n) => categoryOf(n))) {
+      listKids.push(el("h3", { class: "group-title" }, g.category,
+        el("span", { class: "group-count" }, `${g.rows.length}件`)));
+      for (const s of g.rows) listKids.push(shoppingRowNode(s));
+    }
+    if (checkedRows.length) {
+      listKids.push(el("h3", { class: "group-title" }, "買えたもの"));
+      for (const s of checkedRows) listKids.push(shoppingRowNode(s));
+    }
+  } else if (state.shopping.length === 0) {
+    listKids.push(el("p", { class: "empty" }, "リストは空です。\nお気に入りの在庫がなくなると自動で追加されます。"));
+  } else {
+    listKids.push(el("h3", { class: "group-title" }, "買えたもの"));
+    for (const s of checkedRows) listKids.push(shoppingRowNode(s));
+  }
+  listKids.push(
+    el("h3", {}, "買い物を追加"),
+    name,
+    el("label", {}, "単位"),
+    ...unitPicker.nodes,
+    el("button", {
+      class: "btn secondary wide", onclick: (e) => withBusy(e.currentTarget, async () => {
+        if (!name.value.trim()) { toast("買うものを入力してください"); return; }
+        await store.addShopping(state.user.id, state.fridge.id, { name: resolveCanonicalName(name.value.trim()), quantity: 1, unit: unitPicker.getValue(), source: "manual" });
+        await refreshData(); renderMain();
+      }),
+    }, "リストに追加"),
+  );
+  wrap.append(el("div", { class: "card" }, ...listKids));
   // ---- ワンタップ追加（よく買うもの／最近買ったもの／お気に入り食材） ----
   const oneTap = oneTapCandidates([...collectedByCanonicalName(state.catalog).values()], state.items, 10);
   const oneTapRows = [
@@ -1849,65 +2442,9 @@ function renderShoppingTab() {
   ));
   // カテゴリから選ぶ（図鑑と同じカテゴリ構造でカタログから辿る）
   wrap.append(renderShopBrowseCard());
-  wrap.append(el("div", { class: "card" },
-    el("h2", {}, "🛒 買い物リスト"),
-    state.shopping.length === 0
-      ? el("p", { class: "empty" }, "リストは空です。\nお気に入りの在庫がなくなると自動で追加されます。")
-      : state.shopping.map((s) => el("div", { class: "shop-row" },
-          // おつかいの子が見分けやすいよう、キャラ＋名前を大きく目立たせる
-          // キャラ／名前タップで食材の知識ページ（食育）にも行ける
-          el("span", { class: "grow shop-main" },
-            el("span", { class: "k-link", title: "食材の知識を見る", onclick: () => openKnowledge(s.name) }, iconEl(s.name)),
-            el("span", { class: "shop-name k-link", title: "食材の知識を見る", onclick: () => openKnowledge(s.name) }, s.name), " ",
-            rarityOf(s.name) === "ultra" ? el("span", { class: "rare-chip ultra" }, "激レア！") : rarityOf(s.name) === "rare" ? el("span", { class: "rare-chip rare" }, "レア") : null,
-            el("span", { class: "chip" }, `${fmtQtyValue(s.quantity, s.unit)}${s.unit || ""}`),
-            el("span", { class: "chip" }, SOURCE_LABEL[s.source] || "")),
-          el("button", {
-            class: "btn small", onclick: async () => {
-              try {
-                const beforeCounts = catalogCountsBefore();
-                if (s.linkedItemId) {
-                  const item = state.items.find((i) => i.id === s.linkedItemId);
-                  if (item) {
-                    await store.updateItem(state.user.id, item.id, { quantity: Number(item.quantity) + Number(s.quantity) });
-                    // 数量を足すだけの経路でも「買った」として図鑑の購入回数を数える
-                    // （図鑑の記録は正規名で数える: 行名が別表記でも正規品に寄せる）
-                    const canonName = resolveCanonicalName(s.name);
-                    await store.recordPurchase(state.user.id, state.fridge.id, canonName, rarityCategory(canonName) || "その他");
-                  }
-                } else {
-                  await store.addItem(state.user.id, state.fridge.id, {
-                    name: resolveCanonicalName(s.name), category: rarityCategory(s.name) || "その他", quantity: Number(s.quantity) || 1, unit: s.unit || "",
-                    expiryDate: null, storage: "冷蔵庫", isFavorite: false,
-                  });
-                }
-                await store.deleteShopping(state.user.id, s.id);
-                await refreshData(); renderMain();
-                if (!celebratePurchase(s.name, beforeCounts)) toast(`「${s.name}」を在庫に戻しました`);
-              } catch (e) { toast(userErrorMessage(e)); }
-            },
-          }, "買った！"),
-          el("button", {
-            class: "icon-btn", onclick: async () => {
-              await store.deleteShopping(state.user.id, s.id);
-              await refreshData(); renderMain();
-            },
-          }, "✕"),
-        )),
-    el("h3", {}, "買い物を追加"),
-    name,
-    el("label", {}, "単位"),
-    ...unitPicker.nodes,
-    el("button", {
-      class: "btn secondary wide", onclick: async () => {
-        if (!name.value.trim()) { toast("買うものを入力してください"); return; }
-        await store.addShopping(state.user.id, state.fridge.id, { name: resolveCanonicalName(name.value.trim()), quantity: 1, unit: unitPicker.getValue(), source: "manual" });
-        await refreshData(); renderMain();
-      },
-    }, "リストに追加"),
-  ));
   return wrap;
 }
+
 
 // ---------- レシピタブ ----------
 // お気に入りは「レシピ×モード」をキーに、レシピの内容そのもの
@@ -1998,9 +2535,19 @@ function favStarBtn(active, onclick) {
   }, active ? "★" : "☆");
 }
 async function addMissingToShopping(missing) {
-  for (const m of missing)
-    await store.addShopping(state.user.id, state.fridge.id, { name: resolveCanonicalName(m.name), quantity: m.amount, unit: m.unit, source: "recipe" });
-  await refreshData(); toast("足りない材料を買い物リストに追加しました");
+  // 既存の未チェック行（正規名＋単位が一致）があれば数量を合算し、
+  // 無いものだけ新規追加する。同じボタンの連打でリストが増殖しない。
+  const plan = planMissingAdditions(state.shopping, missing, resolveCanonicalName);
+  for (const a of plan.adds)
+    await store.addShopping(state.user.id, state.fridge.id, { name: a.name, quantity: a.quantity, unit: a.unit, source: "recipe" });
+  for (const mg of plan.merges)
+    await store.updateShopping(state.user.id, mg.id, { quantity: mg.quantity });
+  await refreshData();
+  const parts = [];
+  if (plan.adds.length) parts.push(`${plan.adds.length}品を追加`);
+  if (plan.merges.length) parts.push(`${plan.merges.length}品は数量を合算`);
+  toast(parts.length ? `買い物リストに${parts.join("・")}しました` : "足りない材料を買い物リストに追加しました");
+  return plan;
 }
 
 // ---------- 今日の献立ボード ----------
@@ -2035,7 +2582,39 @@ async function pinToTodayMenu(recipe, mode, size) {
   try {
     state.todayMenu = await store.setTodayMenu(state.user.id, state.fridge.id, board);
     state.todayMenuThanks = false;
+    state.boardAddSig = null;
     toast(`「${entry.title}」を今日の献立に入れました`);
+  } catch (e) { toast(userErrorMessage(e)); }
+  renderMain();
+}
+// 献立セットの一括ピン: まだ入っていない料理だけをまとめてボードへ保存する
+// （保存は1回）。重複判定は recipeKey に加えて料理そのもの（recipeId）でも
+// 行い、モード違いで同じ料理が二重に入るのを防ぐ。
+async function pinMealSetToTodayMenu(dishes, mode, size) {
+  let board = state.todayMenu;
+  let added = 0;
+  let skipped = 0;
+  const onBoardIds = new Set((board.entries || []).map((e) => e.recipeId).filter(Boolean));
+  for (const dish of dishes || []) {
+    const entry = boardSnapshotOf(dish, mode, size);
+    if ((board.entries || []).some((e) => e.recipeKey === entry.recipeKey)
+      || (entry.recipeId && onBoardIds.has(entry.recipeId))) {
+      skipped++;
+      continue;
+    }
+    const res = upsertTodayMenuEntry(board, entry);
+    board = res.board;
+    if (res.added) {
+      added++;
+      if (entry.recipeId) onBoardIds.add(entry.recipeId);
+    } else skipped++;
+  }
+  if (!added) { toast("全部すでに今日の献立に入っています"); renderMain(); return; }
+  try {
+    state.todayMenu = await store.setTodayMenu(state.user.id, state.fridge.id, board);
+    state.todayMenuThanks = false;
+    state.boardAddSig = null;
+    toast(`献立${added}品を今日の献立に入れました${skipped ? `（${skipped}品はすでに入っていました）` : ""}`);
   } catch (e) { toast(userErrorMessage(e)); }
   renderMain();
 }
@@ -2043,34 +2622,52 @@ async function removeFromTodayMenu(recipeKey) {
   try {
     state.todayMenu = await store.setTodayMenu(state.user.id, state.fridge.id,
       removeTodayMenuEntry(state.todayMenu, recipeKey));
+    state.boardAddSig = null;
   } catch (e) { toast(userErrorMessage(e)); }
   renderMain();
 }
+// ボードの1品を「今の在庫・その品の人数」で再評価する。
+// 固定レシピは現在の定義から、組み合わせ提案は保存済み材料から再計算し、
+// どちらも無理な場合だけ保存時のスナップショットにフォールバックする。
+// 人数は保存された各エントリの servings が正（家族人数で一律にしない）。
+function reevaluateBoardEntry(e) {
+  const size = e.servings || state.settings.familySize || 2;
+  const def = currentRecipeDefinition({ recipeId: e.recipeId });
+  try {
+    if (def) {
+      const r = evaluateRecipe(def, state.items, size);
+      return { have: r.have, missing: r.missing, minutes: r.minutes ?? def.minutes ?? e.minutes ?? null };
+    }
+    if (Array.isArray(e.ingredients) && e.ingredients.length) {
+      const r = evaluateRecipe(
+        { id: e.recipeId, title: e.title, ingredients: e.ingredients, steps: e.steps || [] },
+        state.items, size);
+      return { have: r.have, missing: r.missing, minutes: e.minutes ?? null };
+    }
+  } catch { /* スナップショットへフォールバック */ }
+  return { have: e.have || [], missing: e.missing || [], minutes: e.minutes ?? null };
+}
 /** ボード全体の「足りない材料」を、今の在庫で再評価して名前＋単位で統合する */
 function boardMissingUnion() {
-  const size = state.settings.familySize || 2;
-  const lists = state.todayMenu.entries.map((e) => {
-    if (Array.isArray(e.ingredients) && e.ingredients.length) {
-      try {
-        return evaluateRecipe(
-          { id: e.recipeId, title: e.title, ingredients: e.ingredients, steps: e.steps || [] },
-          state.items, size).missing;
-      } catch { return e.missing || []; }
-    }
-    return e.missing || [];
-  });
+  const lists = state.todayMenu.entries.map((e) => reevaluateBoardEntry(e).missing);
   return mergeMissingIngredients(lists);
+}
+function boardUnionSig(union) {
+  return (union || []).map((u) => `${u.name}${u.unit || ""}:${u.amount}`).join("|");
 }
 async function addBoardMissingToShopping() {
   const union = boardMissingUnion();
   if (!union.length) { toast("足りない材料はありません"); return; }
   await addMissingToShopping(union);
+  // 同じ材料構成の間はボタンを「追加済み」表示にする（連打の重複防止と対）
+  state.boardAddSig = boardUnionSig(boardMissingUnion());
   renderMain();
 }
 async function finishTodayMenu() {
   try {
     state.todayMenu = await store.setTodayMenu(state.user.id, state.fridge.id, { date: todayISO(), entries: [] });
     state.todayMenuThanks = true;
+    state.boardAddSig = null;
     toast("今日の献立を片付けました。おつかれさま！");
   } catch (e) { toast(userErrorMessage(e)); }
   renderMain();
@@ -2083,24 +2680,43 @@ function renderTodayMenuBoard() {
       el("p", { class: "hint" }, "🎉 今日のごはん完成！おつかれさまでした。また明日、作るものをここに留めてください。"));
   }
   const card = el("div", { class: "card today-menu-card" }, el("h2", {}, "🍽 今日の献立"));
+  const size = state.settings.familySize || 2;
+  // 主菜・副菜・汁物の枠は、空でも薄く出して「あと何が要るか」を一目で分かるようにする
+  const presentGroups = new Set(groupTodayMenuEntries(entries).map((g) => g.group));
+  const emptyFrame = (course) => el("button", {
+    class: "board-empty-row", type: "button",
+    onclick: () => {
+      state.tab = "recipes";
+      state.knowledgeName = null; state.gameView = false; state.suikaView = false; state.recipeDetail = null;
+      state.recipeCourse = course;
+      renderMain();
+    },
+  }, `${course}はまだありません（タップで候補から追加）`);
   if (!entries.length) {
     card.append(el("p", { class: "hint" },
       "レシピカードの「📌 今日の献立に入れる」で、今夜作るものをここに留めておけます。家族みんなに見えて、翌日になると自動で空になります。"));
+    for (const course of ["主菜", "副菜", "汁物"]) card.append(emptyFrame(course));
     return card;
   }
-  const size = state.settings.familySize || 2;
+  // 表示のたびに今の在庫で再評価する（保存時スナップショットは使わない）
+  const reByKey = new Map(entries.map((e) => [e.recipeKey, reevaluateBoardEntry(e)]));
   for (const g of groupTodayMenuEntries(entries)) {
     card.append(el("h3", { class: "today-menu-group" }, g.group));
     for (const e of g.entries) {
+      const re = reByKey.get(e.recipeKey);
       card.append(el("div", { class: "fridge-row today-menu-row" },
         el("span", {
           class: "grow k-link", title: "詳しい作り方を見る",
-          // 詳細ページは recipe.id で recipeKey を作るため、保存時の recipeId を id に戻して渡す
-          onclick: () => openRecipeDetail({ ...e, id: e.recipeId }, {
+          // 詳細ページは recipe.id で recipeKey を作るため、保存時の recipeId を id に戻して渡す。
+          // 材料の有無は再評価した結果を渡す（保存時のスナップショットは渡さない）
+          onclick: () => openRecipeDetail({ ...e, id: e.recipeId, have: re.have, missing: re.missing }, {
             mode: e.mode, size: e.servings || size, servingsLabel: `${e.servings || size}人分`,
           }),
         }, e.title),
-        e.minutes ? el("span", { class: "chip" }, `約${e.minutes}分`) : null,
+        re.missing.length
+          ? el("span", { class: "chip warn" }, `買い足し ${re.missing.length}品`)
+          : el("span", { class: "chip" }, "今の在庫で作れます"),
+        (re.minutes || e.minutes) ? el("span", { class: "chip" }, `約${re.minutes || e.minutes}分`) : null,
         el("button", {
           class: "icon-btn", "aria-label": `${e.title}を今日の献立から外す`,
           onclick: () => removeFromTodayMenu(e.recipeKey),
@@ -2108,8 +2724,23 @@ function renderTodayMenuBoard() {
       ));
     }
   }
+  for (const course of ["主菜", "副菜", "汁物"]) {
+    if (!presentGroups.has(course)) card.append(emptyFrame(course));
+  }
+  // 集計行: 品数・合計時間・人数（人数は各品の保存人数が揃えばそれ、混ざれば家族人数）
+  const totalMinutes = entries.reduce((sum, e) => sum + (reByKey.get(e.recipeKey).minutes || e.minutes || 0), 0);
+  const servingsSet = new Set(entries.map((e) => e.servings || size));
+  const servingsLabel = servingsSet.size === 1 ? [...servingsSet][0] : size;
+  card.append(el("p", { class: "board-summary-line" },
+    `全${entries.length}品・合計 約${totalMinutes}分・${servingsLabel}人分`));
+  const union = boardMissingUnion();
+  const alreadyAdded = union.length > 0 && state.boardAddSig === boardUnionSig(union);
   card.append(el("div", { class: "today-menu-actions" },
-    el("button", { class: "btn secondary", onclick: addBoardMissingToShopping }, "足りない材料を買い物リストへ"),
+    el("button", {
+      class: "btn secondary",
+      disabled: alreadyAdded ? "disabled" : null,
+      onclick: (e) => withBusy(e.currentTarget, async () => { await addBoardMissingToShopping(); }),
+    }, alreadyAdded ? `買い物リストに追加済み（${union.length}品）` : "足りない材料を買い物リストへ"),
     el("button", { class: "btn", onclick: finishTodayMenu }, "作った！"),
   ));
   return card;
@@ -2368,6 +2999,10 @@ function renderEventMenuSection(size) {
     menu.missingAll.length ? el("button", {
       class: "btn secondary", onclick: () => addMissingToShopping(menu.missingAll),
     }, "イベントの足りない材料をまとめて買い物リストへ") : null,
+    el("button", {
+      class: "btn secondary",
+      onclick: (e) => withBusy(e.currentTarget, async () => { await pinMealSetToTodayMenu(menu.dishes, state.recipeMode, size); }),
+    }, "📌 この献立をまとめて今日の献立に入れる"),
   ));
   for (const d of menu.dishes) {
     const fav = findFavorite(d, state.recipeMode);
@@ -2416,6 +3051,10 @@ function renderRegionalMenuSection(size) {
     menu.missingAll.length ? el("button", {
       class: "btn secondary", onclick: () => addMissingToShopping(menu.missingAll),
     }, "この地域の足りない材料をまとめて買い物リストへ") : null,
+    el("button", {
+      class: "btn secondary",
+      onclick: (e) => withBusy(e.currentTarget, async () => { await pinMealSetToTodayMenu(menu.dishes, state.recipeMode, size); }),
+    }, "📌 この献立をまとめて今日の献立に入れる"),
   ));
   for (const d of menu.dishes) {
     const fav = findFavorite(d, state.recipeMode);
@@ -2782,6 +3421,10 @@ function renderRecipesTab() {
         );
         const setMissing = mergeMissingIngredients(setDishes.map((r) => r.missing));
         if (setMissing.length) setCard.append(el("button", { class: "btn secondary small", onclick: () => addMissingToShopping(setMissing) }, "セットの足りない材料を買い物リストへ"));
+        setCard.append(el("button", {
+          class: "btn secondary small",
+          onclick: (e) => withBusy(e.currentTarget, async () => { await pinMealSetToTodayMenu(setDishes, state.recipeMode, size); }),
+        }, "📌 セットをまとめて今日の献立に入れる"));
         wrap.append(setCard);
       }
     }
@@ -2896,18 +3539,26 @@ function renderSettingsTab() {
             catch { toast(url); }
           },
         }, "参加リンクをコピー"),
-        el("button", {
-          onclick: async () => {
-            if (!confirm("コードを再発行すると、今のコードとQRは使えなくなります。よろしいですか？")) return;
-            try {
-              const newCode = await store.regenerateCode(state.user.id, fridge.id);
-              // サーバー側の平文コード表示を最新化するため再取得
-              state.inviteCode = (await store.getInviteCode(state.user.id, fridge.id).catch(() => null)) || formatCode(newCode);
-              renderMain(); toast("新しいコードを発行しました");
-            } catch (e) { toast(userErrorMessage(e)); }
-          },
-        }, "コードを再発行"),
       ),
+      (() => {
+        const host = el("div", {});
+        host.append(el("button", {
+          class: "btn secondary wide",
+          onclick: () => mountDangerConfirm(host, {
+            text: "コードを再発行すると、今のコードとQRは使えなくなります。",
+            confirmLabel: "再発行する",
+            onConfirm: async () => {
+              try {
+                const newCode = await store.regenerateCode(state.user.id, fridge.id);
+                // サーバー側の平文コード表示を最新化するため再取得
+                state.inviteCode = (await store.getInviteCode(state.user.id, fridge.id).catch(() => null)) || formatCode(newCode);
+                renderMain(); toast("新しいコードを発行しました");
+              } catch (e) { toast(userErrorMessage(e)); renderMain(); }
+            },
+          }),
+        }, "コードを再発行"));
+        return host;
+      })(),
     );
     requestAnimationFrame(() => { try { qrToCanvas(canvas, url, { scale: 5 }); } catch { /* 長すぎる場合はコードのみ */ } });
   } else {
@@ -2916,13 +3567,13 @@ function renderSettingsTab() {
       : "フレンドコードとQRコードは、冷蔵庫を作った人だけが表示できます。参加したい家族がいる場合は、作成者にコードを教えてもらってください。"));
     if (isOwner) {
       shareCard.append(el("button", {
-        class: "btn secondary", onclick: async () => {
+        class: "btn secondary", onclick: (e) => withBusy(e.currentTarget, async () => {
           try {
             const newCode = await store.regenerateCode(state.user.id, fridge.id);
             state.inviteCode = (await store.getInviteCode(state.user.id, fridge.id).catch(() => null)) || formatCode(newCode);
             renderMain(); toast("コードを発行しました");
-          } catch (e) { toast(userErrorMessage(e)); }
-        },
+          } catch (e2) { toast(userErrorMessage(e2)); }
+        }),
       }, "コードを発行する"));
     }
   }
@@ -2936,13 +3587,21 @@ function renderSettingsTab() {
         el("span", { class: "chip" }, m.role === "owner" ? "作成者" : "メンバー"),
         m.userId === state.user.id ? el("span", { class: "chip" }, "あなた") : null),
       isOwner && m.userId !== state.user.id
-        ? el("button", {
-            class: "btn danger small", onclick: async () => {
-              if (!confirm(`${m.displayName}さんをメンバーから外しますか？`)) return;
-              try { await store.removeMember(state.user.id, fridge.id, m.userId); await refreshData(); renderMain(); toast("メンバーを外しました"); }
-              catch (e) { toast(userErrorMessage(e)); }
-            },
-          }, "外す")
+        ? (() => {
+            const host = el("span", {});
+            host.append(el("button", {
+              class: "btn danger small",
+              onclick: () => mountDangerConfirm(host, {
+                text: `${m.displayName}さんをメンバーから外しますか？`,
+                confirmLabel: "外す",
+                onConfirm: async () => {
+                  try { await store.removeMember(state.user.id, fridge.id, m.userId); await refreshData(); renderMain(); toast("メンバーを外しました"); }
+                  catch (e) { toast(userErrorMessage(e)); renderMain(); }
+                },
+              }),
+            }, "外す"));
+            return host;
+          })()
         : null,
     ));
   }
@@ -3056,15 +3715,15 @@ function renderSettingsTab() {
     isOwner ? el("div", { class: "fridge-row" },
       fridgeNameInput,
       el("button", {
-        class: "btn secondary small", onclick: async () => {
+        class: "btn secondary small", onclick: (e) => withBusy(e.currentTarget, async () => {
           try {
             const res = await store.renameFridge(state.user.id, fridge.id, fridgeNameInput.value);
             state.fridge = { ...state.fridge, name: res.name };
             const entry = state.fridges.find((f) => f.id === fridge.id);
             if (entry) entry.name = res.name;
             renderMain(); toast("冷蔵庫の名前を変更しました");
-          } catch (e) { toast(userErrorMessage(e)); }
-        },
+          } catch (e2) { toast(userErrorMessage(e2)); }
+        }),
       }, "名前を変更する")) : null,
     el("div", { class: "stepper" },
       el("span", {}, "家族の人数（レシピの分量）"),
@@ -3093,13 +3752,21 @@ function renderSettingsTab() {
       }, expiryEnabled() ? "ON" : "OFF"),
     ),
     el("button", { class: "btn secondary wide", onclick: () => { stopRealtime(); state.fridge = null; renderFridgePicker(); } }, "別の冷蔵庫に切り替える"),
-    !isOwner ? el("button", {
-      class: "btn danger wide", onclick: async () => {
-        if (!confirm("この冷蔵庫から退出しますか？")) return;
-        try { await store.leaveFridge(state.user.id, fridge.id); stopRealtime(); state.fridges = await store.listMyFridges(state.user.id); state.fridge = null; renderFridgePicker(); }
-        catch (e) { toast(userErrorMessage(e)); }
-      },
-    }, "この冷蔵庫から退出する") : null,
+    !isOwner ? (() => {
+      const host = el("div", {});
+      host.append(el("button", {
+        class: "btn danger wide",
+        onclick: () => mountDangerConfirm(host, {
+          text: "この冷蔵庫から退出しますか？",
+          confirmLabel: "退出する",
+          onConfirm: async () => {
+            try { await store.leaveFridge(state.user.id, fridge.id); stopRealtime(); state.fridges = await store.listMyFridges(state.user.id); state.fridge = null; renderFridgePicker(); }
+            catch (e) { toast(userErrorMessage(e)); renderMain(); }
+          },
+        }),
+      }, "この冷蔵庫から退出する"));
+      return host;
+    })() : null,
     el("button", {
       class: "btn ghost wide", onclick: async () => {
         stopRealtime();
@@ -3108,14 +3775,14 @@ function renderSettingsTab() {
     }, "ログアウト"),
     isOwner && !state.confirmDeleteFridge ? el("button", {
       class: "btn danger wide", onclick: () => {
-        if (!confirm(`「${fridge.name}」を削除しますか？\nこの冷蔵庫の在庫・買い物リスト・食材図鑑の記録はすべて削除され、メンバー全員がアクセスできなくなります。\nあなたが登録した、この冷蔵庫のレシピのお気に入りも削除されます。`)) return;
+        // 確認は件数入りの専用パネル（次の表示）が担う（標準ダイアログは使わない）
         state.confirmDeleteFridge = true; renderMain();
       },
     }, "この冷蔵庫を削除する") : null,
     isOwner && state.confirmDeleteFridge ? el("div", { class: "danger-confirm" },
       el("p", {}, `「${fridge.name}」を本当に削除します。メンバー ${state.members.length} 人全員がアクセスできなくなり、在庫 ${state.items.length} 件・買い物リスト ${state.shopping.length} 件・図鑑の記録がすべて消えます。この操作は取り消せません。`),
       el("button", {
-        class: "btn danger wide", onclick: async () => {
+        class: "btn danger wide", onclick: (e) => withBusy(e.currentTarget, async () => {
           const fid = fridge.id;
           try {
             stopRealtime();
@@ -3128,30 +3795,43 @@ function renderSettingsTab() {
             state.inviteCode = null; state.sessionTrash = [];
             state.todayMenu = { date: "", entries: [] }; state.todayMenuThanks = false;
             renderFridgePicker(); toast("冷蔵庫を削除しました");
-          } catch (e) {
+          } catch (e2) {
             state.confirmDeleteFridge = false;
-            setupRealtime(); renderMain(); toast(userErrorMessage(e));
+            setupRealtime(); renderMain(); toast(userErrorMessage(e2));
           }
-        },
+        }),
       }, "削除する"),
       el("button", {
         class: "btn ghost wide", style: "margin-top:8px", onclick: () => { state.confirmDeleteFridge = false; renderMain(); },
       }, "やめる"),
     ) : null,
-    el("button", {
-      class: "btn danger wide", onclick: async () => {
-        if (!confirm("退会すると、アカウントとあなたのレシピのお気に入りが削除されます。\n共有している冷蔵庫の在庫・買い物リストは家族のものとして残ります。\nあなたが作った冷蔵庫は、他のメンバーがいれば一番古くからのメンバーに引き継がれ、メンバーがあなただけなら冷蔵庫ごと削除されます。\n本当に退会しますか？")) return;
-        if (!confirm("この操作は取り消せません。退会しますか？")) return;
-        try {
-          stopRealtime();
-          await store.deleteAccount(state.user.id);
-          state.user = null; state.fridge = null; state.fridges = [];
-          state.items = []; state.shopping = []; state.members = []; state.favRecipes = []; state.catalog = [];
-          state.todayMenu = { date: "", entries: [] }; state.todayMenuThanks = false;
-          renderAuth(); toast("退会しました");
-        } catch (e) { toast(userErrorMessage(e)); }
-      },
-    }, "退会する（アカウントを削除）"),
+    state.confirmWithdraw === 0 ? el("button", {
+      class: "btn danger wide", onclick: () => { state.confirmWithdraw = 1; renderMain(); },
+    }, "退会する（アカウントを削除）") : null,
+    state.confirmWithdraw === 1 ? el("div", { class: "danger-confirm" },
+      el("p", {}, "退会すると、アカウントとあなたのレシピのお気に入りが削除されます。共有している冷蔵庫の在庫・買い物リストは家族のものとして残ります。あなたが作った冷蔵庫は、他のメンバーがいれば一番古くからのメンバーに引き継がれ、メンバーがあなただけなら冷蔵庫ごと削除されます。"),
+      el("div", { class: "dc-actions" },
+        el("button", { class: "btn danger", onclick: () => { state.confirmWithdraw = 2; renderMain(); } }, "次へ"),
+        el("button", { class: "btn ghost", onclick: () => { state.confirmWithdraw = 0; renderMain(); } }, "やめる"),
+      )) : null,
+    state.confirmWithdraw === 2 ? el("div", { class: "danger-confirm" },
+      el("p", {}, "この操作は取り消せません。本当に退会しますか？"),
+      el("div", { class: "dc-actions" },
+        el("button", {
+          class: "btn danger", onclick: (e) => withBusy(e.currentTarget, async () => {
+            try {
+              stopRealtime();
+              await store.deleteAccount(state.user.id);
+              state.confirmWithdraw = 0;
+              state.user = null; state.fridge = null; state.fridges = [];
+              state.items = []; state.shopping = []; state.members = []; state.favRecipes = []; state.catalog = [];
+              state.todayMenu = { date: "", entries: [] }; state.todayMenuThanks = false;
+              renderAuth(); toast("退会しました");
+            } catch (e2) { state.confirmWithdraw = 0; setupRealtime(); renderMain(); toast(userErrorMessage(e2)); }
+          }),
+        }, "退会する"),
+        el("button", { class: "btn ghost", onclick: () => { state.confirmWithdraw = 0; renderMain(); } }, "やめる"),
+      )) : null,
     el("p", { class: "hint" }, store.mode === "demo"
       ? "デモモード：データはこの端末の中だけです。別の端末の家族とは共有されません（本番公開時に Firebase と接続します）。"
       : "データはメンバーだけがアクセスできます（Firestore のセキュリティルールで保護）。退会は上の「退会する」からできます。共有の冷蔵庫の在庫は家族のものとして残ります。"),

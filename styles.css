@@ -111,7 +111,7 @@ body.drawer-open { overflow: hidden; }
 .drawer-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
 .drawer-menu-label { font-size: 12px; font-weight: 800; letter-spacing: 0.30em; color: var(--ink-soft); }
 .drawer-close {
-  flex: none; width: 40px; height: 40px; border: none; border-radius: 50%;
+  flex: none; width: 44px; height: 44px; border: none; border-radius: 50%;
   background: var(--cream); color: var(--ink); font-size: 16px; font-weight: 700;
   cursor: pointer; font-family: inherit;
   display: flex; align-items: center; justify-content: center;
@@ -221,7 +221,7 @@ input[type="date"] {
 .frac-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; }
 .frac-label { font-size: 12.5px; font-weight: 700; color: var(--ink-soft); letter-spacing: 0.10em; }
 .frac-chip {
-  min-height: 40px; padding: 8px 14px; border-radius: 999px; cursor: pointer;
+  min-height: 44px; padding: 8px 14px; border-radius: 999px; cursor: pointer;
   border: 1.5px solid var(--accent); background: var(--accent-soft); color: var(--accent-deep);
   font-size: 14px; font-weight: 700; font-family: inherit; transition: transform var(--dur-press) var(--ease-out), background var(--dur-ui) var(--ease-out);
 }
@@ -239,7 +239,7 @@ input[type="date"] {
 .btn.secondary { background: var(--accent-soft); color: var(--accent-deep); box-shadow: none; border: 1px solid var(--line); }
 .btn.ghost { background: transparent; color: var(--accent-deep); box-shadow: none; border: 1.5px solid var(--line); }
 .btn.danger { background: #f3ddd4; color: var(--red); box-shadow: none; }
-.btn.small { padding: 8px 15px; font-size: 13px; }
+.btn.small { padding: 8px 15px; font-size: 13px; min-height: 44px; }
 .btn.wide { width: 100%; margin-top: 16px; }
 .tabs {
   display: flex; gap: 4px; margin-bottom: 12px; padding: 4px;
@@ -255,12 +255,21 @@ input[type="date"] {
   background: #f9e8e0; border: 1px solid #e0b49d; color: var(--red);
   padding: 10px 12px; border-radius: 10px; font-size: 13px; margin-top: 10px; line-height: 1.6;
 }
-/* 冷蔵庫の削除など、取り消せない操作の最終確認パネル */
+/* 冷蔵庫の削除など、取り消せない操作の最終確認パネル（BZ-C: 一般化）。
+   設定内の既存利用（冷蔵庫削除・退会）の見た目はそのままに、.card 内の
+   どこに差し込んでも崩れない汎用インライン確認パネルとして使う。
+   ボタン列は .dc-actions にまとめ、ボタンは全て 44px 以上を保つ。 */
 .danger-confirm {
   background: #fbeae6; border: 1.5px solid #eec5ba; border-radius: var(--radius-s);
   padding: 12px; margin-top: 10px;
 }
+.card .danger-confirm { margin-top: 12px; }
 .danger-confirm p { font-size: 13.5px; line-height: 1.7; color: var(--red); margin: 0 0 10px; }
+.danger-confirm p:last-child { margin-bottom: 0; }
+.danger-confirm .dc-actions {
+  display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px;
+}
+.danger-confirm .dc-actions .btn { min-height: 44px; flex: 1 1 140px; }
 
 /* ---------- 在庫 ---------- */
 .notice-item { font-size: 14px; padding: 7px 0; border-bottom: 1px dashed var(--line-soft); }
@@ -303,7 +312,7 @@ input[type="date"] {
   gap: 6px; min-width: 0; flex-wrap: wrap;
 }
 .item-ctrls .qty-ctrl { flex: none; }
-.item-ctrls .icon-btn { flex: none; min-width: 40px; min-height: 40px; }
+.item-ctrls .icon-btn { flex: none; min-width: 44px; min-height: 44px; }
 .item-name { font-weight: 700; font-size: 16px; letter-spacing: 0.02em; overflow-wrap: break-word; }
 .item-name .star { color: var(--gold); }
 .item-meta {
@@ -311,12 +320,15 @@ input[type="date"] {
   font-size: 12px; color: var(--ink-soft); margin-top: 4px; line-height: 1.6;
 }
 .item-meta .chip { max-width: 100%; }
-/* 狭い画面（〜380px）では操作部を少し締め、操作行が収まるようにする */
+/* 狭い画面（〜380px）でもタップターゲットは 44px を縮めない（Area 6 P0-4）。
+   代わりに数量表示の幅と各 gap を締めて操作行を収める:
+   320px幅では操作列 約198px に対し 44+44（数量ボタン）+44（数量表示）
+   +44（削除）+gap 4px×3 ≒ 188px で収まる計算。 */
 @media (max-width: 380px) {
   .item-card { column-gap: 10px; }
-  .item-card .qty-btn { width: 38px; height: 38px; }
   .item-card .qty-num { min-width: 44px; }
-  .item-card .icon-btn { min-width: 36px; min-height: 36px; padding: 6px; }
+  .item-card .qty-ctrl { gap: 4px; }
+  .item-card .item-ctrls { gap: 4px; }
 }
 .chip {
   display: inline-block; font-size: 11px; font-weight: 600; letter-spacing: 0.04em; padding: 2px 9px; border-radius: 999px;
@@ -335,7 +347,7 @@ input[type="date"] {
 .chip.stock-chip { background: #e8f1f4; border-color: #c2d9e1; color: #406a7d; font-weight: 700; }
 .qty-ctrl { display: flex; align-items: center; gap: 6px; }
 .qty-btn {
-  width: 42px; height: 42px; border-radius: 50%; border: 1.5px solid var(--line);
+  width: 44px; height: 44px; border-radius: 50%; border: 1.5px solid var(--line);
   background: linear-gradient(180deg, #f8efdc, var(--cream)); color: var(--accent-deep);
   font-size: 18px; font-weight: 700; cursor: pointer; font-family: inherit;
   transition: transform var(--dur-press) var(--ease-out);
@@ -434,7 +446,7 @@ input[type="date"] {
 }
 .zone-chip-row::-webkit-scrollbar { display: none; }
 .zukan-cat-row button, .zone-chip-row button {
-  flex: 0 0 auto; min-height: 40px; padding: 7px 13px; border-radius: 999px;
+  flex: 0 0 auto; min-height: 44px; padding: 7px 13px; border-radius: 999px;
   border: 1px solid var(--line-soft); background: var(--card); color: var(--ink-soft);
   font-size: 13px; font-weight: 700; letter-spacing: 0.02em; cursor: pointer; font-family: inherit;
   white-space: nowrap;
@@ -642,8 +654,9 @@ select.inline-select { width: auto; display: inline-block; padding: 6px 8px; fon
 
 /* ---- 追加機能（ガイド／検索／クイック登録／元に戻す／法的ページ／通知） ---- */
 .toast-action {
-  margin-left: 10px; background: #fff8ec; color: #5c4a35; border: none;
-  border-radius: 999px; padding: 4px 14px; font-size: 13px; font-weight: 700; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+  min-height: 40px; margin-left: 10px; background: #fff8ec; color: #5c4a35; border: none;
+  border-radius: 999px; padding: 9px 16px; font-size: 13px; font-weight: 700; cursor: pointer; font-family: inherit;
 }
 .guide-card { border: 2px solid #e8b04b; }
 .guide-step { display: flex; gap: 10px; align-items: flex-start; margin: 12px 0; }
@@ -656,8 +669,9 @@ select.inline-select { width: auto; display: inline-block; padding: 6px 8px; fon
 .quick-label { font-size: var(--label-size); font-weight: 800; letter-spacing: var(--label-spacing); color: var(--ink-soft); margin: 10px 0 6px; }
 .quick-row { display: flex; flex-wrap: wrap; gap: 8px; }
 .quick-chip {
+  display: inline-flex; align-items: center; justify-content: center; min-height: 44px;
   background: #fff; border: 1.5px solid #e5d9c5; border-radius: 999px;
-  padding: 7px 13px; font-size: 14px; cursor: pointer; color: var(--ink);
+  padding: 7px 13px; font-size: 14px; cursor: pointer; color: var(--ink); font-family: inherit;
   transition: transform var(--dur-press) var(--ease-out), background var(--dur-ui) var(--ease-out);
 }
 .quick-chip:active { background: #f7ecd9; transform: scale(0.97); }
@@ -873,6 +887,13 @@ body.suika-open { overflow: hidden; }
   border-radius: 50%; vertical-align: -2px;
   animation: btn-spin 0.7s linear infinite;
 }
+/* 明るい背景のボタンでは白スピナーが見えないため、濃い色に切り替える（P0-2） */
+.btn.secondary .btn-spinner, .btn.ghost .btn-spinner {
+  border-color: rgba(138, 109, 79, 0.25); border-top-color: var(--accent-deep);
+}
+.btn.danger .btn-spinner {
+  border-color: rgba(184, 84, 63, 0.25); border-top-color: var(--red);
+}
 @keyframes btn-spin { to { transform: rotate(360deg); } }
 .refresh-btn.is-busy { opacity: 0.88; cursor: wait; }
 /* 更新直後のさりげない確認表示 */
@@ -996,3 +1017,111 @@ button, a, input, select, textarea, label, [role="button"], [role="tab"] { touch
 .cook-nav { display: flex; gap: 10px; margin-top: 18px; }
 .cook-nav .btn { flex: 1; min-height: 52px; }
 .cook-card > .btn { width: 100%; margin-top: 10px; min-height: 44px; }
+
+/* ---------- BZ-C: 期限クイック選択／招待バナー／今夜ストリップ／献立ボード／おつかい／リアルタイム通知 ---------- */
+/* 期限のクイック選択チップ列（登録フォーム用、.frac-chip と同じ見た目） */
+.expiry-quick-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 8px; }
+.expiry-quick-chip {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-height: 44px; padding: 8px 14px; border-radius: 999px; cursor: pointer;
+  border: 1.5px solid var(--line); background: var(--card); color: var(--ink-soft);
+  font-size: 14px; font-weight: 700; font-family: inherit;
+  transition: transform var(--dur-press) var(--ease-out), background var(--dur-ui) var(--ease-out), color var(--dur-ui) var(--ease-out), border-color var(--dur-ui) var(--ease-out);
+}
+.expiry-quick-chip:active { transform: scale(0.96); background: var(--cream-2); }
+.expiry-quick-chip.active {
+  border-color: var(--accent); background: var(--accent-soft); color: var(--accent-deep);
+}
+
+/* 家族招待バナー: 柔らかいアクセント枠＋温かいクリーム地のカード型バナー */
+.invite-banner {
+  background: linear-gradient(180deg, #fdf6e3, var(--cream));
+  border: 1.5px solid var(--cream-2); border-radius: var(--radius);
+  box-shadow: var(--shadow); padding: 16px; margin-bottom: 16px;
+  font-size: 14.5px; font-weight: 700; line-height: 1.65; letter-spacing: 0.02em; color: var(--ink);
+}
+.invite-banner h2, .invite-banner h3 { margin: 0 0 6px; font-size: 16px; font-weight: 800; letter-spacing: 0.05em; color: var(--accent-deep); }
+.invite-banner p { margin: 0 0 6px; font-size: 13.5px; font-weight: 600; line-height: 1.7; color: var(--ink-soft); }
+.invite-banner p:last-child { margin-bottom: 0; }
+.invite-banner .btn { margin-top: 10px; }
+
+/* 今夜の献立ストリップ: コンパクトなカード＋全幅タップ行 */
+.tonight-strip {
+  background: var(--card); border: 1px solid var(--line-soft); border-radius: var(--radius);
+  box-shadow: var(--shadow-soft); padding: 10px 16px; margin-bottom: 16px;
+}
+.tonight-row {
+  display: flex; align-items: center; gap: 10px; width: 100%; min-height: 44px;
+  padding: 10px 0; margin: 0;
+  background: none; border: none; border-bottom: 1px dashed var(--line-soft);
+  font-family: inherit; font-size: 15px; font-weight: 700; letter-spacing: 0.02em;
+  color: var(--ink); cursor: pointer; text-align: left; appearance: none; -webkit-appearance: none;
+  transition: background var(--dur-ui) var(--ease-out), transform var(--dur-press) var(--ease-out);
+}
+.tonight-row:last-child { border-bottom: none; }
+.tonight-row:active { transform: scale(0.99); background: var(--cream); }
+.tonight-row::after { content: "›"; margin-left: auto; flex: none; font-size: 20px; font-weight: 800; line-height: 1; color: var(--ink-soft); }
+
+/* 献立ボード: 空のコース枠（破線・タップ可）と件数などの要約行 */
+.board-empty-row {
+  display: flex; align-items: center; justify-content: center; width: 100%;
+  min-height: 52px; padding: 12px 14px; margin: 6px 0;
+  background: transparent; border: 1.5px dashed var(--line); border-radius: var(--radius-s);
+  font-family: inherit; font-size: 14px; font-weight: 600; letter-spacing: 0.02em;
+  color: var(--ink-soft); cursor: pointer; text-align: center;
+  transition: background var(--dur-ui) var(--ease-out), transform var(--dur-press) var(--ease-out);
+}
+.board-empty-row:active { transform: scale(0.99); background: var(--cream); }
+.board-summary-line {
+  display: block; font-size: 13px; font-weight: 600; line-height: 1.6;
+  color: var(--ink-soft); letter-spacing: 0.02em; padding: 6px 2px;
+}
+
+/* おつかいモード: 子ども向けにキャラと名前を大きくした買い物ビュー */
+.errand-view { display: flex; flex-direction: column; gap: 10px; }
+.errand-progress {
+  font-size: 22px; font-weight: 800; letter-spacing: 0.03em; line-height: 1.45;
+  color: var(--accent-deep); text-align: center; padding: 8px 4px 2px;
+}
+.errand-row {
+  display: flex; align-items: center; gap: 12px; width: 100%; min-height: 72px;
+  padding: 10px 14px;
+  background: var(--card); border: 1px solid var(--line-soft); border-radius: var(--radius);
+  box-shadow: var(--shadow-soft);
+  font-family: inherit; color: var(--ink); cursor: pointer; text-align: left;
+  transition: transform var(--dur-press) var(--ease-out), background var(--dur-ui) var(--ease-out), opacity var(--dur-ui) var(--ease-out);
+}
+.errand-row:active { transform: scale(0.98); background: var(--cream); }
+.errand-row.is-done { background: var(--cream); opacity: 0.6; box-shadow: none; }
+.errand-row.is-done .errand-name { text-decoration: line-through; }
+.errand-char {
+  flex: none; width: 64px; height: 64px;
+  display: flex; align-items: center; justify-content: center;
+}
+.errand-char .food-icon { width: 56px; height: 56px; margin-right: 0; vertical-align: middle; }
+.errand-char .food-icon img.char-img { width: 52px; height: 52px; }
+.errand-name { flex: 1; min-width: 0; font-size: 20px; font-weight: 800; letter-spacing: 0.02em; line-height: 1.35; overflow-wrap: break-word; }
+.errand-qty { flex: none; font-size: 14px; font-weight: 700; color: var(--ink-soft); letter-spacing: 0.02em; }
+.errand-bought-title {
+  font-size: 16px; font-weight: 800; letter-spacing: 0.08em; color: var(--accent-deep);
+  margin: 18px 2px 8px;
+}
+.errand-finish { min-height: 56px; padding: 18px 22px; font-size: 17px; }
+
+/* リアルタイム更新の控えめな通知チップ: 浮遊ピル型の下部ナビより上に固定。
+   ドロワー（z 45）／トースト（z 50）より奥に置く。 */
+.realtime-chip {
+  position: fixed; left: 50%; transform: translateX(-50%); z-index: 25;
+  bottom: calc(110px + env(safe-area-inset-bottom));
+  display: inline-flex; align-items: center; justify-content: center;
+  max-width: 88vw; padding: 10px 16px; border-radius: 999px;
+  background: var(--cream); border: 1px solid var(--line); box-shadow: var(--shadow-lift);
+  font-family: inherit; font-size: 13px; font-weight: 700; letter-spacing: 0.02em;
+  color: var(--accent-deep); cursor: pointer; white-space: nowrap; text-align: center;
+  transition: transform var(--dur-press) var(--ease-out), background var(--dur-ui) var(--ease-out);
+}
+.realtime-chip:active { transform: translateX(-50%) scale(0.97); background: var(--cream-2); }
+.realtime-chip[hidden] { display: none; }
+
+/* 認証画面: パスワード再設定リンク用の中央寄せ行 */
+.forgot-row { text-align: center; margin: 14px 0 4px; font-size: 13px; line-height: 1.6; }

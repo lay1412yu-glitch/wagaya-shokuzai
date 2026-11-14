@@ -1,32 +1,30 @@
 // legal.js — プライバシーポリシー・利用規約（アプリ内表示用）
 //
-// 元の下書き: files/プライバシーポリシー・利用規約（案）.md
-// これは下書きであり、法的な助言ではありません。
-//
-// ★ 値を埋めるときは、ここの LEGAL_INFO の4項目を書き換えるだけです ★
-// 空文字の項目は、画面に [運営者名] などの空欄として表示されます。
-// 公開URLは未設定の場合、アプリを開いているURL（location.origin）を
-// 使わず空欄のままにします（勝手に埋めない）。
+// この文書は運営者が用意したものであり、法的な助言ではありません。
+// 運営者情報（運営者名・連絡先など）は LEGAL_INFO に記入します。
+// 運営者名が未記入の場合は「わが家の食材手帳 運営者」と表示し、
+// 連絡先が未記入の場合は連絡先の行自体を表示しません。
 
 export const LEGAL_INFO = {
   operatorName: "", // 例） 山田花子（屋号があれば屋号）
   contactEmail: "", // 例） wagaya@example.com
-  publicUrl: "",    // 例） https://wagaya-xxxx.pages.dev
-  effectiveDate: "", // 例） 2026年11月10日
+  publicUrl: "https://lay1412yu-glitch.github.io/wagaya-shokuzai/",
+  effectiveDate: "2026年11月15日",
 };
 
-const blank = (value, label) => (value && String(value).trim() ? String(value).trim() : `[${label}]`);
+const trimValue = (value) => (value && String(value).trim() ? String(value).trim() : "");
 
 /**
  * 法的文書を構造化データで返す。
  * sections: [{ heading, lines: string[], table?: [[項目, 内容], ...] }]
- * LEGAL_INFO の空欄は [運営者名] のように表示される。
+ * 運営者名が空の場合は「わが家の食材手帳 運営者」と表示し、
+ * 連絡先が空の場合は連絡先の行を省略する。
  */
 export function legalDocs(info = LEGAL_INFO) {
-  const operator = blank(info.operatorName, "運営者名");
-  const contact = blank(info.contactEmail, "連絡用メールアドレス");
-  const url = blank(info.publicUrl, "公開URL");
-  const date = blank(info.effectiveDate, "施行日");
+  const operator = trimValue(info.operatorName) || "わが家の食材手帳 運営者";
+  const contact = trimValue(info.contactEmail);
+  const url = trimValue(info.publicUrl);
+  const date = trimValue(info.effectiveDate);
   return [
     {
       id: "privacy",
@@ -36,7 +34,7 @@ export function legalDocs(info = LEGAL_INFO) {
           heading: "運営者",
           lines: [
             `運営者：${operator}`,
-            `連絡先：${contact}`,
+            ...(contact ? [`連絡先：${contact}`] : []),
             "アプリ名：わが家の食材手帳",
             `公開URL：${url}`,
           ],
@@ -45,7 +43,7 @@ export function legalDocs(info = LEGAL_INFO) {
           heading: "集める情報と使い道",
           lines: [],
           table: [
-            ["メールアドレス（ログイン用）", "アカウントの作成・ログイン、メール確認のため。パスワードは Firebase Authentication が管理し、本アプリは保持しません"],
+            ["メールアドレス（ログイン用）", "アカウントの作成・ログイン、メール確認、パスワード再設定メールの送信のため。パスワードは Firebase Authentication が管理し、本アプリは保持しません"],
             ["表示名（ニックネーム可）", "冷蔵庫のメンバー表示のため。本名・住所などは集めません"],
             ["冷蔵庫の在庫・買い物リスト・お気に入り・家族人数・レシピのお気に入り", "アプリの機能（在庫・期限管理、買い物リスト、レシピ提案）のため"],
             ["フレンドコード（招待コード）", "同じ冷蔵庫への参加確認のため。データベースには照合用の形でのみ保存します"],
@@ -62,8 +60,9 @@ export function legalDocs(info = LEGAL_INFO) {
         {
           heading: "保存場所と保管",
           lines: [
-            "データとログインは Firebase（Google のサービス、無料プラン）、公開は Firebase Hosting または Cloudflare Pages を使います。通信はすべて HTTPS です。",
+            "データとログインは Firebase（Google のサービス、無料プラン）を使い、アプリの公開は GitHub Pages を使います。通信はすべて HTTPS です。",
             "食材の写真は扱いません（写真機能はありません）。登録した文字情報だけを保存します。",
+            "オフラインの間も、端末内に保存されたデータで閲覧・登録ができます。変更は端末に一時保存され、再接続時に自動で同期されます。ただし、冷蔵庫の作成・参加など一部の操作はオンライン時のみ可能です。",
             "デモモード（接続情報が未設定の状態）では、データはその端末のブラウザ内にだけ保存され、外部には送られません。",
           ],
         },

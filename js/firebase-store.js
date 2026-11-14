@@ -89,6 +89,7 @@ export class FirebaseStore {
       createUserWithEmailAndPassword: authM.createUserWithEmailAndPassword,
       signInWithEmailAndPassword: authM.signInWithEmailAndPassword,
       sendEmailVerification: authM.sendEmailVerification,
+      sendPasswordResetEmail: authM.sendPasswordResetEmail,
       updateProfile: authM.updateProfile,
       onAuthStateChanged: authM.onAuthStateChanged,
       signOut: authM.signOut,
@@ -130,6 +131,10 @@ export class FirebaseStore {
     } catch {
       throw new Error("メールアドレスまたはパスワードが違います");
     }
+  }
+  async resetPassword(email) {
+    const { sendPasswordResetEmail } = this._mods;
+    await sendPasswordResetEmail(this.auth, String(email || "").trim());
   }
   async signOut() { this._userCache = null; await this._mods.signOut(this.auth); }
   async currentUser() {
