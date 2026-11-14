@@ -24,8 +24,12 @@ import { daysUntil, expiryLabel, todayISO } from "./util.js";
 
 export const NOTIFY_STAMP_KEY = "wagaya_notify_last_v1";
 
-/** 通知すべき内容を在庫から組み立てる（純粋関数・テスト対象） */
-export function buildReminders(items, today = todayISO()) {
+/** 通知すべき内容を在庫から組み立てる（純粋関数・テスト対象）
+ * options.expiryEnabled === false のときは期限通知を出さない
+ * （消費期限の管理 OFF。app.js の expiryEnabled() から渡される）。
+ * 未指定は ON 扱い（従来動作）。 */
+export function buildReminders(items, today = todayISO(), options = {}) {
+if (options && options.expiryEnabled === false) return [];
 const reminders = [];
 for (const item of items || []) {
 const d = daysUntil(item.expiryDate);
@@ -53,7 +57,8 @@ return g.Notification.permission; // "granted" | "denied" | "default"
 /**
 * アプリを開いたときのローカル通知。
 * deps でテスト用の差し替えができるようにしてある:
-* { permission, show(title, options), storage, today}
+* { permission, show(title, options), storage, today, expiryEnabled }
+* expiryEnabled === false のときは期限通知を送らない（消費期限 OFF）。
 * 戻り値: { sent: boolean, reason?: string, count?: number}
 */
 export async function notifyOnOpen(items, deps = {}) {
@@ -62,7 +67,7 @@ const today = deps.today || todayISO();
 const permission = deps.permission?? permissionState();
 if (permission === "unsupported") return { sent: false, reason: "unsupported"};
 if (permission!== "granted") return { sent: false, reason: "not_granted"};
-const reminders = buildReminders(items, today);
+const reminders = buildReminders(items, today, { expiryEnabled: deps.expiryEnabled });
 if (reminders.length === 0) return { sent: false, reason: "no_reminders"};
 try {
 if (storage?.getItem(NOTIFY_STAMP_KEY) === today) return { sent: false, reason: "already_today"};

@@ -317,7 +317,7 @@ function bodyHintQuestion(target, info, pool, rng) {
   const choices = shuffled([target.name, ...others], rng);
   return withFact({
     name: target.name, category: target.category, type: "bodyhint",
-    q: `ヒント：体への はたらき…「${hint}」この たべものは なーんだ？`,
+    q: `ヒント：からだに いいこと…「${hint}」この たべものは なーんだ？`,
     choices,
     answer: choices.indexOf(target.name),
     explain: `正解は『${target.name}』！ 旬は「${info.season}」。${info.choose}`,

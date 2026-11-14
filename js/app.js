@@ -13,7 +13,8 @@
 // - 参加用リンク ?join=<code> を受けたら、コードを sessionStorage に退避し、
 //   ログイン完了後に自動で参加を試みる（URL の履歴からは即座に消す）。
 
-import { el, uid, todayISO, daysUntil, formatDate, expiryLabel, expiryGroup, expiryChipClass, formatCode, fmtQtyValue, qtyStepFor, roundQty, isFractionUnit, matchesSearch, topPurchased, recentRegistered, oneTapCandidates, inListQuantity, planOneTapAdd, RECIPE_QUICK_FILTERS, matchesRecipeFilter, filterRecipes, STORAGE_ZONES, STORAGE_ZONE_ALL, countByStorage, filterByStorage, suggestStorage, UNIT_OPTIONS, UNIT_OTHER_VALUE, unitSelectValueFor, resolveUnitValue, upsertTodayMenuEntry, removeTodayMenuEntry, groupTodayMenuEntries, mergeMissingIngredients, isAppShellCacheName, userErrorMessage, FRIDGE_NAME_MAX } from "./util.js";
+import { el, uid, todayISO, daysUntil, formatDate, expiryLabel, expiryGroup, expiryChipClass, formatCode, fmtQtyValue, qtyStepFor, roundQty, isFractionUnit, matchesSearch, topPurchased, recentRegistered, oneTapCandidates, inListQuantity, planOneTapAdd, usualQtyUnitFor, storageOf, RECIPE_QUICK_FILTERS, matchesRecipeFilter, filterRecipes, STORAGE_ZONES, STORAGE_ZONE_ALL, countByStorage, filterByStorage, suggestStorage, UNIT_OPTIONS, UNIT_OTHER_VALUE, unitSelectValueFor, resolveUnitValue, upsertTodayMenuEntry, removeTodayMenuEntry, groupTodayMenuEntries, mergeMissingIngredients, isAppShellCacheName, userErrorMessage, FRIDGE_NAME_MAX } from "./util.js";
+import { resolveCanonicalName } from "./names.js";
 import { suggestRecipes, suggestFilteredCatalogue, suggestMealSet, suggestEventMenu, EVENT_MENUS, suggestRegionalMenu, REGIONS, evaluateRecipe, ALL_RECIPES, rankRecipesByIngredients } from "./recipes.js";
 import * as recipesNs from "./recipes.js";
 import { suggestCombos, repertoireSize } from "./combo.js";
@@ -29,7 +30,7 @@ import { legalDocs } from "./legal.js";
 import { buildReminders, notifyOnOpen, permissionState, subscribePush } from "./notify.js";
 import { LOADING_MESSAGES, pickLoadingChars, loadingFactPool, pickLoadingFact, attachCharMotion } from "./loading.js";
 
-const CATEGORIES = ["野菜", "肉", "魚", "卵・乳製品", "豆腐・大豆", "調味料", "乾物・缶詰", "冷凍食品", "飲み物", "果物", "その他"];
+const CATEGORIES = ["野菜", "肉", "魚", "卵・乳製品", "豆腐・大豆", "調味料", "乾物・缶詰", "冷凍食品", "飲み物", "果物", "主食", "その他"];
 // 保管場所の区分（冷蔵庫／冷凍庫／野菜室／常温）は util.js の STORAGE_ZONES が正。
 
 const appRoot = document.getElementById("app");
@@ -117,7 +118,18 @@ const state = {
   legalView: null, // 法的ページ表示中: null | "privacy" | "terms"
   sessionTrash: [], // 本番モード用: この画面で削除した食材（セッション内のみ復元可）
   trash: [], // デモモード用: ストアのゴミ箱（refreshData で読み込む）
+  shoppingCategory: null, // 買い物タブ「カテゴリから選ぶ」で選択中のカテゴリ（保存しない）
+  shoppingEditor: null, // 買い物タブ「カテゴリから選ぶ」の数量エディタ対象 { name, category }（保存しない）
 };
+
+// ---------- 消費期限のオン/オフ設定 ----------
+// 設定レコード（fridge_settings）の expiryEnabled で切り替える。
+// 既定は ON: 未設定（undefined）のときも ON として扱う。
+// OFF のときも食材データの expiryDate は削除しない（表示・入力・通知だけを止め、
+// ON に戻せばすべて復活する）。
+function expiryEnabled() {
+  return state.settings?.expiryEnabled !== false;
+}
 
 // ---- ?join= の受け取り ----
 function captureJoinParam() {
@@ -416,6 +428,11 @@ function syncMenuButton() {
   if (menuBtn) menuBtn.hidden = !(state.user && state.fridge);
 }
 if (menuBtn) menuBtn.addEventListener("click", () => openDrawer());
+// ヘッダーの「最新に更新」ボタン: 設定タブ／ドロワーと同じ forceAppUpdate を
+// そのまま呼ぶ。古い版で固まったときに設定まで辿らなくて済むよう常時表示にし、
+// 押下中は回転アニメーション（.is-updating）で確認中を示す。
+const updateBtn = document.getElementById("update-btn");
+if (updateBtn) updateBtn.addEventListener("click", () => { updateBtn.classList.add("is-updating"); forceAppUpdate(null); });
 function goTab(tab) {
   state.tab = tab; state.knowledgeName = null; state.gameView = false; state.game = null;
   state.suikaView = false; state.recipeDetail = null; state.recipeFilter = "all";
@@ -657,7 +674,8 @@ async function openFridge(fridgeId) {
   }
   setupRealtime();
   // アプリを開いたタイミングのローカル通知（許可済み・1日1回・サーバー不要）
-  notifyOnOpen(state.items).catch(() => {});
+  // 消費期限の管理が OFF のときは期限通知を出さない
+  notifyOnOpen(state.items, { expiryEnabled: expiryEnabled() }).catch(() => {});
   renderMain();
 }
 async function refreshData() {
@@ -1177,11 +1195,13 @@ async function maybeAutoAddShopping(item) {
 
 function renderStockTab() {
   const wrap = el("div", {});
-  // お知らせ
+  // お知らせ（消費期限の管理が OFF のときは期限のお知らせは出さない）
   const alerts = [];
-  for (const item of state.items) {
-    const d = daysUntil(item.expiryDate);
-    if (d !== null && d <= 3) alerts.push(`⏰ 「${item.name}」は${expiryLabel(item.expiryDate)}（${formatDate(item.expiryDate)}）`);
+  if (expiryEnabled()) {
+    for (const item of state.items) {
+      const d = daysUntil(item.expiryDate);
+      if (d !== null && d <= 3) alerts.push(`⏰ 「${item.name}」は${expiryLabel(item.expiryDate)}（${formatDate(item.expiryDate)}）`);
+    }
   }
   if (alerts.length) {
     wrap.append(el("div", { class: "card" }, el("h2", {}, "🔔 お知らせ"),
@@ -1229,20 +1249,36 @@ function renderStockTab() {
 }
 
 // 在庫リスト部分（期限グループ表示）。検索文字列・保管場所フィルタとも組み合わせる。
+// 消費期限の管理が OFF のとき: 期限グループ見出しも期限順ソートもやめ、
+// フォールバック並び（保管場所順 → 名前順 → 登録順）でフラットに並べる。
+// 保管場所チップによる絞り込み（filterByStorage）は OFF でもそのまま効く。
 function stockListNodes() {
   const nodes = [];
   const query = state.stockQuery || "";
   const zone = state.stockZone || STORAGE_ZONE_ALL;
+  const showExpiry = expiryEnabled();
   const groups = [
     ["soon", "すぐ使いたい"], ["week", "今週中に"], ["later", "まだ余裕あり"],
   ];
   const sorted = filterByStorage(state.items, zone)
-    .filter((i) => matchesSearch(i.name, query))
-    .sort((a, b) => {
+    .filter((i) => matchesSearch(i.name, query));
+  if (showExpiry) {
+    sorted.sort((a, b) => {
       const da = daysUntil(a.expiryDate), db = daysUntil(b.expiryDate);
       if (da === null && db === null) return a.name.localeCompare(b.name);
       if (da === null) return 1; if (db === null) return -1; return da - db;
     });
+  } else {
+    // フォールバック並び: 保管場所（STORAGE_ZONES の順）→ 名前 → 登録順（createdAt）
+    const zoneOrder = (item) => {
+      const idx = STORAGE_ZONES.indexOf(storageOf(item));
+      return idx === -1 ? STORAGE_ZONES.length : idx;
+    };
+    sorted.sort((a, b) =>
+      zoneOrder(a) - zoneOrder(b)
+      || a.name.localeCompare(b.name)
+      || String(a.createdAt || "").localeCompare(String(b.createdAt || "")));
+  }
   if (state.items.length === 0) {
     nodes.push(el("div", { class: "card" }, el("p", { class: "empty" }, "まだ食材がありません。\n上のフォームから登録してみましょう。")));
     return nodes;
@@ -1257,6 +1293,11 @@ function stockListNodes() {
   }
   if (query) nodes.push(el("p", { class: "hint" }, `「${query}」の検索結果：${sorted.length}件`));
   else if (zone !== STORAGE_ZONE_ALL) nodes.push(el("p", { class: "hint" }, `${zone}の食材：${sorted.length}件`));
+  if (!showExpiry) {
+    // 期限 OFF: グループ見出しなしでフラットに並べる（並びは上のフォールバック順）
+    for (const item of sorted) nodes.push(renderItemCard(item));
+    return nodes;
+  }
   for (const [key, label] of groups) {
     const rows = sorted.filter((i) => expiryGroup(i.expiryDate) === key);
     if (!rows.length) continue;
@@ -1271,7 +1312,8 @@ function renderItemCard(item) {
   const meta = [
     el("span", { class: "chip" }, item.category),
     el("span", { class: "chip" }, item.storage),
-    item.expiryDate ? el("span", { class: "chip expiry-chip " + (expiryChipClass(d) || "") }, `期限 ${formatDate(item.expiryDate)}・${expiryLabel(item.expiryDate)}`) : null,
+    // 消費期限の管理が OFF のときは期限チップを出さない（データ自体は保持する）
+    (expiryEnabled() && item.expiryDate) ? el("span", { class: "chip expiry-chip " + (expiryChipClass(d) || "") }, `期限 ${formatDate(item.expiryDate)}・${expiryLabel(item.expiryDate)}`) : null,
   ];
   const iconTile = iconEl(item.name, item.category);
   iconTile.classList.add("tile");
@@ -1379,7 +1421,7 @@ function renderAddItemForm() {
   name.addEventListener("input", updateNamePreview);
   category.addEventListener("change", updateNamePreview);
   if (state.presetAdd) { // 図鑑からの下書きを反映（1回だけ使う）
-    name.value = state.presetAdd.name;
+    name.value = resolveCanonicalName(state.presetAdd.name);
     if (CATEGORIES.includes(state.presetAdd.category)) category.value = state.presetAdd.category;
     if (state.presetAdd.unit) unitPicker.setValue(state.presetAdd.unit);
     state.presetAdd = null;
@@ -1435,6 +1477,8 @@ function renderAddItemForm() {
       quickChip(i.name, "", () => applyQuickPick(i.name, i.category, i.unit)))));
   }
   const quickBox = quickKids.length ? el("div", { class: "quick-box" }, ...quickKids) : null;
+  // 消費期限の管理が OFF のときは期限入力欄自体を出さず、登録も expiryDate: null にする
+  const showExpiry = expiryEnabled();
   const form = el("div", { class: "card" },
     el("h2", {}, "＋ 食材を登録"),
     quickBox,
@@ -1444,7 +1488,7 @@ function renderAddItemForm() {
       el("div", {}, el("label", {}, "保管場所"), storageSel),
       el("div", {}, el("label", {}, "数量"), qty),
       el("div", {}, el("label", {}, "単位"), ...unitPicker.nodes),
-      el("div", {}, el("label", {}, "賞味・消費期限"), expiry),
+      showExpiry ? el("div", {}, el("label", {}, "賞味・消費期限"), expiry) : null,
     ),
     fracRow,
     el("p", { class: "hint" }, "白菜・キャベツなどの頭野菜は、単位を「玉」にすると半玉（1/2）・1/4玉・3/4玉のような分数で登録できます。"),
@@ -1455,8 +1499,8 @@ function renderAddItemForm() {
         try {
           const beforeCounts = catalogCountsBefore();
           const item = await store.addItem(state.user.id, state.fridge.id, {
-            name: name.value.trim(), category: category.value, quantity: roundQty(Number(qty.value) || 1),
-            unit: unitPicker.getValue(), expiryDate: expiry.value || null, storage: storageSel.value,
+            name: resolveCanonicalName(name.value.trim()), category: category.value, quantity: roundQty(Number(qty.value) || 1),
+            unit: unitPicker.getValue(), expiryDate: showExpiry ? (expiry.value || null) : null, storage: storageSel.value,
             isFavorite: fav.checked,
           });
           await refreshData(); renderMain();
@@ -1596,12 +1640,154 @@ async function oneTapAddToShopping(entry) {
       toast(`「${entry.name}」はすでにリストにあるので、数量を増やしました（${fmtQtyValue(plan.quantity, plan.unit)}${plan.unit}）`);
     } else {
       await store.addShopping(state.user.id, state.fridge.id, {
-        name: entry.name, quantity: plan.quantity, unit: plan.unit, source: "onetap",
+        name: resolveCanonicalName(entry.name), quantity: plan.quantity, unit: plan.unit, source: "onetap",
       });
       toast(`「${entry.name}」を買い物リストに追加しました`);
     }
     await refreshData(); renderMain();
   } catch (e) { toast(userErrorMessage(e)); }
+}
+// ---------- カテゴリから選ぶ（買い物） ----------
+// 図鑑と同じカテゴリ構造でカタログ食材を辿れる買い物導線。
+// カテゴリは図鑑の表示グループ（激レア／レア）ではなく、食材の
+// アプリ内カテゴリ（categoryOf / catalogCategories）を使う。
+// 同じ食材名がカタログに複数回出る場合は最初のカテゴリで1回だけ出す。
+function shoppingCatalogByCategory() {
+  const byCat = new Map();
+  const seen = new Set();
+  for (const [, , names] of CATALOG) {
+    for (const n of names) {
+      if (seen.has(n)) continue;
+      seen.add(n);
+      const c = categoryOf(n);
+      if (!c) continue;
+      if (!byCat.has(c)) byCat.set(c, []);
+      byCat.get(c).push(n);
+    }
+  }
+  return byCat;
+}
+// カテゴリブラウズからの追加: ワンタップ追加と同じ計画（planOneTapAdd）で、
+// すでにリストに同名があれば数量を増やし、無ければ source: "manual" で新規追加する。
+async function addCatalogItemToShopping(entry) {
+  const plan = planOneTapAdd(state.shopping, entry);
+  try {
+    if (plan.action === "increment") {
+      await store.updateShopping(state.user.id, plan.rowId, { quantity: plan.quantity });
+      toast(`「${entry.name}」はすでにリストにあるので、数量を増やしました（${fmtQtyValue(plan.quantity, plan.unit)}${plan.unit}）`);
+    } else {
+      await store.addShopping(state.user.id, state.fridge.id, {
+        name: resolveCanonicalName(entry.name), quantity: plan.quantity, unit: plan.unit, source: "manual",
+      });
+      toast(`「${entry.name}」を買い物リストに追加しました`);
+    }
+    state.shoppingEditor = null;
+    await refreshData(); renderMain();
+  } catch (e) { toast(userErrorMessage(e)); }
+}
+function renderShopBrowseCard() {
+  const byCat = shoppingCatalogByCategory();
+  const categories = catalogCategories().filter((c) => byCat.has(c));
+  const selected = state.shoppingCategory && byCat.has(state.shoppingCategory)
+    ? state.shoppingCategory : null;
+  const card = el("div", { class: "card shop-browse-card" },
+    el("h2", {}, "🗂 カテゴリから選ぶ"),
+    el("p", { class: "hint" }, "カテゴリを選ぶと食材が並びます。食材をタップすると数量を選んで買い物リストに追加できます。"),
+    el("div", { class: "shop-cat-row", role: "tablist", "aria-label": "カテゴリを選ぶ" },
+      categories.map((c) => el("button", {
+        type: "button", role: "tab",
+        class: selected === c ? "active" : "",
+        "aria-selected": selected === c ? "true" : "false",
+        onclick: () => {
+          state.shoppingCategory = c;
+          state.shoppingEditor = null;
+          renderMain();
+        },
+      }, c, el("span", { class: "cat-count" }, String(byCat.get(c).length))))),
+  );
+  if (!selected) {
+    card.append(el("p", { class: "hint" }, "上のカテゴリを選んでください。"));
+    return card;
+  }
+  const names = byCat.get(selected) || [];
+  card.append(el("div", { class: "shop-browse-grid" }, names.map((name) => {
+    const inQty = inListQuantity(state.shopping, name);
+    const inRow = state.shopping.find((s) => s.name === name && !s.isChecked);
+    const inUnit = inRow ? (inRow.unit || "") : "";
+    const isEditing = state.shoppingEditor && state.shoppingEditor.name === name;
+    return el("button", {
+      type: "button",
+      class: "shop-browse-item" + (inQty > 0 ? " in-list" : "") + (isEditing ? " editing" : ""),
+      onclick: () => {
+        state.shoppingEditor = { name, category: categoryOf(name) || selected };
+        renderMain();
+      },
+    },
+      iconEl(name, categoryOf(name) || selected),
+      el("span", { class: "shop-browse-name" }, name),
+      inQty > 0 ? el("span", { class: "onetap-badge" }, `リストに ${fmtQtyValue(inQty, inUnit)}${inUnit}`) : null,
+    );
+  })));
+  // 数量・単位エディタ（タップした食材だけ、グリッドの下に開く）
+  if (state.shoppingEditor) {
+    const ed = state.shoppingEditor;
+    // エディタ対象が今のカテゴリに無い場合は出さない（カテゴリ切替時に残らない）
+    if (names.includes(ed.name)) {
+      const defaults = usualQtyUnitFor(ed.name, state.items);
+      const qtyInput = el("input", {
+        type: "number", value: String(defaults.quantity), min: "0", step: "0.25",
+        "aria-label": `${ed.name}の数量`,
+      });
+      const unitPicker = createUnitPicker();
+      // いつもの単位が無ければ createUnitPicker の既定（「個」）を妥当な単位として使う
+      unitPicker.setValue(defaults.unit || "");
+      const syncQtyStep = () => { qtyInput.step = String(qtyStepFor(unitPicker.getValue())); };
+      unitPicker.onChange = syncQtyStep;
+      syncQtyStep();
+      const stepQty = (delta) => {
+        const step = qtyStepFor(unitPicker.getValue());
+        const cur = Number(qtyInput.value);
+        const base = Number.isFinite(cur) && cur > 0 ? cur : 0;
+        qtyInput.value = String(Math.max(step, roundQty(base + delta * step)));
+      };
+      const inQty = inListQuantity(state.shopping, ed.name);
+      const inRow = state.shopping.find((s) => s.name === ed.name && !s.isChecked);
+      const inUnit = inRow ? (inRow.unit || "") : "";
+      card.append(el("div", { class: "shop-editor" },
+        el("div", { class: "shop-editor-head" },
+          iconEl(ed.name, ed.category),
+          el("span", { class: "grow shop-editor-name" }, ed.name),
+          el("button", {
+            type: "button", class: "icon-btn", "aria-label": "閉じる",
+            onclick: () => { state.shoppingEditor = null; renderMain(); },
+          }, "✕"),
+        ),
+        inQty > 0
+          ? el("p", { class: "hint" }, `すでに買い物リストに ${fmtQtyValue(inQty, inUnit)}${inUnit} 入っています。「リストに追加」を押すと数量が増えます。`)
+          : el("p", { class: "hint" }, `いつもの数量は ${fmtQtyValue(defaults.quantity, defaults.unit)}${defaults.unit} です。変えたいときは下で調整してください。`),
+        el("label", {}, "数量"),
+        el("div", { class: "qty-ctrl shop-editor-qty" },
+          el("button", { type: "button", class: "qty-btn", onclick: () => stepQty(-1) }, "−"),
+          qtyInput,
+          el("button", { type: "button", class: "qty-btn", onclick: () => stepQty(1) }, "+"),
+        ),
+        el("label", {}, "単位"),
+        ...unitPicker.nodes,
+        el("button", {
+          type: "button", class: "btn wide",
+          onclick: () => {
+            const q = Number(qtyInput.value);
+            addCatalogItemToShopping({
+              name: ed.name,
+              quantity: Number.isFinite(q) && q > 0 ? roundQty(q) : 1,
+              unit: unitPicker.getValue(),
+            });
+          },
+        }, "リストに追加"),
+      ));
+    }
+  }
+  return card;
 }
 function renderShoppingTab() {
   const wrap = el("div", {});
@@ -1644,6 +1830,8 @@ function renderShoppingTab() {
     el("p", { class: "hint" }, "タップするだけで、いつもの数量・単位で買い物リストに入ります。すでにリストにあるものは数量が増えます。"),
     ...oneTapKids,
   ));
+  // カテゴリから選ぶ（図鑑と同じカテゴリ構造でカタログから辿る）
+  wrap.append(renderShopBrowseCard());
   wrap.append(el("div", { class: "card" },
     el("h2", {}, "🛒 買い物リスト"),
     state.shopping.length === 0
@@ -1670,7 +1858,7 @@ function renderShoppingTab() {
                   }
                 } else {
                   await store.addItem(state.user.id, state.fridge.id, {
-                    name: s.name, category: rarityCategory(s.name) || "その他", quantity: Number(s.quantity) || 1, unit: s.unit || "",
+                    name: resolveCanonicalName(s.name), category: rarityCategory(s.name) || "その他", quantity: Number(s.quantity) || 1, unit: s.unit || "",
                     expiryDate: null, storage: "冷蔵庫", isFavorite: false,
                   });
                 }
@@ -1694,7 +1882,7 @@ function renderShoppingTab() {
     el("button", {
       class: "btn secondary wide", onclick: async () => {
         if (!name.value.trim()) { toast("買うものを入力してください"); return; }
-        await store.addShopping(state.user.id, state.fridge.id, { name: name.value.trim(), quantity: 1, unit: unitPicker.getValue(), source: "manual" });
+        await store.addShopping(state.user.id, state.fridge.id, { name: resolveCanonicalName(name.value.trim()), quantity: 1, unit: unitPicker.getValue(), source: "manual" });
         await refreshData(); renderMain();
       },
     }, "リストに追加"),
@@ -1862,7 +2050,9 @@ function fifoNote(ing) {
   const f = ing.fifo;
   if (!f) return "";
   const parts = [];
-  if (f.expiryDate) parts.push(`期限 ${formatDate(f.expiryDate)} の分から`);
+  // 消費期限の管理が OFF のときは期限日付の詳細だけを隠し、購入順の案内に倒す
+  // （レシピ内部の消費順＝FIFO そのものは OFF でも変えない）
+  if (f.expiryDate && expiryEnabled()) parts.push(`期限 ${formatDate(f.expiryDate)} の分から`);
   else if (f.registeredAt) parts.push(`${formatDate(f.registeredAt)} に買った分から`);
   if (f.lotCount > 1) parts.push(`在庫${f.lotCount}件中`);
   return parts.length ? `（${parts.join("・")}）` : "";
@@ -2619,7 +2809,7 @@ function renderSettingsTab() {
           if (result === "granted") {
             toast("通知をONにしました");
             await maybeSubscribePush();
-            await notifyOnOpen(state.items).catch(() => {});
+            await notifyOnOpen(state.items, { expiryEnabled: expiryEnabled() }).catch(() => {});
           } else {
             toast("通知は許可されませんでした");
           }
@@ -2631,13 +2821,16 @@ function renderSettingsTab() {
   if (perm === "granted") {
     notifyCard.append(el("button", {
       class: "btn secondary wide", onclick: async () => {
-        if (!buildReminders(state.items).length) {
-          toast("今は通知する内容がありません（期限3日以内の食材なし）");
+        if (!buildReminders(state.items, undefined, { expiryEnabled: expiryEnabled() }).length) {
+          toast(expiryEnabled()
+            ? "今は通知する内容がありません（期限3日以内の食材なし）"
+            : "消費期限の管理がOFFのため、期限通知はありません");
           return;
         }
         // テスト送信: その日の「送信済み」記録を無視して1回だけ送る
         await notifyOnOpen(state.items, {
           permission: "granted",
+          expiryEnabled: expiryEnabled(),
           storage: { getItem: () => null, setItem: () => {} },
         }).catch(() => {});
         toast("テスト通知を送りました");
@@ -2719,6 +2912,26 @@ function renderSettingsTab() {
       el("button", { class: "qty-btn", onclick: () => setFamilySize(size - 1) }, "−"),
       el("span", { class: "num" }, `${size}人分`),
       el("button", { class: "qty-btn", onclick: () => setFamilySize(size + 1) }, "+"),
+    ),
+    // 消費期限の管理 ON/OFF（設定レコードの expiryEnabled。OFF でも期限データは消さない）
+    el("div", { class: "fridge-row expiry-toggle-row" },
+      el("span", { class: "grow" },
+        el("span", {}, "消費期限の管理"),
+        el("span", { class: "hint", style: "display:block" }, expiryEnabled()
+          ? "ON：期限の入力・表示・お知らせ・通知を使います"
+          : "OFF：期限の入力・表示・お知らせ・通知を止めます（保存済みの期限は消えません）")),
+      el("button", {
+        class: "btn small " + (expiryEnabled() ? "" : "secondary"),
+        "aria-pressed": expiryEnabled() ? "true" : "false",
+        onclick: async () => {
+          const next = !expiryEnabled();
+          try {
+            state.settings = await store.updateSettings(state.user.id, fridge.id, { expiryEnabled: next });
+            renderMain();
+            toast(next ? "消費期限の管理をONにしました" : "消費期限の管理をOFFにしました");
+          } catch (e) { toast(userErrorMessage(e)); }
+        },
+      }, expiryEnabled() ? "ON" : "OFF"),
     ),
     el("button", { class: "btn secondary wide", onclick: () => { stopRealtime(); state.fridge = null; renderFridgePicker(); } }, "別の冷蔵庫に切り替える"),
     !isOwner ? el("button", {

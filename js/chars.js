@@ -19,6 +19,8 @@
 //   キーワード解決では再利用しない（別食材への流用防止）。
 // 画像が無い食材は、絵なしの仮表示にする（Web版SVGイラストは食材キャラとして使わない）。
 
+import { resolveCanonicalName } from "./names.js";
+
 /** キャラ画像の置き場所（index.html からの相対パス） */
 export const CHAR_DIR = "img/chars/";
 
@@ -954,6 +956,65 @@ export const CHAR_BY_NAME = {
  "おはぎ": "ohagi.webp",
  "最中": "monaka.webp",
 
+  "鶏皮": "torikawa.webp",
+  "豚トロ": "butatoro.webp",
+  "手羽中": "tebanaka.webp",
+  "鶏軟骨": "torinankotsu.webp",
+  "にしん": "nishin.webp",
+  "ハタハタ": "hatahata.webp",
+  "ます": "masu.webp",
+  "あんこう": "ankou.webp",
+  "スキムミルク": "skimmilk.webp",
+  "天ぷら粉": "tempurako.webp",
+  "くるみ": "kurumi.webp",
+  "アーモンド": "almond.webp",
+  "カシューナッツ": "cashew.webp",
+  "ピーナッツ": "peanuts.webp",
+  "松の実": "matsunomi.webp",
+  "ミックスナッツ": "mixednuts.webp",
+  "かんぴょう": "kanpyo.webp",
+  "干しえび": "hoshiebi.webp",
+  "桜えび": "sakuraebi.webp",
+  "桜の葉": "sakuranoha.webp",
+  "桜の花": "sakurahana.webp",
+  "冷凍むきえび": "reitoumukiebi.webp",
+  "冷凍あさり": "reitouasari.webp",
+  "ほうじ茶": "hojicha.webp",
+  "ウーロン茶": "oolongcha.webp",
+  "いよかん": "iyokan.webp",
+  "きりたんぽ": "kiritanpo.webp",
+  "カップ麺": "cupmen.webp",
+  "ポテトチップス": "potatochips.webp",
+  "クッキー": "cookie.webp",
+  "ビスケット": "biscuit.webp",
+  "せんべい": "senbei.webp",
+  "マシュマロ": "marshmallow.webp",
+  "キャンディ": "candy.webp",
+  "グミ": "gumi.webp",
+  "ポップコーン": "popcorn.webp",
+  "ドーナツ": "donuts.webp",
+  "ケール": "kale.webp",
+  "サラダ菜": "saladana.webp",
+  "ロメインレタス": "romaine.webp",
+  "紫キャベツ": "murasakikyabetsu.webp",
+  "つるむらさき": "tsurumurasaki.webp",
+  "ビーツ": "beets.webp",
+  "ゆりね": "yurine.webp",
+  "くわい": "kuwai.webp",
+  "芽キャベツ": "mekyabetsu.webp",
+  "ロマネスコ": "romanesco.webp",
+  "スティックセニョール": "stickseniol.webp",
+  "ホワイトアスパラガス": "whiteasparagus.webp",
+  "バターナッツかぼちゃ": "butternut.webp",
+  "ひらたけ": "hiratake.webp",
+  "本しめじ": "honshimeji.webp",
+  "にんにくの芽": "ninnikunome.webp",
+  "わけぎ": "wakegi.webp",
+  "赤しそ": "akashiso.webp",
+  "新生姜": "shinshoga.webp",
+  "大豆もやし": "daizumoyashi.webp",
+  "ブロッコリースプラウト": "broccolisprout.webp",
+  "アルファルファ": "alfalfa.webp",
 };
 
 /** CHAR_BY_NAME が使用中のファイル（別食材への再利用を禁止するため） */
@@ -985,6 +1046,18 @@ export const CHAR_ALIASES = {
   // ベビーチーズはカタログから除外されたが、既に在庫登録した家庭で名前引きしたときに
   // 専用キャラのまま表示できるよう別名として残す（カタログには載せない）。
   "ベビーチーズ": "babycheese.webp",
+  // 野菜の一般名・略称（Task BE, 2026-11-14）。キーワード解決は CLAIMED ガードで
+  // カタログ品のファイルに届かないため、素の呼び名は別名で明示的に解決する。
+  "ねぎ": "negi.webp", // ねぎ＝長ねぎ（ユーザーの在庫スクショで "?" になっていた）
+  "白ねぎ": "negi.webp", // 白ねぎは長ねぎの別名
+  "万能ねぎ": "konegi.webp", // 万能ねぎは小ねぎの商品名（そのもの）
+  "アスパラ": "asparagus.webp",
+  "いんげん": "sayingen.webp",
+  "さやえんどう": "kinusaya.webp",
+  "しそ": "shiso.webp", // しそ＝大葉
+  "かいわれ": "kaiware.webp",
+  "とうがん": "tougan.webp",
+  "ぎんなん": "ginnan.webp",
   // やさいあわせゲームの最終段階名（ゲーム専用キャラ。進化図鑑など
   // 名前引きで表示される箇所にも同じ絵を出すため）
   "やさいバスケット": "vegbasket.webp",
@@ -1004,8 +1077,11 @@ export function museCharKeyFor(name) {
  * 食材名 → ミュゼ版キャラ画像のURL。無い場合は null（表示側で仮表示にする）。
  */
 export function charUrlFor(name) {
-  const n = String(name || "");
-  if (!n) return null;
+  const raw = String(name || "");
+  if (!raw) return null;
+  // 表記ゆれ（ネギ・玉葱・たまご等）は正規名に解決してから引く（names.js）。
+  // 正規名・未知の名前はそのまま返るので、従来の解決順は変わらない。
+  const n = resolveCanonicalName(raw);
   if (CHAR_BY_NAME[n]) return CHAR_DIR + CHAR_BY_NAME[n];
   if (CHAR_ALIASES[n]) return CHAR_DIR + CHAR_ALIASES[n];
   const key = museCharKeyFor(n);

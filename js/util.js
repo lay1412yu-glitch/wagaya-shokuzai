@@ -4,6 +4,8 @@
 //   ここでは DOM 生成ヘルパー el() を提供し、app.js はこれを使う。
 // - 招待コードやパスワードは平文で保存せず、照合はハッシュで行う。
 
+import { resolveCanonicalName } from "./names.js";
+
 export function uid() {
   if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
   return "id-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 10);
@@ -140,7 +142,8 @@ export function isAppShellCacheName(name) {
 // ---- 在庫検索（カナの揺れを吸収する正規化） ----
 // カタカナ→ひらがな化＋小文字化＋空白除去をしてから、名前同士を部分一致で比べる。
 // 例: 検索「きゃべつ」は登録名「キャベツ」に一致する（表記ゆれを吸収）。
-//     ※ 読みでの検索ではないため、検索「たまご」は登録名「卵」には一致しない。
+//     ※ 表記ゆれ（漢字／かな／カタカナ）は names.js の正規化で吸収する:
+//        検索「玉葱」は登録名「玉ねぎ」に、検索「たまご」は登録名「卵」に一致する。
 export function normalizeForSearch(text) {
   return String(text || "")
     .toLowerCase()
@@ -150,7 +153,15 @@ export function normalizeForSearch(text) {
 export function matchesSearch(name, query) {
   const q = normalizeForSearch(query);
   if (!q) return true;
-  return normalizeForSearch(name).includes(q);
+  const rawName = String(name || "");
+  if (normalizeForSearch(rawName).includes(q)) return true;
+  // 表記ゆれは両側を正規名に解決してから比べる（玉葱⇔玉ねぎ、たまご⇔卵）。
+  // 正規化は完全一致の別表記だけに効くので、部分一致の従来動作は変わらない。
+  const rawQuery = String(query || "").trim();
+  const rn = resolveCanonicalName(rawName);
+  const rq = resolveCanonicalName(rawQuery);
+  if (rn === rawName && rq === rawQuery) return false;
+  return normalizeForSearch(rn).includes(normalizeForSearch(rq)) || normalizeForSearch(rn).includes(q);
 }
 
 // ---- よく買うもの／最近登録したもの（ワンタップ再登録用） ----

@@ -507,13 +507,30 @@ export class FirebaseStore {
   async getSettings(userId, fridgeId) {
     try {
       const snap = await this._mods.getDoc(this._mods.doc(this.db, "fridge_settings", fridgeId));
-      return { familySize: snap.exists() ? (snap.data().familySize ?? 2) : 2 };
+      if (!snap.exists()) return { familySize: 2 };
+      const data = snap.data() || {};
+      const out = { familySize: data.familySize ?? 2 };
+      // expiryEnabled は未設定なら含めない（app.js 側で undefined = ON 扱い）
+      if (data.expiryEnabled !== undefined) out.expiryEnabled = data.expiryEnabled;
+      return out;
     } catch { return { familySize: 2 }; }
   }
   async updateSettings(userId, fridgeId, patch) {
     const fs = this._mods;
-    await fs.setDoc(fs.doc(this.db, "fridge_settings", fridgeId), { familySize: patch.familySize }, { merge: true });
-    return { familySize: patch.familySize };
+    // patch に含まれるキーだけを merge 書き込みする（familySize のみの
+    // 従来動作はそのまま。expiryEnabled があれば一緒に永続化する）。
+    const docData = {};
+    if (patch && patch.familySize !== undefined) docData.familySize = patch.familySize;
+    if (patch && patch.expiryEnabled !== undefined) docData.expiryEnabled = !!patch.expiryEnabled;
+    if (Object.keys(docData).length === 0) {
+      try { return await this.getSettings(userId, fridgeId); } catch { return { familySize: 2 }; }
+    }
+    await fs.setDoc(fs.doc(this.db, "fridge_settings", fridgeId), docData, { merge: true });
+    // マージ後の設定全体を返す（片方を更新しても他方が state から消えないように）
+    try {
+      const current = await this.getSettings(userId, fridgeId);
+      return { ...current, ...docData };
+    } catch { return { ...docData }; }
   }
 
   // ---- 今日の献立ボード ----

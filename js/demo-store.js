@@ -392,6 +392,8 @@ export class DemoStore {
   async updateSettings(userId, fridgeId, patch) {
     const db = this._load();
     this._assertMember(db, userId, fridgeId);
+    // patch のスプレッドで familySize も expiryEnabled もそのまま保存される
+    // （expiryEnabled: 消費期限のオン/オフ。未設定は app.js 側で ON 扱い）
     db.settings[fridgeId] = { ...(db.settings[fridgeId] || { familySize: 2 }), ...patch };
     this._save(db);
     return { ...db.settings[fridgeId] };
