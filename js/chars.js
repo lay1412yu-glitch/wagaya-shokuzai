@@ -271,8 +271,11 @@ export const GENERIC_CHAR_KEYS = new Set(["leafy", "fish", "meat", "box", "can",
 /** 図鑑カタログ食材名 → キャラファイル（314/314品。うち39品＋追加100品中の68品はミュゼ風に新規作成した専用キャラ、追加100品中の32品はミュゼ版のその食材専用アートを採用） */
 export const CHAR_BY_NAME = {
   // ---------- Task BX 小売監査拡充（2026-11-14・155品） ----------
-  "ハラミ": "harami.webp",
-  "サガリ": "sagari.webp",
+  "牛ハラミ": "harami.webp",
+  "牛サガリ": "sagari.webp",
+  "豚ハラミ": "butaharami.webp",
+  "鶏ハラミ": "toriharami.webp",
+  "豚サガリ": "butasagari.webp",
   "サーロイン": "sirloin.webp",
   "リブロース": "ribroast.webp",
   "ランプ": "rump.webp",
@@ -1013,7 +1016,7 @@ export const CHAR_BY_NAME = {
  "鴨肉": "kamo.webp",
  "砂肝": "sunagimo.webp",
  "豚レバー": "butareba.webp",
- "ハツ": "hatsu.webp",
+ "鶏ハツ": "hatsu.webp",
  "牛すじ": "gyusuji.webp",
  "豚足": "tonsoku.webp",
  "サラミ": "salami.webp",

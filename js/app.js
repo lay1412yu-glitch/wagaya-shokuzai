@@ -30,7 +30,7 @@ import { legalDocs } from "./legal.js";
 import { buildReminders, notifyOnOpen, permissionState, subscribePush } from "./notify.js";
 import { LOADING_MESSAGES, pickLoadingChars, loadingFactPool, pickLoadingFact, attachCharMotion, fitLoadingChar } from "./loading.js";
 
-const CATEGORIES = ["野菜", "肉", "魚", "卵・乳製品", "豆腐・大豆", "調味料", "乾物・缶詰", "冷凍食品", "飲み物", "果物", "主食", "その他"];
+const CATEGORIES = ["野菜", "牛肉", "豚肉", "鶏肉", "その他の肉", "魚", "卵・乳製品", "豆腐・大豆", "調味料", "乾物・缶詰", "冷凍食品", "飲み物", "果物", "主食", "その他"];
 // 保管場所の区分（冷蔵庫／冷凍庫／野菜室／常温）は util.js の STORAGE_ZONES が正。
 
 const appRoot = document.getElementById("app");
@@ -1012,7 +1012,10 @@ function gamePool() {
   for (const [, c, ns] of CATALOG) for (const n of ns) if (!catOf.has(n)) catOf.set(n, c);
   const collected = [...collectedByCanonicalName(state.catalog).values()].map((c) => ({
     name: c.name,
-    category: c.category || catOf.get(c.name) || rarityCategory(c.name) || "その他",
+    // カテゴリは保存値ではなくカタログから引く（肉の分割など、カテゴリの
+    // 見直しが既存の記録にも読み取り時で反映されるように。カタログ外の
+    // 名前だけ保存値にフォールバックする）
+    category: categoryOf(c.name) || c.category || "その他",
   }));
   const seen = new Set(collected.map((p) => p.name));
   const rest = [...catOf.entries()]
@@ -1588,7 +1591,9 @@ function renderEditItemForm(item) {
   const name = el("input", { type: "text", value: item.name, "aria-label": "食材名" });
   const category = el("select", { "aria-label": "カテゴリ" },
     CATEGORIES.map((c) => el("option", { value: c }, c)));
-  category.value = CATEGORIES.includes(item.category) ? item.category : "その他";
+  // 表示カテゴリは保存値より先にカタログから引く（カテゴリ見直しへの追随）
+  const initCategory = categoryOf(item.name) || item.category;
+  category.value = CATEGORIES.includes(initCategory) ? initCategory : "その他";
   const qty = el("input", { type: "number", value: String(item.quantity), min: "0", step: "0.25", "aria-label": "数量" });
   const unitPicker = createUnitPicker();
   unitPicker.setValue(item.unit || "");
@@ -1657,6 +1662,10 @@ function renderEditItemForm(item) {
 
 function renderItemCard(item) {
   const d = daysUntil(item.expiryDate);
+  // カテゴリ表示は保存値ではなくカタログから引く（肉→牛/豚/鶏などの
+  // カテゴリ見直しが、移行なしで既存ロットにも読み取り時で反映される。
+  // カタログ外の名前は保存値のまま）
+  const dispCategory = categoryOf(item.name) || item.category || "その他";
   // メタ情報の並びは「期限 → 保管場所 → カテゴリ」: 一番大事な期限を
   // 色つきチップで先頭に、保管場所はチップ、カテゴリは補助情報として
   // 静かなテキストで添え、全部が同じ重さのチップで並ぶノイズを減らす。
@@ -1664,13 +1673,13 @@ function renderItemCard(item) {
     // 消費期限の管理が OFF のときは期限チップを出さない（データ自体は保持する）
     (expiryEnabled() && item.expiryDate) ? el("span", { class: "chip expiry-chip " + (expiryChipClass(d) || "") }, `期限 ${formatDate(item.expiryDate)}・${expiryLabel(item.expiryDate)}`) : null,
     el("span", { class: "chip" }, item.storage),
-    el("span", { class: "item-cat" }, item.category),
+    el("span", { class: "item-cat" }, dispCategory),
   ];
-  const iconTile = iconEl(item.name, item.category);
+  const iconTile = iconEl(item.name, dispCategory);
   iconTile.classList.add("tile");
   iconTile.title = "食材の知識を見る";
   iconTile.style.cursor = "pointer";
-  iconTile.addEventListener("click", () => openKnowledge(item.name, item.category));
+  iconTile.addEventListener("click", () => openKnowledge(item.name, dispCategory));
   // 構造: グリッドの左列=アイコン、右列=名前+チップ、その下の独立行=数量と削除。
   // 1行フレックスに全部並べると固定幅の操作部に名前列が潰され、名前が
   // 1文字ずつ縦に折れる（実機で再発）。操作部は .item-ctrls の行に分離する。
@@ -1892,7 +1901,8 @@ function renderAddItemForm() {
     const known = [...state.items].reverse().find((i) => resolveCanonicalName(i.name) === canon);
     let applied = false;
     if (known) {
-      if (!categoryTouched && CATEGORIES.includes(known.category)) { category.value = known.category; applied = true; }
+      const knownCat = categoryOf(canon) || known.category;
+      if (!categoryTouched && CATEGORIES.includes(knownCat)) { category.value = knownCat; applied = true; }
       syncStorageDefault();
       if (!storageTouched && STORAGE_ZONES.includes(known.storage)) { storageSel.value = known.storage; applied = true; }
       if (!unitTouched && known.unit) {
@@ -1944,7 +1954,7 @@ function renderAddItemForm() {
     quickKids.push(el("div", { class: "quick-row" }, top.map((c) => {
       const known = state.items.find((i) => i.name === c.name);
       return quickChip(c.name, `${c.purchaseCount ?? 1}回`, () =>
-        applyQuickPick(c.name, rarityCategory(c.name) || (known ? known.category : ""), known ? known.unit : "",
+        applyQuickPick(c.name, categoryOf(c.name) || (known ? known.category : ""), known ? known.unit : "",
           known ? known.quantity : undefined, known ? known.isFavorite : undefined));
     })));
   }
@@ -1952,7 +1962,7 @@ function renderAddItemForm() {
   if (recent.length) {
     quickKids.push(el("div", { class: "quick-label" }, "🕘 最近登録したもの"));
     quickKids.push(el("div", { class: "quick-row" }, recent.map((i) =>
-      quickChip(i.name, "", () => applyQuickPick(i.name, i.category, i.unit, i.quantity, i.isFavorite)))));
+      quickChip(i.name, "", () => applyQuickPick(i.name, categoryOf(i.name) || i.category, i.unit, i.quantity, i.isFavorite)))));
   }
   const quickBox = quickKids.length ? el("div", { class: "quick-box" }, ...quickKids) : null;
   // 消費期限の管理が OFF のときは期限入力欄自体を出さず、登録も expiryDate: null にする
@@ -2001,11 +2011,15 @@ function renderAddItemForm() {
 //   （おすすめの場所は色づけするが、登録は場所をタップするまで起きない）。
 //   選んだ場所で addItem する（図鑑への記録は addItem が行う。フォーム
 //   登録と同じ）。期限は付けない（フォームの既定＝空と同じ）。
-// カテゴリは「図鑑の前回記録 → カタログ」の順（フォームのプリセット順）。
+// カテゴリは「カタログ → 図鑑の前回記録」の順。カタログにある名前は
+// カタログのカテゴリを正とし（カテゴリ見直しが既存の記録にも読み取り時で
+// 反映される）、カタログ外の名前だけ前回記録の保存カテゴリを使う。
 function oneTapRegisterCategory(name) {
+  const cat = categoryOf(name) || rarityCategory(name);
+  if (cat) return cat;
   const rec = collectedByCanonicalName(state.catalog).get(name);
   if (rec && rec.category) return rec.category;
-  return categoryOf(name) || rarityCategory(name);
+  return null;
 }
 
 // 食材タップ時: 計画を立て、在庫にあれば即・数量加算し、無ければ
