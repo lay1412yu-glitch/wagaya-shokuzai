@@ -490,10 +490,14 @@ input[type="date"] {
 .rare-badge.ultra { background: linear-gradient(135deg, #f7df8e, #eec95c); color: #7a5608; border: 1px solid #d9ae3c; }
 .rare-badge.rare { background: #e4efcf; color: #56743a; border: 1px solid #b9d18f; }
 .zukan-lv { font-size: 11px; font-weight: 800; color: var(--accent-deep); letter-spacing: 0.03em; }
-/* 収集済みセルの「在庫あり」: 小さな氷色ピル（未収集セルには出さない） */
+/* 収集済みセルの「在庫あり」: 小さな氷色ピル（未収集セルには出さない）。
+   セル幅（iPhoneで約84px）より長いラベル（×7と1/2・×1パック等）でも
+   セルからはみ出さないよう、幅の上限をセル幅にして中央寄せで折り返す
+   （nowrap だった頃は左右にはみ出して隣のセルや画面端に重なっていた）。 */
 .zukan-stock {
-  font-size: 9.5px; font-weight: 700; letter-spacing: 0.02em; white-space: nowrap;
+  font-size: 9.5px; font-weight: 700; letter-spacing: 0.02em;
   color: #406a7d; background: #e8f1f4; border: 1px solid #c2d9e1; border-radius: 999px; padding: 1px 6px;
+  max-width: 100%; text-align: center; line-height: 1.3; overflow-wrap: anywhere;
 }
 .zukan-title { font-size: 10.5px; color: #8a6414; font-weight: 700; line-height: 1.35; text-align: center; }
 .zukan-next { font-size: 9.5px; color: var(--ink-soft); letter-spacing: 0.02em; }
