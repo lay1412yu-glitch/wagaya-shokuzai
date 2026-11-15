@@ -831,6 +831,15 @@ async function refreshData() {
   state.favRecipes = await store.listFavoriteRecipes(uidNow, fid).catch(() => []);
   state.todayMenu = await store.getTodayMenu(uidNow, fid).catch(() => ({ date: todayISO(), entries: [] }));
   state.catalog = await store.listCatalog(uidNow, fid).catch(() => []);
+  // 図鑑の記録が無い在庫の補完（SW v58）: 記録が作られていなかった期間の
+  // 在庫を、現在の在庫から点灯させる。ストア側で冷蔵庫ごとに1回だけ・
+  // オフライン時はスキップ・失敗しても読み込みは止めない。デモモード等の
+  // ストアにはメソッド自体が無い（デモは登録時に記録が作られるため不要）。
+  // 補完で記録が増えたら図鑑を読み直して、この描画から正しく見せる。
+  if (typeof store.backfillCatalogFromStock === "function") {
+    const seeded = await store.backfillCatalogFromStock(uidNow, fid).catch(() => 0);
+    if (seeded > 0) state.catalog = await store.listCatalog(uidNow, fid).catch(() => state.catalog);
+  }
   state.inviteCode = await store.getInviteCode(uidNow, fid).catch(() => null);
   state.trash = store.mode === "demo" && typeof store.listTrash === "function"
     ? await store.listTrash(uidNow, fid).catch(() => []) : [];

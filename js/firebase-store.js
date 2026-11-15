@@ -29,7 +29,7 @@
 //   実行されると、順序依存の掃除（退会・削除）や「再発行で旧コード即
 //   無効」が崩れてしまうため。
 
-import { generateInviteCode, normalizeCode, todayISO, normalizeTodayMenu, userErrorMessage, cleanFridgeName } from "./util.js";
+import { generateInviteCode, normalizeCode, todayISO, normalizeTodayMenu, userErrorMessage, cleanFridgeName, planCatalogBackfill } from "./util.js";
 import {
   inviteCodeHash, memberDocId, catalogDocId, favoriteDocId, pushTokenDocId,
   itemToDoc, itemFromDoc, itemPatchToDoc, shoppingToDoc, shoppingFromDoc,
@@ -76,6 +76,7 @@ export class FirebaseStore {
     this.db = db;
     this.firestoreCacheKind = kind; // "persistent"（オフライン可） | "memory"
     this._userCache = null;
+    this._backfilledFridges = new Set(); // 図鑑補完（v58）を済ませた冷蔵庫ID（セッション内1回だけ）
   }
   static async create(config) {
     const [appM, authM, fsM] = await Promise.all([
@@ -433,8 +434,19 @@ export class FirebaseStore {
     try {
       const fs = this._mods;
       const ref = fs.doc(this.db, "fridge_catalog", catalogDocId(fridgeId, name));
-      const snap = await fs.getDoc(ref);
-      if (snap.exists()) {
+      // 存在確認は getDoc ではなくクエリで行う。セキュリティルールが
+      // resource.data.fridgeId に依存するため、未作成ドキュメントへの
+      // getDoc は実 Firestore では permission-denied になり（resource が
+      // null でルール評価が失敗する）、初回登録のたびにここで落ちて図鑑の
+      // 記録が一切作られなかった（実機バグ: 在庫は登録できるのに図鑑に
+      // 反映されない）。クエリは既存ドキュメントにしか触れないため、
+      // listCatalog と同じ形で安全に有無を判定できる。
+      const snap = await fs.getDocs(fs.query(
+        fs.collection(this.db, "fridge_catalog"),
+        fs.where("fridgeId", "==", fridgeId),
+        fs.where("name", "==", name),
+      ));
+      if (snap.docs && snap.docs.length > 0) {
         await fs.updateDoc(ref, { purchaseCount: fs.increment(1) });
       } else {
         await fs.setDoc(ref, catalogToDoc({ fridgeId, name, category, purchaseCount: 1 }, userId));
@@ -456,6 +468,61 @@ export class FirebaseStore {
   }
   async recordPurchase(userId, fridgeId, name, category) {
     if (name) await this._bumpCatalog(userId, fridgeId, name, category);
+  }
+  /**
+   * 図鑑の記録を「無ければ作る」（在庫からの補完専用。再購入の加算はしない）。
+   * _bumpCatalog と同じ書き込み経路（決定的なドキュメントID
+   * catalogDocId(fridgeId, name) ＋ catalogToDoc）を使い、存在確認も
+   * 同じくクエリで行う（未作成ドキュメントへの getDoc はセキュリティ
+   * ルールに拒否されるため使えない）。家族が同時にアプリを開いても
+   * ドキュメントIDが同一なので記録が二重になることはない。
+   * 戻り値: 新規作成したら true。
+   */
+  async _seedCatalogRecord(userId, fridgeId, entry) {
+    try {
+      const fs = this._mods;
+      const snap = await fs.getDocs(fs.query(
+        fs.collection(this.db, "fridge_catalog"),
+        fs.where("fridgeId", "==", fridgeId),
+        fs.where("name", "==", entry.name),
+      ));
+      if (snap.docs && snap.docs.length > 0) return false;
+      const ref = fs.doc(this.db, "fridge_catalog", catalogDocId(fridgeId, entry.name));
+      await fs.setDoc(ref, catalogToDoc({
+        fridgeId, name: entry.name, category: entry.category,
+        purchaseCount: Math.max(1, Number(entry.purchaseCount) || 1),
+        firstAddedAt: entry.firstAddedAt || undefined, // 無ければ catalogToDoc が今日にする
+      }, userId));
+      return true;
+    } catch { return false; /* 図鑑側の失敗は在庫側を妨げない */ }
+  }
+  /**
+   * 図鑑の記録が無い在庫を、現在の在庫から補完する（SW v58）。
+   * _bumpCatalog の不具合で本番では図鑑の記録が一切作られていなかった
+   * 期間があり、その間の在庫は「次に買うまで図鑑に点灯しない」状態に
+   * なっていた。データ読み込み時（app.js の refreshData）に呼ばれ、
+   * 不足分だけを種まきする（計画の計算は util.planCatalogBackfill）:
+   * - 購入回数は在庫ロット数、firstAddedAt は最古ロットの登録日
+   * - 冷蔵庫ごとにセッション1回だけ。読み込み自体が失敗したら目印を
+   *   付けず、次回の読み込みで再試行する
+   * - オフライン時は書き込みを発行しない（目印も付けず、次回
+   *   オンライン時の読み込みで補完する）
+   * - 戻り値は新規作成した記録数。失敗しても例外は外に出さない
+   */
+  async backfillCatalogFromStock(userId, fridgeId) {
+    try {
+      if (isOfflineNow()) return 0;
+      if (this._backfilledFridges.has(fridgeId)) return 0;
+      const items = await this.listItems(userId, fridgeId);
+      const catalog = await this.listCatalog(userId, fridgeId);
+      const plan = planCatalogBackfill(items, catalog);
+      let created = 0;
+      for (const entry of plan) {
+        if (await this._seedCatalogRecord(userId, fridgeId, entry)) created++;
+      }
+      this._backfilledFridges.add(fridgeId);
+      return created;
+    } catch { return 0; /* 図鑑側の失敗はアプリ利用を妨げない */ }
   }
   async updateItem(userId, itemId, patch) {
     const fs = this._mods;

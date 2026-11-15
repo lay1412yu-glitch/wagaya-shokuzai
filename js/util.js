@@ -237,6 +237,45 @@ export function stockByCanonicalName(items) {
   }
   return map;
 }
+
+/**
+ * 図鑑の記録が無い在庫について、補完すべき記録の計画を返す（純粋関数）。
+ *
+ * 背景（SW v58）: 本番では図鑑の記録が作られていなかった期間があり
+ * （firebase-store の _bumpCatalog の不具合）、その間の在庫は「次に買う
+ * まで図鑑に点灯しない」。データ読み込み時に現在の在庫から不足分だけを
+ * 補うための計画をここで計算する（書き込み自体はストア側の責務）:
+ * - キーは正規名（resolveCanonicalName）。別表記の在庫（ねぎ）は正規名
+ *   （長ねぎ）の記録として計画する。
+ * - 既に記録がある正規名は対象外。記録側の名前が別表記でも正規名で
+ *   判定する（読み取り時統合で既に点灯しているため、二重に作らない）。
+ * - purchaseCount は在庫ロット数（最低1件はある前提）、firstAddedAt は
+ *   ロットの登録日（createdAt）のうち最も古い日（無ければ null ＝
+ *   呼び出し側で今日にフォールバック）。
+ * - category は代表ロット（最初に現れたもの）のものをそのまま使う
+ *   （記録が正常に作られていた場合に addItem が保存した値と同じ）。
+ */
+export function planCatalogBackfill(items, catalog) {
+  const have = new Set();
+  for (const c of catalog || []) {
+    if (c && c.name) have.add(resolveCanonicalName(c.name));
+  }
+  const groups = new Map();
+  for (const item of items || []) {
+    if (!item || !item.name) continue;
+    const key = resolveCanonicalName(item.name);
+    if (have.has(key)) continue;
+    let g = groups.get(key);
+    if (!g) {
+      g = { name: key, category: item.category || "その他", purchaseCount: 0, firstAddedAt: null };
+      groups.set(key, g);
+    }
+    g.purchaseCount += 1;
+    const d = item.createdAt ? String(item.createdAt).slice(0, 10) : null;
+    if (d && (!g.firstAddedAt || d < g.firstAddedAt)) g.firstAddedAt = d;
+  }
+  return [...groups.values()];
+}
 // 「在庫あり」チップの数量部分（例: ×3束 / ×1/2玉）。図鑑セル・知識ページ共通。
 export function stockQtyText(entry) {
   if (!entry) return "";
