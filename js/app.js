@@ -28,7 +28,7 @@ import { DemoStore, DEMO_DB_KEY } from "./demo-store.js";
 import { GUIDE_STEPS, guideSeen, markGuideSeen } from "./guide.js";
 import { legalDocs } from "./legal.js";
 import { buildReminders, notifyOnOpen, permissionState, subscribePush } from "./notify.js";
-import { LOADING_MESSAGES, pickLoadingChars, loadingFactPool, pickLoadingFact, attachCharMotion } from "./loading.js";
+import { LOADING_MESSAGES, pickLoadingChars, loadingFactPool, pickLoadingFact, attachCharMotion, fitLoadingChar } from "./loading.js";
 
 const CATEGORIES = ["野菜", "肉", "魚", "卵・乳製品", "豆腐・大豆", "調味料", "乾物・缶詰", "冷凍食品", "飲み物", "果物", "主食", "その他"];
 // 保管場所の区分（冷蔵庫／冷凍庫／野菜室／常温）は util.js の STORAGE_ZONES が正。
@@ -353,12 +353,14 @@ function renderLoadingView() {
   appRoot.replaceChildren();
   const msgNode = el("p", { class: "loading-msg", role: "status" }, LOADING_MESSAGES[0]);
   // キャラは表示のたびに図鑑カタログ全体から抽選する（固定の顔ぶれにしない）
+  const charImgs = [];
   const charsRow = el("div", { class: "loading-chars" }, pickLoadingChars().map((url, i) => {
     const img = el("img", { class: "char-img", src: url, alt: "" });
     img.draggable = false;
     const c = el("span", { class: "food-icon loading-char", "aria-hidden": "true" }, img);
     // 画像が読めなかった場合は仮表示にする（iconEl と同じ扱い）
     img.addEventListener("error", () => { c.replaceChildren(charPlaceholderEl()); }, { once: true });
+    charImgs.push([img, c]);
     return c;
   }));
   const factThumb = el("span", { class: "loading-fact-thumb" });
@@ -379,6 +381,17 @@ function renderLoadingView() {
   };
   showFact();
   appRoot.append(el("div", { class: "loading-view" }, charsRow, msgNode, factCard));
+  // キャラの「絵そのもの」の大きさと足元をそろえる: キャンバス（256×256）内の
+  // 占有率は画像ごとに違うため、読み込み後に実測して img を補正する（loading.js）。
+  for (const [img, span] of charImgs) {
+    if (img.complete && img.naturalWidth > 0) {
+      // レイアウト確定後に測る（clientWidth が必要）
+      if (typeof requestAnimationFrame === "function") requestAnimationFrame(() => fitLoadingChar(img, span));
+      else fitLoadingChar(img, span);
+    } else {
+      img.addEventListener("load", () => fitLoadingChar(img, span), { once: true });
+    }
+  }
   // キャラの動きは loading.js の物理モーション（rAF で transform のみ更新）が担う。
   // 各キャラが自分のリズムで跳ね回り、タップするとそのキャラが高く跳ぶ。
   // reduced-motion では動かさず、rAF が無い環境では CSS アニメーションに倒す。

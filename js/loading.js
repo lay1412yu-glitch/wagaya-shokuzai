@@ -241,3 +241,105 @@ export function attachCharMotion(elements, opts = {}) {
   if (!(typeof document !== "undefined" && document.hidden)) start();
   return handle;
 }
+
+// ---------- キャラの見た目サイズ均一化 ----------
+// キャラ画像はすべて 256×256 の透過キャンバスだが、絵そのものがキャンバス
+// 内に占める割合（占有率）は 0.46〜1.00 とばらつきが大きく、縦位置も
+// そろっていない。そのまま同じ箱に並べると「絵の大きさ・足元」がバラバラ
+// に見える（2026-11-15 ユーザー報告「ロード時のアイコンのサイズがバラバラ」）。
+// そこで読み込み画面では、画像の読み込み後に不透明部分の外接矩形を実測し、
+// 絵の最大寸法と下端が全キャラでそろうよう img に transform を当てる。
+// 計測は読み込み画面の数体だけなので canvas 走査でも十分軽い。同じキャラ
+// 画像を使う他の画面（図鑑・在庫など）の表示には影響させない。
+
+/** 読み込み画面でそろえる「絵そのもの」の最大寸法(px) */
+export const LOADING_CHAR_CONTENT_PX = 50;
+
+/** これ以下の alpha は透明として扱う（薄い縁・影を外接矩形に拾わない） */
+const CHAR_ALPHA_THRESHOLD = 16;
+
+/**
+ * RGBA ピクセル配列から不透明部分の外接矩形を、キャンバスに対する割合
+ * { x, y, w, h }（0..1）で返す純粋関数。不透明ピクセルが無ければ null。
+ * pixels は ImageData.data 相当（長さ = width * height * 4）。
+ */
+export function contentBoxFromPixels(pixels, width, height, threshold = CHAR_ALPHA_THRESHOLD) {
+  if (!pixels || !(width > 0) || !(height > 0)) return null;
+  let minX = width, minY = height, maxX = -1, maxY = -1;
+  for (let y = 0; y < height; y++) {
+    const row = y * width;
+    for (let x = 0; x < width; x++) {
+      if (pixels[(row + x) * 4 + 3] > threshold) {
+        if (x < minX) minX = x;
+        if (x > maxX) maxX = x;
+        if (y < minY) minY = y;
+        if (y > maxY) maxY = y;
+      }
+    }
+  }
+  if (maxX < 0) return null;
+  return {
+    x: minX / width, y: minY / height,
+    w: (maxX - minX + 1) / width, h: (maxY - minY + 1) / height,
+  };
+}
+
+/**
+ * 読み込み済み img の不透明部分の外接矩形（割合）を canvas で実測する。
+ * 同一起源の画像だけを対象とし、測れなければ null（呼び出し側は無補正で続行）。
+ */
+export function measureCharContent(img) {
+  try {
+    const w = img && img.naturalWidth, h = img && img.naturalHeight;
+    if (!w || !h || typeof document === "undefined") return null;
+    const canvas = document.createElement("canvas");
+    canvas.width = w; canvas.height = h;
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    if (!ctx) return null;
+    ctx.drawImage(img, 0, 0);
+    return contentBoxFromPixels(ctx.getImageData(0, 0, w, h).data, w, h);
+  } catch {
+    return null; // 測れない画像は補正なし（従来表示）でよい
+  }
+}
+
+/**
+ * 外接矩形（割合）から、img に当てる transform 文字列を作る純粋関数。
+ * - 絵の最大寸法が targetPx になるよう一様に拡大縮小する
+ * - 絵の水平中心がボックスの水平中心に来る
+ * - 絵の下端がボックスの下端にそろう（足元＝地面をそろえる）
+ * geom: { boxW, boxH, imgW, imgH }。imgW/imgH は transform 前のレイアウト
+ * 寸法で、img はボックス内で中央に置かれている前提（.food-icon の flex）。
+ * transform-origin: 0 0 とセットで使うこと。不正な入力では "" を返す。
+ */
+export function charFitTransform(box, geom, targetPx = LOADING_CHAR_CONTENT_PX) {
+  if (!box || !(box.w > 0) || !(box.h > 0) || !geom) return "";
+  const { boxW, boxH, imgW, imgH } = geom;
+  if (!(boxW > 0) || !(boxH > 0) || !(imgW > 0) || !(imgH > 0) || !(targetPx > 0)) return "";
+  const s = targetPx / Math.max(box.w * imgW, box.h * imgH);
+  const lx = (boxW - imgW) / 2, ly = (boxH - imgH) / 2; // img 左上のボックス内座標
+  const cx = (box.x + box.w / 2) * imgW; // 絵の中心（img ローカル座標）
+  const by = (box.y + box.h) * imgH;     // 絵の下端（img ローカル座標）
+  const tx = boxW / 2 - lx - s * cx;
+  const ty = boxH - ly - s * by;
+  return `translate(${tx.toFixed(1)}px, ${ty.toFixed(1)}px) scale(${s.toFixed(3)})`;
+}
+
+/**
+ * 読み込み画面のキャラ img を、その表示ボックス（span）に合わせて補正する。
+ * 実測 → transform 設定までを行い、補正できたら true を返す。
+ * img の読み込み完了後に呼ぶこと（naturalWidth が必要）。
+ */
+export function fitLoadingChar(img, boxEl) {
+  if (!img || !boxEl) return false;
+  const content = measureCharContent(img);
+  if (!content) return false;
+  const t = charFitTransform(content, {
+    boxW: boxEl.clientWidth, boxH: boxEl.clientHeight,
+    imgW: img.clientWidth, imgH: img.clientHeight,
+  });
+  if (!t) return false;
+  img.style.transformOrigin = "0 0";
+  img.style.transform = t;
+  return true;
+}
