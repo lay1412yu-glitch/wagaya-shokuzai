@@ -51,7 +51,11 @@ import { resolveCanonicalName } from "./names.js";
 
 const STROKE = "#9e744a";
 function svg(inner) {
-  return `<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="${STROKE}" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><defs><filter id="ic-sh" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="0.6" stdDeviation="0.45" flood-color="#c9ab7d" flood-opacity="0.2"/></filter></defs><g filter="url(#ic-sh)">${inner}</g></svg>`;
+  // xmlns は必須: これが無いと DOMParser（image/svg+xml）で読んだときに
+  // 要素が名前空間なしのただの Element になり、ブラウザが SVG として
+  // 描画しない（v56 で下部タブ／ドロワーのアイコンが全て消えた不具合の原因。
+  // 回帰テスト: tests/icon-svg-dom.test.mjs）。
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="${STROKE}" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><defs><filter id="ic-sh" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="0.6" stdDeviation="0.45" flood-color="#c9ab7d" flood-opacity="0.2"/></filter></defs><g filter="url(#ic-sh)">${inner}</g></svg>`;
 }
 
 const ICONS = {
