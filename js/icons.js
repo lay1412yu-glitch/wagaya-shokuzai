@@ -4812,6 +4812,41 @@ export function tabIconEl(key) {
   return span;
 }
 
+/**
+ * サイドバー（ドロワー）メニュー用アイコン（2026-11-15 ユーザー指示で
+ * 下部タブと統一）。メインの5項目は TAB_ICONS の絵柄をそのまま流用し、
+ * あそぶ・まなぶ／共有・設定の各項目は同じ文法（淡いパステル＋細い茶色の
+ * 輪郭・点目と小さな口・装飾なし）で新規に描き起こした。静的データのみ。
+ */
+export const MENU_ICONS = {
+  ...TAB_ICONS,
+  // やさいあわせ: かごに山盛りの野菜キャラ（ブロッコリー・トマト・にんじん）
+  suika: svg(`<circle cx="6.4" cy="10.4" r="1.7" fill="#a5cc8a"/><circle cx="7.9" cy="8.6" r="1.4" fill="#a5cc8a"/><path d="M7.2 11.4v1.2" stroke="#93bd78" stroke-width="1"/><circle cx="11.6" cy="9.9" r="2.7" fill="#e2604d"/><path d="M10.4 7.8c.75-.65 1.85-.65 2.6 0-.28.72-.88 1.08-1.3 1.08s-1.02-.36-1.3-1.08Z" fill="#93bd78"/><circle cx="10.8" cy="9.9" r="0.3" fill="#8a5a34" stroke="none"/><circle cx="12.4" cy="9.9" r="0.3" fill="#8a5a34" stroke="none"/><path d="M11.1 10.85 Q11.6 11.3 12.1 10.85" stroke="#8a5a34" stroke-width="0.75"/><path d="M14.9 12.4 L17.3 6.1 L20.1 7.7 Z" fill="#f28c5a"/><path d="M16.3 10.2l1.5.85M17.2 8.4l1.4.8" stroke="#d96f3f" stroke-width="0.8"/><path d="M18.2 6.6c-.2-1-.8-1.8-1.7-2.2M18.6 6.3c.2-1 .7-1.8 1.5-2.3" stroke="#93bd78" stroke-width="0.9"/><rect x="4.2" y="12.5" width="15.6" height="1.8" rx="0.9" fill="#e3c491"/><path d="M5.4 14.3 h13.2 l-1.2 5.3 a2 2 0 0 1-2 1.6 H8.6 a2 2 0 0 1-2-1.6 Z" fill="#f4ead6"/><path d="M9.4 14.6 L10 20.4 M14.6 14.6 L14 20.4" stroke="#d9c39c" stroke-width="0.9"/>`),
+  // 食材クイズ: 「？」の吹き出し＋小さなトマト
+  quiz: svg(`<path d="M6.2 3.8 h9.9 a2.4 2.4 0 0 1 2.4 2.4 v7.1 a2.4 2.4 0 0 1-2.4 2.4 h-5.2 l-3.3 3.1 v-3.1 H6.2 a2.4 2.4 0 0 1-2.4-2.4 V6.2 A2.4 2.4 0 0 1 6.2 3.8 Z" fill="#fdfdf6"/><path d="M9.1 8.4 C9.1 6.9 10 6 11.2 6 C12.5 6 13.4 6.9 13.4 8.1 C13.4 9.4 12.5 9.9 11.8 10.6 C11.3 11 11.1 11.4 11.1 12.2" stroke-width="1.5"/><circle cx="11.1" cy="14" r="0.85" fill="#8a5a34" stroke="none"/><circle cx="18.4" cy="17.7" r="2.3" fill="#e2604d"/><path d="M17.3 16c.6-.55 1.5-.55 2.1 0-.2.6-.65.9-1.05.9s-.85-.3-1.05-.9Z" fill="#93bd78"/><circle cx="17.7" cy="17.7" r="0.26" fill="#8a5a34" stroke="none"/><circle cx="19.1" cy="17.7" r="0.26" fill="#8a5a34" stroke="none"/><path d="M18 18.55 Q18.4 18.9 18.8 18.55" stroke="#8a5a34" stroke-width="0.7"/>`),
+  // アプリを最新に更新: 2本の円弧矢印（絵文字🔄の字形ではなく自前の線画）
+  update: svg(`<path d="M12 4.4 A7.6 7.6 0 0 1 15.8 18.6" stroke-width="1.7"/><path d="M19 18.9 L15.8 18.6 L17.1 15.7" stroke-width="1.5"/><path d="M12 19.6 A7.6 7.6 0 0 1 8.2 5.4" stroke-width="1.7"/><path d="M5 5.1 L8.2 5.4 L6.9 8.3" stroke-width="1.5"/>`),
+  // 使い方ガイド: 道しるべの立て看板＋トマト
+  guide: svg(`<path d="M12 5 h6.2 l2.1 2 L18.2 9 H12 Z" fill="#a5cc8a"/><path d="M12 11.2 H7 l-2.1 2 L7 15.2 H12 Z" fill="#f7d06e"/><rect x="10.9" y="4.6" width="2.2" height="16" rx="1.1" fill="#e3c491"/><circle cx="17.4" cy="18.2" r="2.4" fill="#e2604d"/><path d="M16.2 16.4c.65-.6 1.6-.6 2.25 0-.22.62-.72.95-1.12.95s-.9-.33-1.13-.95Z" fill="#93bd78"/><circle cx="16.7" cy="18.2" r="0.27" fill="#8a5a34" stroke="none"/><circle cx="18.1" cy="18.2" r="0.27" fill="#8a5a34" stroke="none"/><path d="M17 19 Q17.4 19.35 17.8 19" stroke="#8a5a34" stroke-width="0.7"/>`),
+  // プライバシーポリシー: 淡い盾＋ハート
+  privacy: svg(`<path d="M12 3.4 L18.8 5.6 V11 C18.8 16 16 19.3 12 20.8 C8 19.3 5.2 16 5.2 11 V5.6 Z" fill="#d9e7f7"/><path d="M12 15.7 C8.9 13.5 8.1 11.7 8.1 10.3 C8.1 8.9 9.1 8 10.3 8 C11.1 8 11.8 8.4 12 9.1 C12.2 8.4 12.9 8 13.7 8 C14.9 8 15.9 8.9 15.9 10.3 C15.9 11.7 15.1 13.5 12 15.7 Z" fill="#ef9a86"/>`),
+  // 利用規約: 罫線入りの文書＋顔つきの判子シール
+  terms: svg(`<path d="M6.8 3.8 h7.2 l3.2 3.2 V20.2 H6.8 Z" fill="#fdfdf6"/><path d="M14 3.8 V7 h3.2" stroke="#d9c39c" stroke-width="0.9"/><path d="M9.3 10.2 h5.4 M9.3 12.9 h5.4 M9.3 15.6 h3.2" stroke="#d9c39c" stroke-width="0.9"/><circle cx="15.4" cy="16.9" r="1.95" fill="#e2604d"/><circle cx="14.8" cy="16.7" r="0.24" fill="#fdfdf6" stroke="none"/><circle cx="16" cy="16.7" r="0.24" fill="#fdfdf6" stroke="none"/><path d="M15 17.5 Q15.4 17.85 15.8 17.5" stroke="#fdfdf6" stroke-width="0.6"/>`),
+};
+
+/** ドロワー用アイコンの DOM 要素（span.menu-icon）を返す。静的SVGのみ。 */
+export function menuIconEl(key) {
+  const span = document.createElement("span");
+  span.className = "menu-icon";
+  span.setAttribute("aria-hidden", "true");
+  const str = MENU_ICONS[key];
+  if (str) {
+    const doc = new DOMParser().parseFromString(str, "image/svg+xml");
+    span.appendChild(document.importNode(doc.documentElement, true));
+  }
+  return span;
+}
+
 /** 仮表示（ミュゼ版キャラが無い食材用・絵のないプレースホルダー） */
 export function charPlaceholderEl() {
   const ph = document.createElement("span");

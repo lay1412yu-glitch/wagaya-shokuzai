@@ -21,7 +21,7 @@ import { suggestCombos, repertoireSize } from "./combo.js";
 import { buildGameQuestions, scoreGame, CORRECT_PRAISE, GAME_QUESTION_COUNT, GAME_COUNT_OPTIONS, GAME_DIFFICULTIES, GAME_DIFFICULTY_DEFAULT } from "./game.js";
 import { createSuikaGame, VEG_STAGES, SUIKA_W, SUIKA_H, computeSuikaBoardLayout } from "./suika.js";
 import { qrToCanvas } from "./qrcode.js";
-import { iconEl, tabIconEl, charPlaceholderEl, CATALOG, rarityOf, rarityCategory, categoryOf, catalogCategories } from "./icons.js";
+import { iconEl, tabIconEl, menuIconEl, charPlaceholderEl, CATALOG, rarityOf, rarityCategory, categoryOf, catalogCategories } from "./icons.js";
 import { levelForCount, titleFor, remainingToNextLevel } from "./levels.js";
 import { knowledgeFor } from "./knowledge.js";
 import { DemoStore, DEMO_DB_KEY } from "./demo-store.js";
@@ -524,17 +524,22 @@ if (menuBtn) menuBtn.addEventListener("click", () => openDrawer());
 // ヘッダーの「最新に更新」ボタン: 設定タブ／ドロワーと同じ forceAppUpdate を
 // そのまま呼ぶ。古い版で固まったときに設定まで辿らなくて済むよう常時表示にし、
 // 押下中は回転アニメーション（.is-updating）で確認中を示す。
+// アイコンはドロワーと同じ自前SVG（menuIconEl("update")）に統一する
+// （index.html 側は空ボタンで、ここで差し込む）。
 const updateBtn = document.getElementById("update-btn");
-if (updateBtn) updateBtn.addEventListener("click", () => { updateBtn.classList.add("is-updating"); forceAppUpdate(null); });
+if (updateBtn) {
+  updateBtn.replaceChildren(menuIconEl("update"));
+  updateBtn.addEventListener("click", () => { updateBtn.classList.add("is-updating"); forceAppUpdate(null); });
+}
 function goTab(tab) {
   state.tab = tab; state.knowledgeName = null; state.gameView = false; state.game = null;
   state.suikaView = false; state.recipeDetail = null; state.recipeFilter = "all"; state.recipeCourse = null;
   state.errandMode = false; state.errandChecked = [];
   renderMain();
 }
-function drawerItem(icon, label, sub, onClick) {
+function drawerItem(iconKey, label, sub, onClick) {
   return el("button", { class: "drawer-item", type: "button", onclick: () => { closeDrawer(); onClick(); } },
-    el("span", { class: "drawer-item-icon", "aria-hidden": "true" }, icon),
+    el("span", { class: "drawer-item-icon", "aria-hidden": "true" }, menuIconEl(iconKey)),
     el("span", { class: "grow" }, label, sub ? el("span", { class: "drawer-item-sub" }, sub) : null));
 }
 function drawerSection(label, items) {
@@ -554,26 +559,26 @@ function openDrawer() {
         el("span", { class: "drawer-menu-label" }, "MENU"),
         el("button", { class: "drawer-close", type: "button", "aria-label": "メニューを閉じる", onclick: () => closeDrawer() }, "✕")),
       el("div", { class: "drawer-profile" },
-        el("span", { class: "drawer-avatar", "aria-hidden": "true" }, "🧊"),
+        el("span", { class: "drawer-avatar", "aria-hidden": "true" }, menuIconEl("stock")),
         el("div", { class: "grow" },
           el("div", { class: "drawer-fridge" }, state.fridge.name),
           el("div", { class: "hint" }, `${name} さん${memberNote}`))),
       drawerSection("メイン", [
-        drawerItem("🧊", "在庫", null, () => goTab("stock")),
-        drawerItem("🛒", "買い物", null, () => goTab("shopping")),
-        drawerItem("🍳", "レシピ", null, () => goTab("recipes")),
-        drawerItem("📖", "図鑑", null, () => goTab("zukan")),
+        drawerItem("stock", "在庫", null, () => goTab("stock")),
+        drawerItem("shopping", "買い物", null, () => goTab("shopping")),
+        drawerItem("recipe", "レシピ", null, () => goTab("recipes")),
+        drawerItem("zukan", "図鑑", null, () => goTab("zukan")),
       ]),
       drawerSection("あそぶ・まなぶ", [
-        drawerItem("🧺", "やさいあわせ", "野菜をくっつけて進化させるパズル", () => { state.gameView = false; state.game = null; state.suikaView = true; renderMain(); }),
-        drawerItem("🎮", "食材クイズ", "旬やまめちしきの3択クイズ", () => { state.game = null; state.gameView = true; state.suikaView = false; renderMain(); }),
+        drawerItem("suika", "やさいあわせ", "野菜をくっつけて進化させるパズル", () => { state.gameView = false; state.game = null; state.suikaView = true; renderMain(); }),
+        drawerItem("quiz", "食材クイズ", "旬やまめちしきの3択クイズ", () => { state.game = null; state.gameView = true; state.suikaView = false; renderMain(); }),
       ]),
       drawerSection("共有・設定", [
-        drawerItem("🔗", "共有・設定", null, () => goTab("settings")),
-        drawerItem("🔄", "アプリを最新に更新", null, () => forceAppUpdate(null)),
-        drawerItem("👋", "使い方ガイド", null, () => { state.showGuide = true; renderMain(); try { window.scrollTo(0, 0); } catch { /* noop */ } }),
-        drawerItem("🛡", "プライバシーポリシー", null, () => { state.legalView = "privacy"; renderMain(); }),
-        drawerItem("📜", "利用規約", null, () => { state.legalView = "terms"; renderMain(); }),
+        drawerItem("settings", "共有・設定", null, () => goTab("settings")),
+        drawerItem("update", "アプリを最新に更新", null, () => forceAppUpdate(null)),
+        drawerItem("guide", "使い方ガイド", null, () => { state.showGuide = true; renderMain(); try { window.scrollTo(0, 0); } catch { /* noop */ } }),
+        drawerItem("privacy", "プライバシーポリシー", null, () => { state.legalView = "privacy"; renderMain(); }),
+        drawerItem("terms", "利用規約", null, () => { state.legalView = "terms"; renderMain(); }),
       ]),
     ));
   drawerRoot = root;
@@ -3908,7 +3913,7 @@ function renderSettingsTab() {
 
   // アプリの更新（端末側に古いアプリ本体が残っているときの手動リフレッシュ）
   wrap.append(el("div", { class: "card" },
-    el("h2", {}, "🔄 アプリの更新"),
+    el("h2", {}, menuIconEl("update"), "アプリの更新"),
     el("p", { class: "hint" }, "新しい機能が届かない・表示が古いままのときに押してください。最新のアプリを取り直して読み込み直します（食材キャラの画像は手元に残るので、次回も速く表示されます）。"),
     el("button", {
       class: "btn secondary wide", onclick: (e) => forceAppUpdate(e.currentTarget),

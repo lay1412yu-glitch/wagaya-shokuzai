@@ -88,6 +88,8 @@ h1, h2, .btn, .tabs button, .bottom-nav button, .code-text {
 .update-btn { margin-left: auto; font-size: 17px; }
 .update-btn.is-updating { animation: update-spin 0.9s linear infinite; }
 @keyframes update-spin { to { transform: rotate(360deg); } }
+/* ヘッダー更新ボタン内の自前SVGアイコン（ドロワーと同じ update モチーフ） */
+.update-btn .menu-icon svg { width: 22px; height: 22px; display: block; }
 /* ドロワー本体: 左からスライドイン。トースト（z 50）より奥、やさいあわせの
    全画面シェル（z 40）より手前に置く（シェル表示中は ☰ 自体に届かない）。 */
 .drawer-root { position: fixed; inset: 0; z-index: 45; }
@@ -126,8 +128,9 @@ body.drawer-open { overflow: hidden; }
 .drawer-avatar {
   flex: none; width: 52px; height: 52px; border-radius: 50%;
   background: var(--cream); border: 1px solid var(--line);
-  display: flex; align-items: center; justify-content: center; font-size: 25px;
+  display: flex; align-items: center; justify-content: center;
 }
+.drawer-avatar svg { width: 34px; height: 34px; display: block; }
 .drawer-fridge { font-weight: 800; font-size: 16px; letter-spacing: 0.03em; overflow-wrap: break-word; }
 .drawer-section-label {
   font-size: var(--label-size); font-weight: 800; letter-spacing: var(--label-spacing); color: var(--ink-soft);
@@ -147,7 +150,9 @@ body.drawer-open { overflow: hidden; }
 }
 .drawer-item:last-child { border-bottom: none; }
 .drawer-item:active { background: var(--cream); transform: scale(0.99); }
-.drawer-item-icon { font-size: 20px; flex: none; line-height: 1.2; }
+.drawer-item-icon { flex: none; line-height: 1; display: flex; }
+.drawer-item-icon svg { width: 26px; height: 26px; display: block; }
+.menu-icon { display: inline-flex; line-height: 1; }
 .drawer-item-sub { display: block; font-size: 11.5px; font-weight: 600; color: var(--ink-soft); letter-spacing: 0.02em; margin-top: 1px; }
 
 .demo-banner, .join-banner {
@@ -188,6 +193,9 @@ body.drawer-open { overflow: hidden; }
   content: ""; position: absolute; left: 0; top: 3px; bottom: 3px; width: 3.5px;
   border-radius: 3px; background: linear-gradient(180deg, var(--gold), var(--accent));
 }
+/* 見出し内の自前SVGアイコン（設定タブ「アプリの更新」など） */
+.card h2 .menu-icon { vertical-align: -4px; margin-right: 5px; }
+.card h2 .menu-icon svg { width: 19px; height: 19px; display: block; }
 .card h3 { margin: 16px 0 8px; font-size: 14px; letter-spacing: 0.10em; color: var(--accent-deep); }
 .hint { font-size: 12px; color: var(--ink-soft); line-height: 1.7; letter-spacing: 0.02em; }
 
