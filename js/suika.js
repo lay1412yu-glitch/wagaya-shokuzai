@@ -455,14 +455,11 @@ export function stageImageUrl(stage) {
   return "data:image/svg+xml;charset=utf-8," + encodeURIComponent(ph);
 }
 
-/* ---------- デバッグ表示（輪郭ポリゴンの重ね描き） ----------
- * ?suikaDebug=1 で有効。盤面の長押しでも切り替えられる。既定は OFF。 */
-let suikaDebug = (() => {
-  try { return new URLSearchParams(globalThis.location?.search ?? "").get("suikaDebug") === "1"; }
-  catch { return false; }
-})();
-export function setSuikaDebug(v) { suikaDebug = !!v; }
-export function isSuikaDebug() { return suikaDebug; }
+/* 輪郭デバッグ表示は廃止した（2026-11-16）。以前は URLパラメータと
+ * 盤面の長押しで当たり判定の輪郭・凸包・境界円を重ね描きできたが、
+ * 狙いを定めるための長押し（900ms）でユーザーが意図せず有効化して
+ * しまい、通常プレイに線が出続ける事故になった。実機では開発者
+ * ツールも使えないため、描画コードごと削除して再発を防ぐ。 */
 
 function loadBest() {
   try { return Number(globalThis.localStorage?.getItem(SUIKA_BEST_KEY) ?? 0) || 0; } catch { return 0; }
@@ -523,8 +520,6 @@ export function createSuikaGame(hooks = {}) {
   let raf = 0;
   let last = 0;
   let attached = false;
-  let pressTimer = 0;
-  let longPressed = false;
 
   const snapshot = () => ({
     score, best, current, next, gameOver, overflowing, madeWatermelon,
@@ -544,7 +539,7 @@ export function createSuikaGame(hooks = {}) {
     const sh = stageShapes[stage];
     const b = {
       id: nextId++, stage, x, y, vx, vy,
-      r: st.radius, bornAt, mergedAt: 0, angle: 0,
+      r: st.radius, bornAt, mergedAt: 0,
       offs: sh.outline, hull: sh.hull, mass: sh.area, br: sh.boundR,
     };
     bodies.push(b);
@@ -620,7 +615,8 @@ export function createSuikaGame(hooks = {}) {
         b.vx *= 0.999;
         b.x += b.vx * dt;
         b.y += b.vy * dt;
-        b.angle += (0 - b.angle) * Math.min(1, dt * 5); // 傾きは直立へ戻るだけ
+        // ピースは回転しない（角度の状態を持たない）。傾いて見えるのは
+        // 絵自体の構図だけ（白菜のみ STAGE_ART_ROT で補正）。
         // 形状参照を最新に（画像読込で実輪郭へ差し替わった場合に追従）
         const sh = stageShapes[b.stage];
         b.offs = sh.outline; b.hull = sh.hull; b.mass = sh.area; b.br = sh.boundR;
@@ -759,7 +755,7 @@ export function createSuikaGame(hooks = {}) {
       if (img && img.complete && img.naturalWidth > 0) {
         ctx.save();
         ctx.translate(b.x, b.y);
-        ctx.rotate(Math.max(-0.35, Math.min(0.35, b.angle)) + stageArtRotation(b.stage));
+        ctx.rotate(stageArtRotation(b.stage)); // 段階ごとの絵の傾き補正のみ（ピース自体は回転しない）
         ctx.drawImage(img, -size / 2, -size / 2, size, size);
         ctx.restore();
       } else {
@@ -768,23 +764,6 @@ export function createSuikaGame(hooks = {}) {
         ctx.textAlign = "center"; ctx.textBaseline = "middle";
         ctx.fillText(st.name, b.x, b.y);
         ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
-      }
-    }
-    // debug: collision polygons (outline = teal, hull = orange, bound = gray dashed)
-    if (suikaDebug) {
-      ctx.lineWidth = 1.5;
-      for (const b of bodies) {
-        const sh = stageShapes[b.stage];
-        ctx.strokeStyle = "rgba(120,120,120,0.6)";
-        ctx.setLineDash([3, 4]);
-        ctx.beginPath(); ctx.arc(b.x, b.y, sh.boundR, 0, Math.PI * 2); ctx.stroke();
-        ctx.setLineDash([]);
-        for (const [offs, color] of [[sh.outline, "rgba(14,149,148,0.9)"], [sh.hull, "rgba(224,123,57,0.9)"]]) {
-          ctx.strokeStyle = color;
-          ctx.beginPath();
-          offs.forEach(([ox, oy], i) => { if (i === 0) ctx.moveTo(b.x + ox, b.y + oy); else ctx.lineTo(b.x + ox, b.y + oy); });
-          ctx.closePath(); ctx.stroke();
-        }
       }
     }
     // particles
@@ -824,17 +803,9 @@ export function createSuikaGame(hooks = {}) {
     raf = requestAnimationFrame(frame);
   }
 
-  const onPointerMove = (e) => { if (pressTimer) { clearTimeout(pressTimer); pressTimer = 0; } moveTo(e.clientX); };
-  const onPointerDown = (e) => {
-    moveTo(e.clientX);
-    // 長押しで輪郭デバッグ表示を切り替え（落下はさせない）
-    pressTimer = setTimeout(() => { pressTimer = 0; longPressed = true; setSuikaDebug(!suikaDebug); }, 900);
-  };
-  const onPointerUp = (e) => {
-    if (pressTimer) { clearTimeout(pressTimer); pressTimer = 0; }
-    if (longPressed) { longPressed = false; return; }
-    moveTo(e.clientX); drop();
-  };
+  const onPointerMove = (e) => { moveTo(e.clientX); };
+  const onPointerDown = (e) => { moveTo(e.clientX); };
+  const onPointerUp = (e) => { moveTo(e.clientX); drop(); };
 
   /**
    * 盤面の論理高さの変更（全画面レイアウトに収めるための調整）。
@@ -880,7 +851,6 @@ export function createSuikaGame(hooks = {}) {
     attached = false;
     if (raf) cancelAnimationFrame(raf);
     raf = 0;
-    if (pressTimer) { clearTimeout(pressTimer); pressTimer = 0; }
     if (wrap) {
       wrap.removeEventListener("pointermove", onPointerMove);
       wrap.removeEventListener("pointerdown", onPointerDown);

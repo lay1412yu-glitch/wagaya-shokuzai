@@ -303,6 +303,43 @@ const EXTRA_ICHIMI = X("一味唐辛子", ["一味唐辛子", "唐辛子"], 0.25
 // ここでは「切るだけ」の手順を作らない（準備と重複するうえ、「食べやすい
 // 大きさ」のような曖昧表現の温床になる。2026-11-15 Task CN）。
 // 代わりに下味・水切りなど、その料理固有の下準備から始める。
+// ---------- 和え物の下ごしらえ（主食材の種類に合わせる） ----------
+// 旧実装は全主食材に「塩ゆで（1〜2分）または塩もみ」を当てていたため、
+// 豆腐・卵・ハム等にも塩もみ指示が出ていた。種類ごとに正しい
+// 下ごしらえに分ける（2026-11-16 Task CT）。
+function fruitPrepStep(m) {
+  if (/いちご/.test(m)) return `${m}はへたを取っておく`;
+  if (/レモン|ゆず/.test(m)) return `${m}は皮ごと薄い輪切りにしておく`;
+  if (/ブルーベリー/.test(m)) return `${m}は洗ってざるに上げておく`;
+  if (/ぶどう|ルビーロマン|さくらんぼ/.test(m)) return `${m}は軸を取って洗っておく`;
+  return `${m}は皮をむいて2〜3cm角に切る`;
+}
+function aePrepStep(m, g) {
+  if (g === "soy") {
+    if (/高野豆腐/.test(m)) return `${m}は水で戻して、水気を絞っておく`;
+    if (/こんにゃく|しらたき/.test(m)) return `${m}はさっと下ゆでして、ざるに上げておく`;
+    if (/納豆/.test(m)) return `${m}はよく混ぜておく`;
+    if (/大豆/.test(m)) return `${m}はざるに上げておく`;
+    return `${m}はキッチンペーパーで水気を拭いておく`;
+  }
+  if (g === "seaweed") {
+    if (/わかめ|ひじき/.test(m)) return `${m}は戻して、水気をよく絞っておく`;
+    return `${m}は水洗いして、水気を絞っておく`;
+  }
+  if (g === "egg") return `${m}は固ゆでにしておく`;
+  if (g === "roe") return `${m}は皮を取り除いて、ほぐしておく`;
+  if (g === "pantry") return `${m}は油を切って、ほぐしておく`;
+  if (g === "processed") return `${m}は短冊切りにしておく`;
+  if (g === "fruit") return fruitPrepStep(m);
+  if (g === "potato") return `${m}はゆでて、冷ましておく`;
+  if (g === "seafood") {
+    if (/あさり|しじみ/.test(m)) return `${m}は砂抜きして酒蒸しにし、殻から身を取り出しておく`;
+    return `${m}をさっと塩ゆでして、ざるに上げて冷ましておく`;
+  }
+  // vegLeafy / vegRoot / vegFruit / mushroom は塩ゆで・塩もみが下ごしらえ
+  return `${m}を塩ゆで（1〜2分）または塩もみして、水気をよく絞る`;
+}
+
 const STEP_BUILDERS = {
   yaku: (pt, m, s) => [
     `${m}に塩こしょうで下味をつける`,
@@ -335,11 +372,11 @@ const STEP_BUILDERS = {
     `170℃目安の油で3〜4分、カラッと揚げ焼きにする`,
     `${pt.season}で仕上げる`,
   ],
-  ae: (pt, m, s) => pt.course === "デザート" ? [
-    `${m}は皮をむくなどして、盛りつけやすくする`,
+  ae: (pt, m, s, g) => pt.course === "デザート" ? [
+    fruitPrepStep(m),
     `${pt.season}で和え、少し置いて味をなじませる`,
   ] : [
-    `${m}を塩ゆで（1〜2分）または塩もみして、水気をよく絞る`,
+    aePrepStep(m, g),
     `${pt.season}で和え、少し置いて味をなじませる`,
   ],
   salad: (pt, m, s) => [
@@ -633,7 +670,7 @@ export function buildComboRecipe(main, pattern, partner = null) {
     method: pattern.method,
     course: pattern.course,
     ingredients,
-    steps: STEP_BUILDERS[pattern.cook](pattern, main.short, partner ? partner.name : null),
+    steps: STEP_BUILDERS[pattern.cook](pattern, main.short, partner ? partner.name : null, main.group),
     comboMain: main.name,
     comboPattern: pattern.key,
   };

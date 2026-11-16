@@ -4316,7 +4316,7 @@ const DETAIL_METHOD_CUES = {
   "揚げる": { fire: "中温（170℃目安）", state: "きつね色になって浮いてきたら" },
   "煮る": { fire: "弱火〜中火", state: "具材が柔らかくなり、味が染みてきたら" },
   "蒸す": { fire: "弱火（蒸し器は中火）", state: "中まで火が通り、ふっくらしたら" },
-  "ゆでる": { fire: "中火", state: "浮いてくる・芯がなくなるなど火が通ったら" },
+  "ゆでる": { fire: "中火", state: "浮いてくる・柔らかくなるなど、火が通ったサインが出たら" },
   "炊く": { fire: "炊飯器／弱火", state: "炊き上がって蒸らしが済んだら" },
   "スープ": { fire: "弱火〜中火", state: "具材が柔らかくなり、だしが澄んできたら" },
   "レンジ": { fire: "600W", state: "中まで温まり、火通りを確認できたら" },
@@ -4334,6 +4334,56 @@ const DETAIL_PREP_EXTRA = {
   "漬ける": "保存容器かポリ袋を用意する。",
   "蒸す": "蒸し器（または蓋付きフライパン）に湯を沸かしておく。",
 };
+
+// ============================================================
+// 準備手順を「材料欄にある食材」だけから組み立てるための分類
+// （2026-11-16 Task CT）
+// 旧実装は全レシピに「野菜は洗って皮をむき、肉は一口大（約3cm）、
+// 野菜は2〜3cm角を目安に切る」という決まり文句を付けていたため、
+// 肉の無い料理に肉の指示が出る・むく皮の無い食材に皮むき指示が
+// 出る・長ねぎに角切り指示が出る・乾物の戻しがどこにも無い、
+// という矛盾が量産されていた。準備手順は材料欄を見て、対象の
+// 食材があるときだけ、その食材に合った下ごしらえを書く。
+// ============================================================
+const PREP_MEAT_RE = /肉|ベーコン|ハム|ソーセージ|ウインナー|チャーシュー|焼豚|サラミ|コンビーフ/;
+// そのままでは切らない肉（ひき肉・加工肉・薄切り等）。肉の切り方
+// 指示はこれら以外の「塊・切り身の肉」があるときだけ出す
+const PREP_MEAT_NOCUT_RE = /ひき肉|合挽|合いびき|ベーコン|ハム|ソーセージ|ウインナー|肉団子|ミートボール|つくね|薄切り|切り落とし|しゃぶしゃぶ|すき焼き用/;
+const PREP_VEG_RE = /白菜|キャベツ|レタス|にんじん|人参|玉ねぎ|じゃがいも|ジャガイモ|さつまいも|大根|長ねぎ|ねぎ|トマト|きゅうり|なす|ピーマン|ほうれん草|小松菜|もやし|ブロッコリー|とうもろこし|コーン|かぼちゃ|アスパラ|オクラ|枝豆|セロリ|れんこん|レンコン|ごぼう|しょうが|生姜|にんにく|かぶ|ズッキーニ|大葉|しそ|里芋|しいたけ|しめじ|えのき|エリンギ|まいたけ|マッシュルーム|チンゲン菜|水菜|春菊|豆苗|にら|ニラ|長芋|山芋|みょうが|ゴーヤ|パプリカ|絹さや|スナップエンドウ|そら豆|モロヘイヤ|サニーレタス|ベビーリーフ|かいわれ|クレソン|三つ葉|セリ|菜の花|ふき|パクチー|冬瓜|いんげん|グリーンピース|ヤングコーン|カリフラワー|たけのこ|筍|なめこ|きくらげ|空心菜|パセリ|わらび|ぜんまい|うど|ししとう|万願寺|銀杏|ルッコラ|バジル|ケール|サラダ菜|紫キャベツ|つるむらさき|ビーツ|ゆりね|くわい|芽キャベツ|ロマネスコ|ひらたけ|にんにくの芽|わけぎ|赤しそ|新生姜|大豆もやし|スプラウト|アルファルファ|青唐辛子|唐辛子|きのこ|野菜/;
+// 皮をむいて使う野菜（この食材が材料欄にあるときだけ皮むきに触れる）
+const PREP_PEEL_RE = /玉ねぎ|じゃがいも|ジャガイモ|にんじん|人参|大根|かぶ|ごぼう|里芋|さつまいも|長芋|山芋|れんこん|レンコン/;
+// 加工済み表記の食材（刻みねぎ・水煮など）は洗う/切る/むく対象にしない
+const PREP_PROCESSED_RE = /刻み|千切り|みじん切り|すりおろし|水煮|缶詰|むき身|ほぐし身/;
+// 水で戻して使う乾物・海藻（梅干し等の「干し」は戻さないので含めない）
+const PREP_DRIED_WATER_RE = /わかめ|ひじき|切り干し|切干|高野豆腐|きくらげ|かんぴょう|お麩|車麩|干ししいたけ|乾燥しいたけ|干しエビ|ぜんまい/;
+const PREP_DRIED_WATER_EXCLUDE_RE = /生わかめ|塩蔵|干し柿/;
+// 食材ごとの切り方（上から順に最初に当たった規則を使う）
+const PREP_CUT_RULES = [
+  [/小ねぎ|万能ねぎ|青ねぎ|わけぎ/, (ns) => `${ns}は小口切りにする`],
+  [/芽キャベツ/, (ns) => `${ns}は縦半分に切る`],
+  [/ブロッコリー|カリフラワー|ロマネスコ/, (ns) => `${ns}は小房に分ける`],
+  [/しめじ|えのき|まいたけ|ひらたけ|きのこ/, (ns) => `${ns}は石づきを落としてほぐす`],
+  [/しいたけ|エリンギ|マッシュルーム/, (ns) => `${ns}は軸を落として薄切りにする`],
+  [/トマト/, (ns) => `${ns}はくし形に切る`],
+  [/なす/, (ns) => `${ns}はへたを落として輪切りにする`],
+  [/長ねぎ|ごぼう|アスパラガス|にんにくの芽|さやいんげん|いんげん|オクラ|ふき|うど|セリ/, (ns) => `${ns}は3〜4cm長さに切る`],
+  [/白菜|キャベツ|ほうれん草|小松菜|チンゲン菜|レタス|水菜|春菊|空心菜|モロヘイヤ|サラダ菜|紫キャベツ|ケール|つるむらさき|菜の花/, (ns) => `${ns}は3〜4cm幅のざく切りにする`],
+  [/じゃがいも|ジャガイモ|大根|にんじん|人参|かぼちゃ|さつまいも|里芋|たけのこ|筍|れんこん|レンコン|かぶ|冬瓜|ビーツ|ゆりね|くわい/, (ns) => `${ns}は2〜3cm角に切る`],
+  [/玉ねぎ|きゅうり|ピーマン|パプリカ|ズッキーニ|みょうが|ししとう|万願寺|ゴーヤ|セロリ/, (ns) => `${ns}は薄切りにする`],
+];
+// 手順文中の動詞から火加減キューを選ぶ（料理全体の調理法ではなく、
+// その手順の調理法に合わせる。和え物の「ねぎをゆでる」に
+// 「火を使わない」系のキューが付くような取り違えを防ぐ）
+const PREP_STEP_CUE_RULES = [
+  [/ゆでる|茹でる|ゆがく/, "ゆでる"],
+  [/煮込|煮る/, "煮る"],
+  [/蒸す/, "蒸す"],
+  [/揚げる/, "揚げる"],
+  [/炒める/, "炒める"],
+  [/焼く/, "焼く"],
+  [/炊く/, "炊く"],
+];
+const PREP_NO_FIRE_METHODS = new Set(["和える", "漬ける", "サラダ", "冷やす", "切る"]);
 
 export function detailedSteps(recipe) {
   const src = recipe && Array.isArray(recipe.steps) ? recipe.steps.filter((s) => typeof s === "string" && s.trim()) : [];
@@ -4378,13 +4428,49 @@ export function detailedSteps(recipe) {
   })();
 
   const out = [];
-  // 1) 準備（旧称「下ごしらえ」。切り方の目安を具体的に書き、調味料への
-  // 言及は材料欄に調味料があるレシピだけに付ける）
+  // 1) 準備（旧称「下ごしらえ」。材料欄にある食材だけを対象に、その食材に
+  // 合った下ごしらえを組み立てる。切り方・皮むき・乾物の戻しは、対象の
+  // 食材が無い料理には書かない。本文の手順が切り方まで書いている料理
+  // では、切り方の目安はそちらに任せて二重に書かない）
   const names = ings.slice(0, 6).map((i) => i && i.name).filter(Boolean);
-  let prep = names.length
-    ? `準備：${names.join("、")}${ings.length > 6 ? "など" : ""}を揃える。野菜は洗って皮をむき、肉は一口大（約3cm）、野菜は2〜3cm角を目安に切る。火にかける前に全部切り終えておくと慌てない。`
-    : "準備：材料をすべて揃える。肉は一口大（約3cm）、野菜は2〜3cm角を目安に切る。火にかける前に全部切り終えておくと慌てない。";
-  if (DETAIL_PREP_EXTRA[method]) prep += DETAIL_PREP_EXTRA[method];
+  const ingNameList = ings.map((i) => i && i.name).filter(Boolean);
+  const srcText = src.join("");
+  const srcHasCut = /切る|切り|刻む|ほぐす|裂く|ちぎる|分ける|割る|すりおろす|おろし/.test(srcText);
+  const srcHasModosu = /戻す|戻し/.test(srcText);
+  const joinCap = (list) => list.slice(0, 4).join("・") + (list.length > 4 ? "など" : "");
+  const freshNames = ingNameList.filter((n) => !PREP_PROCESSED_RE.test(n));
+  const driedWaterNames = ingNameList.filter((n) => PREP_DRIED_WATER_RE.test(n) && !PREP_DRIED_WATER_EXCLUDE_RE.test(n));
+  const driedHotNames = ingNameList.filter((n) => /春雨/.test(n));
+  const vegNames = freshNames.filter((n) => PREP_VEG_RE.test(n));
+  const peelNames = freshNames.filter((n) => PREP_PEEL_RE.test(n));
+  const meatCutNames = freshNames.filter((n) => PREP_MEAT_RE.test(n) && !PREP_MEAT_NOCUT_RE.test(n));
+  const prepParts = [];
+  prepParts.push(names.length
+    ? `準備：${names.join("、")}${ings.length > 6 ? "など" : ""}を揃える`
+    : "準備：材料をすべて揃える");
+  if (!srcHasModosu) {
+    if (driedWaterNames.length) prepParts.push(`${joinCap(driedWaterNames)}は水で戻しておく`);
+    if (driedHotNames.length) prepParts.push(`春雨は熱湯で戻しておく`);
+  }
+  if (vegNames.length) {
+    prepParts.push(peelNames.length && !/皮/.test(srcText)
+      ? `野菜は洗って、${joinCap(peelNames)}は皮をむく`
+      : "野菜は洗っておく");
+  }
+  const cutClauses = [];
+  if (!srcHasCut) {
+    for (const [re, make] of PREP_CUT_RULES) {
+      const members = vegNames.filter((n) => re.test(n));
+      if (members.length) cutClauses.push(make(joinCap(members)));
+    }
+    if (meatCutNames.length) cutClauses.push("肉は一口大（約3cm）に切る");
+  }
+  prepParts.push(...cutClauses);
+  if (cutClauses.length || srcHasCut) prepParts.push("火にかける前に全部切り終えておくと慌てない");
+  let prep = prepParts.join("。") + "。";
+  // 調理法別の用意は、対象が材料欄にある場合だけ付ける（炊くの米など）
+  const prepExtra = DETAIL_PREP_EXTRA[method];
+  if (prepExtra && !(method === "炊く" && !ingNameList.some((n) => /米|ごはん/.test(n)))) prep += prepExtra;
   const hasSeasoning = ings.some((i) => i && /塩|胡椒|醤油|味噌|砂糖|みりん|酒|酢|油|バター|だし|コンソメ|鶏ガラ|ケチャップ|マヨネーズ|ソース|めんつゆ|ポン酢|豆板醤|片栗粉|小麦粉|はちみつ|カレー/.test(i.name));
   if (hasSeasoning) prep += "調味料も先に計っておくと慌てない。";
   out.push({ text: prep, minutes: alloc[0] });
@@ -4399,6 +4485,15 @@ export function detailedSteps(recipe) {
     return note;
   };
   let rangeNoteUsed = false;
+  // 仕上げの味直しで名指しする調味料は、材料欄にあるものだけにする
+  // （材料欄に無い調味料を手順にだけ出すと「いきなり出てくる」になる）
+  const hasSaltIng = ings.some((g) => g && (g.name === "塩" || (g.match || []).includes("塩")));
+  const hasSoyIng = ings.some((g) => g && (g.name === "醤油" || (g.match || []).some((x) => /醤油|しょうゆ/.test(x))));
+  const adjustNote = hasSaltIng && hasSoyIng ? "味見をして、塩・醤油などで味を整える。"
+    : hasSaltIng ? "味見をして、塩などで味を整える。"
+    : hasSoyIng ? "味見をして、醤油などで味を整える。"
+    : "味見をして、好みの濃さに整える。";
+  const isColdMethod = PREP_NO_FIRE_METHODS.has(method);
   src.forEach((s, i) => {
     const m = alloc[i + 1];
     let note = "";
@@ -4411,18 +4506,21 @@ export function detailedSteps(recipe) {
         if (note) rangeNoteUsed = true;
       } else if (/調える|味付け|味を整える/.test(s)) {
         note = takeNote("味見をしながら少しずつ加えるのが失敗しないコツ。薄ければ少しずつ足す。");
-      } else if (method === "和える" || method === "漬ける" || method === "サラダ") {
-        // 仕上げの味直しで名指しする調味料は、材料欄にあるものだけにする
-        // （材料欄に無い調味料を手順にだけ出すと「いきなり出てくる」になる）
-        const hasSalt = ings.some((g) => g && (g.name === "塩" || (g.match || []).includes("塩")));
-        const hasSoy = ings.some((g) => g && (g.name === "醤油" || (g.match || []).some((x) => /醤油|しょうゆ/.test(x))));
-        const adjustNote = hasSalt && hasSoy ? "味見をして、塩・醤油などで味を整える。"
-          : hasSalt ? "味見をして、塩などで味を整える。"
-          : hasSoy ? "味見をして、醤油などで味を整える。"
-          : "味見をして、好みの濃さに整える。";
-        note = takeNote(i === src.length - 1 ? adjustNote : "具材を潰さないよう、大きく混ぜる。");
+      } else if (/和え/.test(s)) {
+        // 「和える」手順にだけ付ける補足（ゆでる・切る等の手順に混ぜ方の
+        // 注意が付く取り違えを防ぐ。2026-11-16 Task CT）。和え物系の
+        // 最終手順は味直しの案内にする
+        note = takeNote(i === src.length - 1 && isColdMethod ? adjustNote : "具材を潰さないよう、大きく混ぜる。");
       } else if (/煮る|煮込|焼く|炒める|揚げる|蒸す|ゆでる|茹でる|温める|加熱|火にかけ|沸か/.test(s)) {
-        note = takeNote(`火加減は${cue.fire}が目安。${cue.state}次の工程へ。`);
+        // 火加減キューは料理全体の調理法ではなく、その手順の動詞から選ぶ
+        const rule = PREP_STEP_CUE_RULES.find(([re]) => re.test(s));
+        const sc = rule ? DETAIL_METHOD_CUES[rule[1]] : (isColdMethod ? DETAIL_METHOD_CUES["煮る"] : cue);
+        note = takeNote(`火加減は${sc.fire}が目安。${sc.state}次の工程へ。`);
+      } else if (/合わせ|からめ|まぶ|混ぜ/.test(s) && !/調味料|タレ|ドレッシング|漬け汁|甘酢|合わせ酢|衣/.test(s)) {
+        note = takeNote("具材を潰さないよう、大きく混ぜる。");
+      } else if (isColdMethod && i === src.length - 1) {
+        // 和え物・漬物・サラダの最終手順（動詞から補足が決まらない場合）
+        note = takeNote(adjustNote);
       }
     }
     out.push({ text: note ? `${s}（${note}）` : s, minutes: m });
