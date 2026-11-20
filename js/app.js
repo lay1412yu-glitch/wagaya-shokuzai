@@ -1634,7 +1634,7 @@ function renderEditItemForm(item) {
         class: "btn", onclick: (e) => withBusy(e.currentTarget, async () => {
           const newName = name.value.trim();
           if (!newName) { toast("食材名を入力してください"); return; }
-          const q = Number(qty.value);
+          const q = qty.value.trim() === "" ? NaN : Number(qty.value);
           const patch = {
             name: resolveCanonicalName(newName),
             category: category.value,
@@ -1646,6 +1646,16 @@ function renderEditItemForm(item) {
           // 期限 OFF のときは patch に含めない（保存済みの期限を消さない）
           if (expiryEnabled()) patch.expiryDate = expiry.value || null;
           try {
+            if (patch.quantity === 0) {
+              // 残数 0 は冷蔵庫から削除するルール: 数量以外の編集を先に保存し、
+              // 削除フローへ渡す（「元に戻す」では 0 になる前の数量で復元される）
+              const prevQty = Number(item.quantity);
+              await store.updateItem(state.user.id, item.id, { ...patch, quantity: prevQty });
+              Object.assign(item, patch);
+              state.editingItemId = null;
+              await deleteStockAtZero(item, prevQty);
+              return;
+            }
             await store.updateItem(state.user.id, item.id, patch);
           } catch (err) { toast(userErrorMessage(err)); return; }
           state.editingItemId = null;
@@ -1727,6 +1737,35 @@ async function deleteItemWithUndo(item) {
   });
 }
 
+// 残数が 0 になったら冷蔵庫（在庫）から削除する（ユーザーのルール）。
+// お気に入りは削除の前に買い物リストへ自動追加する（従来の数量0トリガーを維持）。
+// 「元に戻す」では 0 になる前の数量でアイテムごと復元される。
+async function deleteStockAtZero(item, prevQty) {
+  const snapshot = { ...item, quantity: prevQty };
+  const wasFavorite = !!item.isFavorite;
+  const alreadyListed = state.shopping.some((s) => s.linkedItemId === item.id && !s.isChecked);
+  item.quantity = 0;
+  try {
+    await maybeAutoAddShopping(item);
+    await store.deleteItem(state.user.id, item.id);
+  } catch (e) {
+    item.quantity = prevQty;
+    toast(userErrorMessage(e));
+    await refreshData().catch(() => {});
+    renderMain();
+    return;
+  }
+  if (store.mode !== "demo") state.sessionTrash = [snapshot, ...state.sessionTrash].slice(0, 30);
+  if (state.editingItemId === item.id) state.editingItemId = null;
+  await refreshData(); renderMain();
+  const addedNote = wasFavorite && !alreadyListed ? "買い物リストに追加して、" : "";
+  toastWithAction(`「${item.name}」を使い切りました（${addedNote}冷蔵庫から削除しました）`, "元に戻す", async () => {
+    await store.restoreDeletedItem(state.user.id, state.fridge.id, snapshot);
+    state.sessionTrash = state.sessionTrash.filter((t) => t.id !== snapshot.id);
+    await refreshData(); renderMain(); toast("元に戻しました");
+  });
+}
+
 // 数量の変更は「その場」だけ更新する: 全件再取得・全画面再描画はしない
 // （スクロール位置も入力フォーカスも保たれる）。失敗したときだけ
 // 表示を巻き戻して知らせ、整合性のため全体を再取得する。
@@ -1734,6 +1773,13 @@ const qtyBusyItems = new Set();
 async function applyQtyChange(item, next, qtyNumEl) {
   const prev = Number(item.quantity);
   if (next === prev || qtyBusyItems.has(item.id)) return;
+  // 残数 0 は数量更新ではなく「使い切り＝冷蔵庫から削除」として扱う
+  if (next === 0) {
+    qtyBusyItems.add(item.id);
+    try { await deleteStockAtZero(item, prev); }
+    finally { qtyBusyItems.delete(item.id); }
+    return;
+  }
   qtyBusyItems.add(item.id);
   item.quantity = next;
   if (qtyNumEl && qtyNumEl.isConnected) qtyNumEl.textContent = `${fmtQtyValue(next, item.unit)}${item.unit || ""}`;
@@ -1776,7 +1822,8 @@ function startQtyEdit(item, qtyNumEl) {
   });
   input.style.width = "76px";
   const commit = async () => {
-    const v = Number(input.value);
+    // 空欄で確定しても消えないよう、空欄は「変更なし」として扱う
+    const v = input.value.trim() === "" ? NaN : Number(input.value);
     const next = Number.isFinite(v) ? Math.max(0, roundQty(v)) : Number(item.quantity);
     qtyNumEl.dataset.editing = "";
     qtyNumEl.textContent = `${fmtQtyValue(Number(item.quantity), item.unit)}${item.unit || ""}`;
